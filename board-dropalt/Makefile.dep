@@ -1,0 +1,10 @@
+# See https://github.com/RIOT-OS/RIOT/issues/7962 for FEATURES_* and USEMODULE.
+
+ifneq (,$(filter periph_sr_595,$(FEATURES_USED)))
+    FEATURES_REQUIRED += periph_spi
+endif
+ifneq (,$(filter is31fl3733 periph_usb2422,$(FEATURES_USED)))
+    FEATURES_REQUIRED += periph_i2c
+endif
+
+FEATURES_REQUIRED += periph_wdt

@@ -1,0 +1,16 @@
+config BOARD
+    default "board-dropalt" if BOARD_DROPALT
+
+config BOARD_DROPALT
+    bool
+    default y
+    select CPU_MODEL_SAMD51J18A
+    select HAS_PERIPH_ADC
+    #select HAS_PERIPH_DAC
+    #select HAS_PERIPH_I2C
+    #select HAS_PERIPH_PWM
+    #select HAS_PERIPH_RTC
+    #select HAS_PERIPH_RTT
+    #select HAS_PERIPH_SPI
+    select HAS_PERIPH_TIMER
+    #select HAS_PERIPH_UART
