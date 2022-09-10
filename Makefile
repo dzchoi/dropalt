@@ -28,6 +28,9 @@ FEATURES_REQUIRED += periph_sr_595
 FEATURES_REQUIRED += periph_usb2422
 FEATURES_REQUIRED += periph_wdt
 
+# Enable DMA for I2C transfer
+FEATURES_REQUIRED += periph_dma     # will #define MODULE_PERIPH_DMA
+
 # RIOT modules
 # USEMODULE += cpp11-compat
 USEMODULE += usbus

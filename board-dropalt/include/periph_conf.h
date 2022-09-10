@@ -217,7 +217,6 @@ static const i2c_conf_t i2c_config[] = {
         .gclk_src = SAM0_GCLK_PERIPH,
         .flags    = I2C_FLAG_RUN_STANDBY,
 #ifdef MODULE_PERIPH_DMA
-        .rx_trigger = DMA_TRIGGER_DISABLED,
         // Do not use .tx_trigger = SERCOM0_DMAC_ID_TX for DMA transfer. The current
         // i2c_write_bytes() implemented under MODULE_PERIPH_DMA feature cannot handle
         // transmit errors and likely freezes the device. When keyboard is plugged into
@@ -225,6 +224,7 @@ static const i2c_conf_t i2c_config[] = {
         // but the i2c transmit to HUB fails because HUB does not respond with either
         // ACK or NAK (due to unstable voltage?)
         .tx_trigger = DMA_TRIGGER_DISABLED,
+        .rx_trigger = DMA_TRIGGER_DISABLED,
 #endif
     },
     {   // Used for IS31FL3733 LED driver
@@ -237,8 +237,8 @@ static const i2c_conf_t i2c_config[] = {
         .gclk_src = SAM0_GCLK_PERIPH,
         .flags    = I2C_FLAG_RUN_STANDBY,
 #ifdef MODULE_PERIPH_DMA
-        .rx_trigger = SERCOM1_DMAC_ID_RX,   // Use DMA_TRIGGER_DISABLED to disable DMA
         .tx_trigger = SERCOM1_DMAC_ID_TX,
+        .rx_trigger = SERCOM1_DMAC_ID_RX,   // Use DMA_TRIGGER_DISABLED to disable DMA
 #endif
     }
     // i2c1 Set   ~Result     PWM Time (2x Drivers)
