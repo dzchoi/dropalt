@@ -12,17 +12,30 @@ EXTERNAL_BOARD_DIRS := $(CURDIR)
 # All RIOT output files will generate in qmk_firmware/.build/board-alt by default.
 BINDIRBASE ?= $(CURDIR)/.build
 
-# CFLAGS += ...
+# See https://github.com/cortexm/baremetal/blob/master/CMakeLists.txt
+# for compiler options for building embedded system.
+CXXEXFLAGS += -std=c++17			# for inline constexpr
+CXXEXFLAGS += -fno-exceptions
+CXXEXFLAGS += -fno-ms-extensions
+CXXEXFLAGS += -fno-rtti				# Todo: Is dynamic_cast<> still available?
+CXXEXFLAGS += -fno-threadsafe-statics
+CXXEXFLAGS += -fno-use-cxa-atexit
 # INCLUDES += -I...
 
 # Peripherals and features to be used from the board.
 FEATURES_REQUIRED += cpp
 FEATURES_REQUIRED += periph_sr_595
+FEATURES_REQUIRED += periph_usb2422
 FEATURES_REQUIRED += periph_wdt
 
 # RIOT modules
-# USEMODULE += usbus
-USEMODULE += stdio_null               	# Or, stdio_cdc_acm
+# USEMODULE += cpp11-compat
+USEMODULE += usbus
+DISABLE_MODULE += usbus_hid         # We use our own implementation of usbus_hid,
+DISABLE_MODULE += auto_init_usbus   # and do not execute auto_init_usb().
+# Todo: ifneq (,$(findstring VIRTSER_ENABLE,$(QMK_DEFS)))
+USEMODULE += stdio_cdc_acm			# Use CDC ACM as default STDIO.
+# USEMODULE += stdio_null           # Or, stdio_cdc_acm
 USEMODULE += xtimer
 
 # Configure linker script

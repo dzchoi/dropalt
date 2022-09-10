@@ -97,7 +97,10 @@ extern "C" {
 // USB configuration descriptor (USB 2.0 spec table 9-10)
 #define CONFIG_USB_MAX_POWER            0   // bMaxPower (USB HUB will report 500 mA.)
 // #define CONFIG_USB_CONFIGURATION_STR "USB config" // iConfiguration
-#define CONFIG_USB_MORE_ATTRIBUTES USB_CONF_ATTR_REM_WAKEUP // bmAttributes
+#define CONFIG_USB_REM_WAKEUP           1  // bmAttributes
+
+// Buffer size for STDIN and STDOUT data to and from USB for USBUS_CDC_ACM_STDIO module
+#define CONFIG_USBUS_CDC_ACM_STDIO_BUF_SIZE (4096)
 
 // Used in keyboard and mouse USB interfaces. This also determines the keyboard_task()
 // running period, and the rgb_matrix_task() too if RGB_TASK_IN_SEPARATE_THREAD is not
@@ -112,6 +115,17 @@ extern "C" {
 
 #define CONSOLE_PRINTBUF_SIZE           512
 /** @} */
+
+// Watchdog timeout for debugging aid; if matrix scan is not performed for this period
+// long, we jump to the bootloader.
+#define WDT_TIMEOUT                     (4 *1000U)      // 4 sec
+
+//extern uint32_t _srom;
+extern uint32_t _sfixed;
+extern uint32_t _lrom;
+extern uint32_t _erom;
+
+#define BOOTLOADER_SERIAL_MAX_SIZE 20  // DO NOT MODIFY!
 
 /**
  * @name    ADC threshold parameters

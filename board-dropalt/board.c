@@ -1,5 +1,4 @@
 #include "board.h"
-#include "config.h"
 #include "periph/gpio.h"
 #include "periph/wdt.h"
 #include "sr_exp.h"
