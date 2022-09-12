@@ -125,7 +125,6 @@ static const tc32_conf_t timer_config[] = {
  */
 
 /* ADC Default values */
-#define ADC_DEV             ADC0
 #define ADC_GCLK_SRC        SAM0_GCLK_PERIPH          // 48MHz
 #define ADC_PRESCALER       ADC_CTRLA_PRESCALER_DIV8  // prescaled down to 6MHz
 
@@ -137,27 +136,20 @@ static const tc32_conf_t timer_config[] = {
 #define ADC_SAMPLENUM       ADC_AVGCTRL_SAMPLENUM_128
 
 // See for Vref https://www.powerelectronictips.com/choosing-reference-voltage-adc-2/
-#define ADC_REF_DEFAULT     ADC_REFCTRL_REFSEL_INTREF
+#define ADC_REF_DEFAULT     ADC_REFCTRL_REFSEL_INTREF  // use internal reference voltage.
 #define ADC_NEG_INPUT       ADC_INPUTCTRL_MUXNEG(0x18u)
 
 static const adc_conf_chan_t adc_channels[] = {
     /* port, pin, muxpos */
-    // ADC 5V
-    { GPIO_PIN(PB, 0), ADC_INPUTCTRL_MUXPOS(ADC_INPUTCTRL_MUXPOS_AIN12), ADC_DEV },
-    // ADC CON2
-    { GPIO_PIN(PB, 1), ADC_INPUTCTRL_MUXPOS(ADC_INPUTCTRL_MUXPOS_AIN13), ADC_DEV },
-    // ADC CON1
-    { GPIO_PIN(PB, 2), ADC_INPUTCTRL_MUXPOS(ADC_INPUTCTRL_MUXPOS_AIN14), ADC_DEV },
+    { GPIO_PIN(PB, 0), ADC_INPUTCTRL_MUXPOS(ADC_INPUTCTRL_MUXPOS_AIN12), ADC0 },  // ADC 5V
+    { GPIO_PIN(PB, 1), ADC_INPUTCTRL_MUXPOS(ADC_INPUTCTRL_MUXPOS_AIN13), ADC0 },  // ADC CON2
+    { GPIO_PIN(PB, 2), ADC_INPUTCTRL_MUXPOS(ADC_INPUTCTRL_MUXPOS_AIN14), ADC0 },  // ADC CON1
 };
-
-#define ADC_IRQ             ADC0_1_IRQn  // Irq for ADC0_RESRDY
-#define ADC_ISR             isr_adc0_1
 
 #define ADC_NUMOF           ARRAY_SIZE(adc_channels)
 
-#define ADC_LINE_5V         ADC_LINE(0)
-#define ADC_LINE_CON1       ADC_LINE(2)
-#define ADC_LINE_CON2       ADC_LINE(1)
+#define ADC0_IRQ            ADC0_1_IRQn  // Irq for ADC0_RESRDY
+#define ADC_ISR             isr_adc0_1
 /** @} */
 
 /**

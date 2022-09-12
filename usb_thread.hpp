@@ -3,7 +3,7 @@
 #include <cstdint>
 #include "sam_usb.h"            // sam0_common_usb_t
 
-#include "features.h"
+#include "features.hpp"
 #include "usbus_hid_ext.hpp"
 
 

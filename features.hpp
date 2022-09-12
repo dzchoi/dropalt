@@ -40,20 +40,6 @@
 
 
 
-// from #include "tmk_core/common/report.h"
-
-/* key report size (NKRO or boot mode) */
-// Todo: Rename or remove PROTOCOL_ARM_ATSAM
-// #        include "protocol/arm_atsam/usb/udi_device_epsize.h"
-// #        define KEYBOARD_REPORT_BITS (NKRO_EPSIZE - 1)
-// #        undef NKRO_SHARED_EP
-// #        undef MOUSE_SHARED_EP
-// #        include "protocol/usb_descriptor.h"
-#ifndef USB_EXTRA_ADC_THRESHOLD
-#   error huh?
-#endif
-#define KEYBOARD_REPORT_BITS (SHARED_EPSIZE - 2)
-
 #ifdef KEYBOARD_SHARED_EP
 #    define KEYBOARD_REPORT_SIZE 9
 #else

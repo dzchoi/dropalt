@@ -9,8 +9,8 @@
 #include "usb/usbus/hid.h"      // for usbus_hid_device_t, usbus_hid_cb_t
 #include "xtimer.h"             // for xtimer_t
 
+#include "features.hpp"
 #include "usb_descriptor.hpp"
-#include "features.h"
 
 
 

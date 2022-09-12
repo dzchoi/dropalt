@@ -105,17 +105,16 @@ static void _dfll_usbcrm_init(void)
 //                       --> main()
 // Beware: xtimer_usleep() and timer_read() are not avaiable until xtimer_init() is
 //   called. Use clk_busy_wait_us() above instead.
+//
+// The cpu_init() that is called before board_init() initializes GCLK0_MAIN and
+// GCLK1_32KHZ, and GCLK_SOURCE_DFLL in open-loop mode also calls periph_init().
 
 void board_init(void)
 {
-    // The cpu_init() that is called before board_init() initializes GCLK0_MAIN and
-    // GCLK1_32KHZ, and GCLK_SOURCE_DFLL in open-loop mode also calls periph_init().
 
-    /* initialize the on-board LED */
-    // gpio_init(LED0_PIN, GPIO_OUT);  // or, DBG_LED_ENA
-    // LED0_OFF;
+    // initialize the on-board LED
     gpio_init(LED0_PIN, GPIO_OUT);  // or, DBG_LED_ENA
-    LED0_ON;
+    LED0_OFF;
 
 #if 0
     /* initialize the on-board button */
@@ -127,8 +126,6 @@ void board_init(void)
 
     // initialize Shift Register.
     sr_exp_init();
-
-    // usbhub_init();
 
     // set GCLK_SOURCE_DFLL in USB recovery mode
     // Todo:

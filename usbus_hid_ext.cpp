@@ -1,8 +1,8 @@
 #include "usbus_hid_ext.hpp"    // Patch hid.h that are included by control.h below.
 
+#include "usb/usbus/control.h"  // for usbus_control_* definitions
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
-#include "usb/usbus/control.h"  // for usbus_control_* definitions
 
 // #include "_keymap_config.h"     // Todo: NKRO_ENABLE
 #include "main_thread.hpp"

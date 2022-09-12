@@ -1,5 +1,5 @@
-#include "board.h"              // for CONSOLE_EPSIZE
-#include "features.h"
+#include "board.h"              // for CONSOLE_EPSIZE, SHARED_EPSIZE
+#include "features.hpp"
 
 #define CONCAT(x, y) x##y
 #define CONCAT_EXPANDED(x, y) CONCAT(x, y)
@@ -16,6 +16,18 @@
 #define RAW_USAGE_PAGE_HI ((uint8_t)(RAW_USAGE_PAGE >> 8))
 #define RAW_USAGE_PAGE_LO ((uint8_t)(RAW_USAGE_PAGE & 0xFF))
 
+// from #include "tmk_core/common/report.h"
+
+/* key report size (NKRO or boot mode) */
+// Todo: Rename or remove PROTOCOL_ARM_ATSAM
+// #        include "protocol/arm_atsam/usb/udi_device_epsize.h"
+// #        define KEYBOARD_REPORT_BITS (NKRO_EPSIZE - 1)
+// #        undef NKRO_SHARED_EP
+// #        undef MOUSE_SHARED_EP
+// #        include "protocol/usb_descriptor.h"
+#define KEYBOARD_REPORT_BITS (SHARED_EPSIZE - 2)
+
+
 /* HID report IDs */
 enum hid_report_ids {
     REPORT_ID_KEYBOARD = 1,
@@ -25,7 +37,6 @@ enum hid_report_ids {
     REPORT_ID_NKRO,
     REPORT_ID_JOYSTICK
 };
-
 
 
 /*
