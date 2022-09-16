@@ -284,9 +284,10 @@ int adc_configure(Adc* dev, adc_res_t res)
 
 // The SAMD5x/SAME5x family has two ADCs: ADC0 and ADC1. The two inputs can be sampled
 // simultaneously, as each ADC includes sample and hold circuits.
-static void (*_cb_isr0)(uint16_t result) = NULL;  // for ADC0
+static void (*_callback0)(void*, uint16_t) = NULL;  // for ADC0
+static void* _arg0 = NULL;  // for ADC0
 
-int32_t adc_get(adc_t line, void (*cb_isr)(uint16_t result))
+int32_t adc_get(adc_t line, void (*callback)(void*, uint16_t), void* arg)
 {
     if ( line >= ADC_NUMOF ) {
         DEBUG("adc: line arg not applicable\n");
@@ -309,7 +310,7 @@ int32_t adc_get(adc_t line, void (*cb_isr)(uint16_t result))
     if ( dev->INPUTCTRL.reg != adc_inputctrl )
         dev->INPUTCTRL.reg = adc_inputctrl;
 
-    if ( cb_isr == NULL ) {
+    if ( callback == NULL ) {
         dev->INTFLAG.reg |= ADC_INTFLAG_RESRDY;  // Clear the interrup flag if set
         _wait_syncbusy(dev);
         dev->SWTRIG.bit.START = 1;
@@ -318,10 +319,11 @@ int32_t adc_get(adc_t line, void (*cb_isr)(uint16_t result))
         _done();
     } else {
 #if defined(ADC_ISR)
-        // Enable the Result Ready Interrupt if cb_isr is provided.
+        // Enable the Result Ready Interrupt if p_isr_cb is provided.
         dev->INTFLAG.reg |= ADC_INTFLAG_RESRDY;
         dev->INTENSET.bit.RESRDY = 1;
-        _cb_isr0 = cb_isr;
+        _callback0 = callback;
+        _arg0 = arg;
         _wait_syncbusy(dev);
         dev->SWTRIG.bit.START = 1;
 #else
@@ -341,13 +343,13 @@ void ADC_ISR(void)
         ADC0->INTENCLR.bit.RESRDY = 1;  // Disable interrupt until adc_get() enables again.
         const uint16_t result = ADC0->RESULT.reg;  // Will also clear the interrupt flag.
 
-        if ( _cb_isr0 != NULL )
-            _cb_isr0(result);
+        if ( _callback0 != NULL )
+            _callback0(_arg0, result);
         _done();
     }
 
 #ifdef ADC1_IRQ
-// Todo: We could check ADC1->INTFLAG.bit.RESRDY and call _cb_isr corresponding to ADC1.
+// Todo: We could check ADC1->INTFLAG.bit.RESRDY and call _p_isr_cb corresponding to ADC1.
 //   However, it would need another mutex (_lock1) for ADC1.
 #error ADC1 is not supported yet.
 #endif

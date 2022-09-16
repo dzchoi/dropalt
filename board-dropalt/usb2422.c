@@ -1,14 +1,10 @@
 #include <stdbool.h>
 #include <string.h>                 // memcpy()
-#define ENABLE_DEBUG    (0)
-#include "debug.h"
 #include "periph/gpio.h"
 #include "periph/i2c.h"
-#include "periph/wdt.h"
 #include "xtimer.h"
 
 #include "_usb2422_t.h"             // Usb2422 type
-// #include "adc_thread.h"             // is_host_on_con1()
 #include "sr_exp.h"
 #include "usb2422.h"
 
@@ -104,7 +100,7 @@ static inline void usbhub_reset(void)
 
 // Load HUB configuration data to USB2422.
 // Returns true if configured successfully, or false otherwise.
-static bool usbhub_configure(void)
+bool usbhub_configure(void)
 {
     usbhub_reset();
     xtimer_usleep(10);
@@ -147,171 +143,76 @@ void usbhub_init(void)
 
     // Prepare the HUB configuration data
     retrieve_factory_serial();
-
-    usb_extra_port = USB_PORT_UNKNOWN;
-
-#ifndef MD_BOOTLOADER
-    usb_extra_manual = 0;
-    usb_extra_state = USB_EXTRA_STATE_DISABLED;
-#endif
 }
 
-static inline int usbhub_active(void)
+// Note:
+//   - UP  is upstream device (HOST)
+//   - DN1 is downstream device (EXTRA)
+//   - DN2 is keyboard (KEYB)
+
+void usbhub_disable_all_ports(void)
 {
-    return gpio_read(USB2422_ACTIVE);
+    sr_exp_writedata(
+        SR_CTRL_SRC_1               // USBC-1 available for test
+        | SR_CTRL_SRC_2             // USBC-2 available for test
+        | SR_CTRL_E_UP_N            // HOST disable
+        | SR_CTRL_E_DN1_N           // EXTRA disable
+        ,
+        SR_CTRL_E_VBUS_1            // USBC-1 disable full power I/O
+        | SR_CTRL_E_VBUS_2          // USBC-2 disable full power I/O
+    );
+    xtimer_usleep(10);
 }
 
-// Todo:
-bool is_host_on_con1(void) { return true; }
-
-// Waits for host detected on CON1 or CON2, and attaches the hub to the host.
-// Required to be called from (a sub-function of) main(), which is after xtimer_init()
-// is done.
-// Todo: Automatic calling of usbhub_wait_for_host(),
-//   - when the current v_con (not v_extra) is down (i.e. in panic mode), or
-//   - when USB is disconnected (usbus.state == USBUS_STATE_DISCONNECT, but not working
-//     for now), or
-//   - when USB 5V is lost.
-// Todo: If the USB in the desired port is suspended when switchover, wake it up first.
-void usbhub_wait_for_host(uint8_t desired_host_port)
+void usbhub_enable_host_port(uint8_t port)
 {
-    // Note:
-    //   - UP  is upstream device (HOST)
-    //   - DN1 is downstream device (EXTRA)
-    //   - DN2 is keyboard (KEYB)
+    if ( port == USB_PORT_UNKNOWN )
+        return;
 
-    usb_extra_port = USB_PORT_UNKNOWN;  // to be determined below
-    static const uint32_t RETRY_TIMER_US = 2 *US_PER_SEC;
+    if ( port == USB_PORT_1 )
+        sr_exp_writedata(
+            SR_CTRL_S_DN1           // EXTRA to USBC-2
+            | SR_CTRL_SRC_1         // HOST on USBC-1
+            | SR_CTRL_E_VBUS_1      // USBC-1 enable full power I/O
+            ,
+            SR_CTRL_S_UP            // HOST to USBC-1
+            | SR_CTRL_SRC_2         // EXTRA available on USBC-2
+            | SR_CTRL_E_VBUS_2      // USBC-2 disable full power I/O
+            | SR_CTRL_E_UP_N        // HOST enable
+        );
+    else
+        sr_exp_writedata(
+            SR_CTRL_S_UP            // HOST to USBC-2
+            | SR_CTRL_SRC_2         // HOST on USBC-2
+            | SR_CTRL_E_VBUS_2      // USBC-2 enable full power I/O
+            ,
+            SR_CTRL_S_DN1           // EXTRA to USBC-1
+            | SR_CTRL_SRC_1         // EXTRA available on USBC-1
+            | SR_CTRL_E_VBUS_1      // USBC-1 disable full power I/O
+            | SR_CTRL_E_UP_N        // HOST enable
+        );
+    xtimer_usleep(10);
+}
 
-    // Detect host by voltage on ADC_LINE_CON1 and ADC_LINE_CON2.
-    uint32_t time_to_retry = xtimer_now_usec();
-    do {
-        wdt_kick();
-        const uint32_t now = xtimer_now_usec();
-
-        if ( (int32_t)(now - time_to_retry) >= 0 ) {
-            // Indicate on the LED that we're alive. We will stay in this loop when
-            // plugged in a suspended host, until the host wakes up.
-            LED0_ON;
-
-            sr_exp_writedata(
-                SR_CTRL_SRC_1               // USBC-1 available for test
-                | SR_CTRL_SRC_2             // USBC-2 available for test
-                | SR_CTRL_E_UP_N            // HOST disable
-                | SR_CTRL_E_DN1_N           // EXTRA disable
-                ,
-                SR_CTRL_E_VBUS_1            // USBC-1 disable full power I/O
-                | SR_CTRL_E_VBUS_2          // USBC-2 disable full power I/O
-            );
-            xtimer_usleep(10);
-
-            if ( desired_host_port == USB_PORT_UNKNOWN )
-                desired_host_port = is_host_on_con1() ? USB_PORT_1 : USB_PORT_2;
-            if ( desired_host_port == USB_PORT_1 ) {
-                sr_exp_writedata(
-                    SR_CTRL_S_DN1           // EXTRA to USBC-2
-                    | SR_CTRL_SRC_1         // HOST on USBC-1
-                    | SR_CTRL_E_VBUS_1      // USBC-1 enable full power I/O
-                    ,
-                    SR_CTRL_S_UP            // HOST to USBC-1
-                    | SR_CTRL_SRC_2         // EXTRA available on USBC-2
-                    | SR_CTRL_E_VBUS_2      // USBC-2 disable full power I/O
-                    | SR_CTRL_E_UP_N        // HOST enable
-                );
-            } else {
-                sr_exp_writedata(
-                    SR_CTRL_S_UP            // HOST to USBC-2
-                    | SR_CTRL_SRC_2         // HOST on USBC-2
-                    | SR_CTRL_E_VBUS_2      // USBC-2 enable full power I/O
-                    ,
-                    SR_CTRL_S_DN1           // EXTRA to USBC-1
-                    | SR_CTRL_SRC_1         // EXTRA available on USBC-1
-                    | SR_CTRL_E_VBUS_1      // USBC-1 disable full power I/O
-                    | SR_CTRL_E_UP_N        // HOST enable
-                );
-            }
-            xtimer_usleep(10);
-
-            // When keyboard boots up by plugging in to the host USB port manually,
-            // usbhub_configure can fail sometimes (HUB not responding to the
-            // configuration data sent over I2C) until the voltage (or clock?) is stable.
-            while ( !usbhub_configure() )
-                xtimer_msleep(100);
-
-            // Try the given desired port first. Then try either port that has a higher
-            // voltage afterwards.
-            desired_host_port = USB_PORT_UNKNOWN;
-            time_to_retry = now + RETRY_TIMER_US;
-            LED0_OFF;
-        }
-
-        xtimer_msleep(1);
-    } while ( !usbhub_active() );
-
-    // Determine the extra port by looking at the last call of sr_exp_writedata().
-    usb_extra_port = sr_exp_data.bit.S_DN1 ? USB_PORT_2 : USB_PORT_1;
-    usb_extra_state = USB_EXTRA_STATE_DISABLED;
+// Read the host port from the value from the last call of sr_exp_writedata().
+uint8_t usbhub_host_port(void)
+{
+    return sr_exp_data.bit.E_UP_N ? USB_PORT_UNKNOWN :
+        (sr_exp_data.bit.SRC_1 ? USB_PORT_1 : USB_PORT_2);
 }
 
 #ifndef MD_BOOTLOADER
-void usbhub_set_extra_state(int8_t state)
+void usbhub_enable_disable_extra_port(uint8_t port, bool on_off)
 {
+    if ( port == USB_PORT_UNKNOWN )
+        return;
+
     const uint16_t vbus =
-        (usb_extra_port == USB_PORT_1 ? SR_CTRL_E_VBUS_1 : SR_CTRL_E_VBUS_2);
+        port == USB_PORT_1 ? SR_CTRL_E_VBUS_1 : SR_CTRL_E_VBUS_2;
 
-    if ( state == USB_EXTRA_STATE_ENABLED )
+    if ( on_off )
         sr_exp_writedata(vbus, SR_CTRL_E_DN1_N);
     else  // state == USB_EXTRA_STATE_DISABLED or USB_EXTRA_STATE_FORCED_DISABLED
         sr_exp_writedata(SR_CTRL_E_DN1_N, vbus);
-
-#if !defined(NO_DEBUG)  // && defined(CONSOLE_ENABLE)
-    switch ( state ) {
-        case USB_EXTRA_STATE_FORCED_DISABLED:
-            DEBUG("USB: extra port forced disabled\n");
-            break;
-
-        case USB_EXTRA_STATE_DISABLED:
-            DEBUG("USB: extra port disabled\n");
-#   ifdef USE_MASSDROP_CONFIGURATOR
-            // Todo: Reconsider gcr_breathe.
-            if ( led_animation_breathing )
-                gcr_breathe = gcr_desired;
-#   endif
-            break;
-
-        case USB_EXTRA_STATE_ENABLED:
-            DEBUG("USB: extra port enabled\n");
-            break;
-    }
+}
 #endif
-
-    usb_extra_state = state;
-}
-
-void usbhub_handle_extra_device(bool is_extra_plugged_in)
-{
-    // As it can be called (periodically) from the start of "adc_thread", we need to
-    // ensure that usbhub_wait_for_host() is done before.
-    if ( usb_extra_port == USB_PORT_UNKNOWN )
-        return;
-
-    switch ( usb_extra_state ) {
-        case USB_EXTRA_STATE_FORCED_DISABLED:
-            // Detect unplug and reset state to disabled
-            if ( !is_extra_plugged_in )
-                usb_extra_state = USB_EXTRA_STATE_DISABLED;
-            usb_extra_manual = 0;
-            break;  // Do nothing even if unplug detected
-
-        case USB_EXTRA_STATE_DISABLED:
-            if ( is_extra_plugged_in || usb_extra_manual )
-                usbhub_set_extra_state(USB_EXTRA_STATE_ENABLED);
-            break;
-
-        case USB_EXTRA_STATE_ENABLED:
-            if ( !is_extra_plugged_in && !usb_extra_manual )
-                usbhub_set_extra_state(USB_EXTRA_STATE_DISABLED);
-            break;
-    }
-}
-#endif  // MD_BOOTLOADER

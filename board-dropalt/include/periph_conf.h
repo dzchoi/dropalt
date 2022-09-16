@@ -140,10 +140,10 @@ static const tc32_conf_t timer_config[] = {
 #define ADC_NEG_INPUT       ADC_INPUTCTRL_MUXNEG(0x18u)
 
 static const adc_conf_chan_t adc_channels[] = {
-    /* port, pin, muxpos */
+    /* port, pin, muxpos, dev */
     { GPIO_PIN(PB, 0), ADC_INPUTCTRL_MUXPOS(ADC_INPUTCTRL_MUXPOS_AIN12), ADC0 },  // ADC 5V
-    { GPIO_PIN(PB, 1), ADC_INPUTCTRL_MUXPOS(ADC_INPUTCTRL_MUXPOS_AIN13), ADC0 },  // ADC CON2
     { GPIO_PIN(PB, 2), ADC_INPUTCTRL_MUXPOS(ADC_INPUTCTRL_MUXPOS_AIN14), ADC0 },  // ADC CON1
+    { GPIO_PIN(PB, 1), ADC_INPUTCTRL_MUXPOS(ADC_INPUTCTRL_MUXPOS_AIN13), ADC0 },  // ADC CON2
 };
 
 #define ADC_NUMOF           ARRAY_SIZE(adc_channels)

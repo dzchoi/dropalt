@@ -1,8 +1,8 @@
 #include "board.h"
 #include "periph/gpio.h"
 #include "periph/wdt.h"
-#include "sr_exp.h"
-// #include "usb2422.h"
+#include "sr_exp.h"             // for sr_exp_init()
+#include "usb2422.h"            // for usbhub_init()
 
 /*
 #include "vectors_cortexm.h"
@@ -111,7 +111,6 @@ static void _dfll_usbcrm_init(void)
 
 void board_init(void)
 {
-
     // initialize the on-board LED
     gpio_init(LED0_PIN, GPIO_OUT);  // or, DBG_LED_ENA
     LED0_OFF;
@@ -124,8 +123,9 @@ void board_init(void)
     wdt_setup_reboot(0u, WDT_TIMEOUT);
     wdt_start();
 
-    // initialize Shift Register.
+    // initialize Shift Register and Usb2422.
     sr_exp_init();
+    usbhub_init();
 
     // set GCLK_SOURCE_DFLL in USB recovery mode
     // Todo:

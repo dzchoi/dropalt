@@ -45,9 +45,10 @@ int adc_configure(Adc* dev, adc_res_t res);
  * replacing the existing adc_sample().
  *
  * @param[in] line      line to sample
- * @param[in] cb_isr    NULL for blocking execution, or callback function to catch the
- *                      result for non-blocking execution. Beware that cb_isr is called
+ * @param[in] callback  NULL for blocking execution, or callback function to grab the
+ *                      result for non-blocking execution. Beware that callback is called
  *                      in interrupt context.
+ * @param[in] arg       argument to pass to callback function
  *
  * @return              the sampled value on success
  * @return              -1 if resolution is not applicable, or 0 on non-blocking
@@ -56,7 +57,7 @@ int adc_configure(Adc* dev, adc_res_t res);
  * @pre
  *   The adc_configure() needs to be performed prior to this function call.
  */
-int32_t adc_get(adc_t line, void (*cb_isr)(uint16_t result));
+int32_t adc_get(adc_t line, void (*callback)(void* arg, uint16_t result), void* arg);
 
 #ifdef __cplusplus
 }

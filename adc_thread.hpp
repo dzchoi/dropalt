@@ -1,8 +1,10 @@
 #pragma once
 
+#include "event.h"
 #include "thread.h"
-#include "thread_flags.h"
+#include "usb2422.h"
 
+#include "adc_input.hpp"
 #include "features.hpp"
 
 
@@ -14,16 +16,28 @@ public:
         return instance;
     }
 
-    // Wait until v_5v stays above ADC_5V_START_LEVEL for around 10 ms. Waiting is
-    // indefinite, blocking the calling thread, and may cause a watchdog reset if it waits
-    // too long.
+    // Wait (indefinitely) until v_5v stays above ADC_5V_START_LEVEL for around 5 ms,
+    // blocking the calling thread, and may cause a watchdog reset if it waits too long.
+    // It also sets up the periodic measurement afterwards for ADC_LINE_5V.
     void wait_for_stable_5v();
 
-    uint16_t v_5v() const { return m_v_5v; }
+    // Check the desired_port and attach the Hub to the port. If the desired_port is not
+    // given either ADC_LINE_CON1 or CON2 is tried.
+    // It also sets up the periodic measurements afterwards for ADC_LINE_CON1 and CON2.
+    // Todo: Automatic calling of usbhub_wait_for_host(),
+    //   - when the current v_con (not v_extra) is down (i.e. in panic mode), or
+    //   - when USB is disconnected (usbus.state == USBUS_STATE_DISCONNECT, but not
+    //     working for now), or
+    // Todo: If the USB in the desired port is suspended when switchover, wake it up first.
+    void async_select_host_port(uint8_t desired_port =USB_PORT_UNKNOWN) {
+        m_event_to_select_host_port.arg1 = desired_port;
+        event_post(&m_queue, &m_event_to_select_host_port);
+    }
 
-    // void signal_usb_reset() { thread_flags_set(m_pthread, FLAG_USB_RESET); };
-    // void signal_usb_suspend() { thread_flags_set(m_pthread, FLAG_USB_SUSPEND); };
-    // void signal_usb_resume() { thread_flags_set(m_pthread, FLAG_USB_RESUME); };
+    // Signal an event to adc_thread.
+    void signal_event(event_t* event) {
+        event_post(&m_queue, event);
+    }
 
     adc_thread(const adc_thread&) =delete;
     adc_thread& operator=(const adc_thread&) =delete;
@@ -39,12 +53,27 @@ private:
     thread_t* m_pthread;
     char m_stack[THREAD_STACKSIZE_TINY];
 
-    enum {
-        FLAG_EVENT          = 0x0001,  // == THREAD_FLAG_EVENT from event.h
-        FLAG_TIMER          = THREAD_FLAG_TIMEOUT  // (1u << 14)
+    event_queue_t m_queue;
+
+    // Measure ADC_LINE_CON1/2 (blocking) and return the one connected to the host.
+    static uint8_t determine_host_port() {
+        return v_con1.sync_measure() >= v_con2.sync_measure()
+               ? USB_PORT_1 : USB_PORT_2;
+    }
+
+    event_ext_t<adc_thread*, uint8_t> m_event_to_select_host_port;
+    static void _hdlr_to_select_host_port(event_t* event);
+
+    enum usb_extra_state_t: int_fast8_t {
+        USB_EXTRA_STATE_FORCED_DISABLED = -1,
+        USB_EXTRA_STATE_DISABLED        = 0,
+        USB_EXTRA_STATE_ENABLED         = 1
     };
 
-    uint16_t m_v_5v;  // voltage on ADC_LINE_5V
-    uint16_t m_v_con1;
-    uint16_t m_v_con2;
+    uint8_t m_usb_host_port = USB_PORT_UNKNOWN;
+    usb_extra_state_t m_usb_extra_state = USB_EXTRA_STATE_DISABLED;
+    bool m_usb_extra_manual = false;
+
+    void change_extra_port_state(usb_extra_state_t state);
+    void handle_extra_device(bool is_extra_plugged_in);
 };

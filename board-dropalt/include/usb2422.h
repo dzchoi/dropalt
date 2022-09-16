@@ -4,30 +4,41 @@
 extern "C" {
 #endif
 
-enum {
-    // These enum values are deliberately chosen to match their ADC_LINE_ number, and
-    // so can be used directly with adc_get(). See the definitions for ADC_LINE_* in
-    // board-alt/include/periph_conf.h.
-    USB_PORT_UNKNOWN  = 0,  // These correspond to ADC_LINE_5V,
-    USB_PORT_1        = 2,  // to ADC_LINE_CON1, and
-    USB_PORT_2        = 1   // to ADC_LINE_CON2
-};
-
-enum {
-    USB_EXTRA_STATE_FORCED_DISABLED = -1,
-    USB_EXTRA_STATE_DISABLED        = 0,
-    USB_EXTRA_STATE_ENABLED         = 1
-};
-
-extern volatile uint8_t usb_extra_port;  // The adc_t ends up with unsigned.
-extern volatile int8_t usb_extra_state;
-extern volatile uint8_t usb_extra_manual;
-
 void usbhub_init(void);
-void usbhub_wait_for_host(uint8_t);
 
-void usbhub_set_extra_state(int8_t state);
-void usbhub_handle_extra_device(bool is_extra_plugged_in);
+bool usbhub_configure(void);
+
+static inline bool usbhub_active(void) {
+    return gpio_read(USB2422_ACTIVE) != 0;
+}
+
+enum {
+    // These enum values are intentionally chosen to match their corresponding ADC_LINE_*
+    // numbers, so they can be used alternatively for adc_get().
+    USB_PORT_UNKNOWN  = 0,
+    USB_PORT_1        = 1,  // corresponds to ADC_LINE_CON1.
+    USB_PORT_2        = 2   // corresponds to ADC_LINE_CON2.
+};
+
+static inline uint8_t other(uint8_t port)
+{
+    if ( port != USB_PORT_UNKNOWN ) {
+        if ( port == USB_PORT_1 )
+            port = USB_PORT_2;
+        else
+            port = USB_PORT_1;
+    }
+
+    return port;
+}
+
+void usbhub_disable_all_ports(void);
+
+void usbhub_enable_host_port(uint8_t port);
+
+uint8_t usbhub_host_port(void);
+
+void usbhub_enable_disable_extra_port(uint8_t port, bool on_off);
 
 #ifdef __cplusplus
 }

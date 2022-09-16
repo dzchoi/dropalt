@@ -133,8 +133,8 @@ extern uint32_t _erom;
  */
 #define ADC_LINE(x) (x)
 #define ADC_LINE_5V                     ADC_LINE(0)
-#define ADC_LINE_CON1                   ADC_LINE(2)
-#define ADC_LINE_CON2                   ADC_LINE(1)
+#define ADC_LINE_CON1                   ADC_LINE(1)
+#define ADC_LINE_CON2                   ADC_LINE(2)
 
 #define ADC_5V_START_LEVEL              2365
 
