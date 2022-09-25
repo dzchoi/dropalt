@@ -21,16 +21,13 @@ extern uint8_t keyboard_protocol;
 
 class usb_thread {
 public:
-    // As a singleton class we can call usb_thread::instance() to get the instance. But,
-    // beware to not call usb_thread::instance() from within the constructor usb_thread::
-    // usb_thread(). It will end up with an infinite loop.
-    static usb_thread& instance() {
-        static usb_thread instance;
-        return instance;
+    // As a singleton class we can call usb_thread::obj() to get the object. But, beware
+    // to not call usb_thread::obj() from within the constructor usb_thread::usb_thread().
+    // It will end up with an infinite loop.
+    static usb_thread& obj() {
+        static usb_thread obj;
+        return obj;
     }
-
-    // void start(void);
-    // void async_select_usb_port();
 
     void async_send_keyboard(report_keyboard_t* report);
     void async_send_system(uint16_t data);

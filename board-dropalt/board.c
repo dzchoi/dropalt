@@ -2,7 +2,6 @@
 #include "periph/gpio.h"
 #include "periph/wdt.h"
 #include "sr_exp.h"             // for sr_exp_init()
-#include "usb2422.h"            // for usbhub_init()
 
 /*
 #include "vectors_cortexm.h"
@@ -123,9 +122,8 @@ void board_init(void)
     wdt_setup_reboot(0u, WDT_TIMEOUT);
     wdt_start();
 
-    // initialize Shift Register and Usb2422.
+    // initialize Shift Register
     sr_exp_init();
-    usbhub_init();
 
     // set GCLK_SOURCE_DFLL in USB recovery mode
     // Todo:

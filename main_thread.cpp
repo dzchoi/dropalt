@@ -1,6 +1,5 @@
-#include <stdio.h>
-
 #include "periph/wdt.h"
+#include "usb2422.h"
 #include "xtimer.h"
 
 #include "adc_input.hpp"
@@ -12,25 +11,23 @@
 
 int main()
 {
-    (void)main_thread::instance();  // Create Main thread.
-
-    // Create ADC thread.
-    adc_thread::instance().wait_for_stable_5v();
-    adc_thread::instance().async_select_host_port();
-
-    (void)usb_thread::instance();  // Create USB thread.
+    (void)main_thread::obj();  // Create Main thread.
+    (void)adc_thread::obj();   // Create ADC thread.
+    (void)usb_thread::obj();   // Create USB thread.
 
     while ( true ) {
         wdt_kick();
         xtimer_sleep(1);
 
-        printf("v: %d %d %d (%d %d)\n",
-            v_5v.read(),
-            v_con1.read(),
-            v_con2.read(),
-            v_con1.m_result0,
-            v_con2.m_result0);
-        // usb_thread::instance().console_printf(...);
+        // usb_thread::obj().console_printf(
+        printf(
+            "v: %d %d %d hub=%d usb=%d\n",
+            adc_input::v_5v.read(),
+            adc_input::v_con1.read(),
+            adc_input::v_con2.read(),
+            usbhub_is_active(),
+            usb_thread::obj().fsmstatus());
+        // LED0_TOGGLE;
     }
 
     return 0;

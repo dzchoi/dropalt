@@ -1,11 +1,11 @@
 #pragma once
 
-#include "adc_get.h"
-#include "event.h"
+#include "adc_get.h"            // for adc_get()
+#include "event.h"              // for event_t
 #include "mutex.h"
-#include "xtimer.h"
 
-#include <atomic>
+#include <atomic>               // for std::atomic<>
+#include "xtimer_wrapper.hpp"   // for xtimer_periodic_callback_t
 
 
 
@@ -21,55 +21,132 @@ struct event_ext_t<T, void>: event_t {
     T arg;
 };
 
+class adc_thread;
+class adc_input_v_5v;
+class adc_input_v_con;
+
 
 
 class adc_input {
 public:
-    const adc_t line;
+    static adc_input_v_5v v_5v;
+    static adc_input_v_con v_con1;
+    static adc_input_v_con v_con2;
 
-    adc_input(adc_t line): line(line), m_result(0) {
-        mutex_init(&m_mutex);
-        m_schedule_timer.callback = &_tmo_delayed_measure;
-        m_schedule_timer.arg = this;
-        m_event_to_measure.handler = &_hdlr_to_measure;
-        m_event_to_measure.arg = this;
-    }
+    const uint8_t line;
 
-    // Reads the most recent result.
+    // Read the most recent result.
     uint16_t read() const { return m_result; }
 
-    // Measure the input in blocking/unblocking manner, also setting up further periodic
-    // measures. (Pre: adc_thread() be created.)
-    uint16_t sync_measure();
-    void async_measure();
+    // Start measuring the input (non-blocking).
+    void async_measure() {
+        mutex_lock(&m_mutex);
+        adc_get(line, _isr_get_result, this);
+    }
+
+    // Measure the input and return the result (blocking). Though blocking the caller,
+    // it is not spinning, but mutex-waiting for the result.
+    uint16_t sync_measure() {
+        async_measure();
+        mutex_lock(&m_mutex);  // Wait for the result to arrive.
+        mutex_unlock(&m_mutex);
+        m_result0 = read();  // This works as m_result is atomic.
+        return m_result0;
+    }
+
+    // Wait (indefinitely) until v_5v stays above ADC_5V_START_LEVEL for around 5 ms,
+    // blocking the calling thread, and may cause a watchdog reset if it waits too long.
+    static void wait_for_stable_5v();
+
+    // Measure v_con1 and v_con2 (blocking) and return the potential host port.
+    static uint8_t measure_host_port();
+
+    // Schedule periodic measurements which will be performed on adc_thread.
+    void schedule_periodic() { m_schedule_timer.start(); }
+
+    // Cancel the schedule.
+    void schedule_cancel() { m_schedule_timer.stop(); }
+
+    adc_input(const adc_input&) =delete;
+    void operator=(const adc_input&) =delete;
+
+protected:
+    // To be used only for creating v_5v, v_con1 and v_con2.
+    adc_input(uint8_t line);
 
 private:
     mutex_t m_mutex;
-    std::atomic<uint16_t> m_result;
 
-    // Measurement before host is determiined (for debugging purposes)
-    friend int main();
-    uint16_t m_result0;
+    // Declared atomic, as this can be updated from isr without notice.
+    std::atomic<uint16_t> m_result = 0u;
 
-    xtimer_t m_schedule_timer;
-    static void _tmo_delayed_measure(void* arg);
+    // Measurement before host is determined (for debugging purposes)
+    uint16_t m_result0 = 0u;
 
     static void _isr_get_result(void* arg, uint16_t result);
 
-    event_ext_t<adc_input*> m_event_to_measure;
-    static void _hdlr_to_measure(event_t* event) {
-        adc_input* const that = static_cast<event_ext_t<adc_input*>*>(event)->arg;
-        that->async_measure();
-    }
+    // Signal to adc_thread that result is ready.
+    virtual void _signal_report() const =0;
 
-    static constexpr uint32_t measure_period_us[] = {
-        11000,      // measure ADC_LINE_5V at every 11 ms
-        5000, 5000  // measure ADC_LINE_CONx at every 5 ms
+    const uint32_t MEASURE_PERIOD_US = _MEASURE_PERIODS[line];
+    static constexpr uint32_t _MEASURE_PERIODS[] = {
+        11000,      // measure v_5v at every 11 ms
+        5000, 5000  // measure v_con1/con2 at every 5 ms
     };
+    xtimer_periodic_callback_t<adc_input*> m_schedule_timer {
+        MEASURE_PERIOD_US, &_tmo_periodic_measure, this };
+    static void _tmo_periodic_measure(adc_input* that);
+
+    // Define a separate event for each adc_input. Sharing a single event with the line
+    // numbers parametrized would lose early events that are already in the event queue
+    // when a new event is pushed. See post_event() in Riot ("If the event is already
+    // queued when calling this function, the event will not be touched and remain in the
+    // previous position on the queue.")
+    // However, report events are provided in adc_thread as there can exist only two such
+    // events, host report and extra report. No need to have three events, with one per
+    // each adc_input.
+    event_ext_t<adc_input*> m_event_periodic_measure;
+    static void _hdlr_periodic_measure(event_t* event);
 };
 
-extern adc_input adc_line[ADC_NUMOF];
 
-extern adc_input& v_5v;
-extern adc_input& v_con1;
-extern adc_input& v_con2;
+
+class adc_input_v_5v: public adc_input {
+public:
+    enum v_5v_level: int8_t {
+        V_5V_PANIC      = -1,
+        V_5V_UNSTABLE   = 0,
+        V_5V_LOW        = 1,
+        V_5V_STABLE     = V_5V_LOW,
+        V_5V_MID        = 2,
+        V_5V_HIGH       = 3
+    };
+
+    // Read the result in level.
+    v_5v_level level() const;
+
+private:
+    friend class adc_input;
+    // Can be called only from adc_input class.
+    adc_input_v_5v(): adc_input(ADC_LINE_5V) {}
+
+    void _signal_report() const;
+};
+
+class adc_input_v_con: public adc_input {
+public:
+    bool is_connected_level() const { return read() < NOMINAL_LEVEL - 200u; }
+
+private:
+    friend class adc_input;
+    // Can be called only from adc_input class.
+    adc_input_v_con(uint8_t line): adc_input(line) {}
+
+    void _signal_report() const;
+
+    const uint16_t NOMINAL_LEVEL = _NOMINAL_LEVELS[line];
+    static constexpr uint16_t _NOMINAL_LEVELS[] = {
+        0,  // for v_5v, not used here.
+        ADC_CON1_NOMINAL, ADC_CON2_NOMINAL
+    };
+};

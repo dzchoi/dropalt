@@ -25,6 +25,7 @@ CXXEXFLAGS += -fno-use-cxa-atexit
 # Peripherals and features to be used from the board.
 FEATURES_REQUIRED += cpp
 FEATURES_REQUIRED += periph_adc_get
+FEATURES_REQUIRED += periph_gpio_irq
 FEATURES_REQUIRED += periph_sr_595
 FEATURES_REQUIRED += periph_usb2422
 FEATURES_REQUIRED += periph_wdt

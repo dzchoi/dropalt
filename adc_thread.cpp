@@ -1,13 +1,13 @@
-#include "adc_get.h"
-#include "board.h"
+#include "adc_get.h"            // for adc_init() and adc_configure()
 #include "thread.h"
-#include "usb2422.h"            // for usbhub_configure() and usbhub_active()
+#include "usb2422.h"            // for usbhub_init()
 
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
 
-#include "adc_input.hpp"        // for v_5v and v_conx.
+#include "adc_input.hpp"
 #include "adc_thread.hpp"
+#include "usbport_state.hpp"
 
 
 
@@ -20,13 +20,16 @@ adc_thread::adc_thread()
     adc_init(ADC_LINE_CON2);
     adc_configure(ADC0, ADC_RES_12BIT);
 
+    // Initialize USB2422.
+    usbhub_init(&_isr_usbhub_active, this);
+
     // Initialize events.
-    m_event_to_select_host_port.handler = &_hdlr_to_select_host_port;
-    m_event_to_select_host_port.arg0 = this;
+    m_event_report_host.handler = &_hdlr_report_host;
+    m_event_report_extra.handler = &_hdlr_report_extra;
 
     const kernel_pid_t pid = thread_create(
         m_stack, sizeof(m_stack),
-        THREAD_PRIORITY_ADC,
+        THREAD_PRIO_ADC,
         THREAD_CREATE_STACKTEST,
         _adc_thread, this, "adc_thread");
 
@@ -36,118 +39,81 @@ adc_thread::adc_thread()
 void* adc_thread::_adc_thread(void* arg)
 {
     adc_thread* const that = static_cast<adc_thread*>(arg);
+
     // The event_queue_init() should be called from the queue-owning thread.
     event_queue_init(&that->m_queue);
-    // Zzz
-    event_loop(&that->m_queue);
+
+    // Not to be called from the constructor to avoid mutual recursion with adc_input().
+    adc_input::wait_for_stable_5v();
+
+    // Keep measuring v_5v always.
+    adc_input::v_5v.schedule_periodic();
+
+    // Not to be called from the constructor to avoid mutual recursion with adc_input().
+    // Run the initial state, which can start a timer for FLAG_TIMEOUT.
+    usbport::init_state();
+
+    while ( true ) {
+        // Zzz
+        thread_flags_t flags = thread_flags_wait_any(
+            FLAG_EVENT
+            | FLAG_USBHUB_ACTIVE
+            | FLAG_USBHUB_SWITCHOVER
+            | FLAG_TIMEOUT
+            );
+
+        // Note that most event signals (e.g. measure/report events) are repetitive but
+        // others are not. If a signal is not processed by the current state it is lost
+        // and not passed over to the next state.
+
+        if ( flags & FLAG_EVENT ) {
+            event_t* event;
+            while ( (event = event_get(&that->m_queue)) != nullptr )
+                // The handler() will call an appropriate process_*() on usbport::pstate.
+                event->handler(event);
+        }
+
+        if ( flags & FLAG_USBHUB_ACTIVE ) {
+            usbport::pstate->process_usbhub_active();
+        }
+
+        if ( flags & FLAG_USBHUB_SWITCHOVER ) {
+            usbport::pstate->process_usbhub_switchover();
+        }
+
+        if ( flags & FLAG_TIMEOUT ) {
+            usbport::pstate->process_timeout();
+        }
+    }
+
+    // Should never reach this point.
+    adc_input::v_5v.schedule_cancel();
     return nullptr;
 }
 
-void adc_thread::wait_for_stable_5v()
+// Called on GPIO_RISING (On) as set up by usbhub_init().
+void adc_thread::_isr_usbhub_active(void* arg)
 {
-    constexpr int V_5V_STABILITY_COUNT = 5;
-
-    int count = 0;
-    while ( count++ < V_5V_STABILITY_COUNT ) {
-        if ( v_5v.sync_measure() < ADC_5V_START_LEVEL )
-            count = 0;
-    }
+    adc_thread* const that = static_cast<adc_thread*>(arg);
+    thread_flags_set(that->m_pthread, FLAG_USBHUB_ACTIVE);
+    // Todo: Figure out the trigger to switchover automatically?
+    //   thread_flags_set(that->m_pthread, FLAG_USBHUB_SWITCHOVER);
 }
 
-void adc_thread::_hdlr_to_select_host_port(event_t* event)
+void adc_thread::_hdlr_report_host(event_t* event)
 {
-    adc_thread* const that =
-        static_cast<decltype(m_event_to_select_host_port)*>(event)->arg0;
-    uint8_t desired_port =
-        static_cast<decltype(m_event_to_select_host_port)*>(event)->arg1;
-
-    that->m_usb_host_port = USB_PORT_UNKNOWN;  // to be determined below
-    that->m_usb_extra_state = USB_EXTRA_STATE_DISABLED;
-    that->m_usb_extra_manual = false;
-
-    constexpr uint32_t RETRY_TIMER_US = 2 *US_PER_SEC;
-    uint32_t time_to_retry = xtimer_now_usec();
-
-    do {
-        const uint32_t now = xtimer_now_usec();
-        if ( (int32_t)(now - time_to_retry) >= 0 ) {
-            // Indicate on the LED0 that we're alive. We can stay in this loop when
-            // plugged in to a suspended host, until the host wakes up.
-            LED0_ON;
-            usbhub_disable_all_ports();
-
-            if ( desired_port == USB_PORT_UNKNOWN )
-                // Determine host by comparing voltages on ADC_LINE_CON1 and CON2.
-                desired_port = determine_host_port();
-            usbhub_enable_host_port(desired_port);
-
-            // When the keyboard is powered up by manually plugging in to a host port
-            // instead of powering up the host with the keyboard already connected,
-            // usbhub_configure() can fail sometimes. HUB does not respond to the
-            // configuration data sent over I2C (until the voltage or clock is stable?).
-            while ( !usbhub_configure() )
-                xtimer_msleep(100);
-
-            // If the given desired port cannot be acquired first, try either port that
-            // has a higher voltage afterwards.
-            desired_port = USB_PORT_UNKNOWN;
-            time_to_retry = now + RETRY_TIMER_US;
-            LED0_OFF;
-        }
-
-        xtimer_msleep(1);
-    } while ( !usbhub_active() );  // Check usbhub_active() at every 1 ms.
-
-    that->m_usb_host_port = usbhub_host_port();
-
-    // DEBUG seems causing a crash at this early stage of power-up.
-    // DEBUG("ADC: determined host port @%d\n", that->m_usb_host_port);
+    (void)event;
+    // Todo: Try to adjust GCR first before reporting to pstate.
+    usbport::pstate->process_v_5v_level();
 }
 
-void adc_thread::change_extra_port_state(usb_extra_state_t state)
+void adc_thread::_hdlr_report_extra(event_t* event)
 {
-    usbhub_enable_disable_extra_port(other(m_usb_host_port), state == USB_EXTRA_STATE_ENABLED);
-
-    switch ( state ) {
-        case USB_EXTRA_STATE_FORCED_DISABLED:
-            DEBUG("USB_HUB: extra port forced disabled\n");
-            break;
-
-        case USB_EXTRA_STATE_DISABLED:
-            DEBUG("USB_HUB: extra port disabled\n");
-            break;
-
-        case USB_EXTRA_STATE_ENABLED:
-            DEBUG("USB_HUB: extra port enabled\n");
-            break;
-    }
-
-    m_usb_extra_state = state;
-}
-
-void adc_thread::handle_extra_device(bool is_extra_plugged_in)
-{
-    // As it can be called (periodically) from the start of "adc_thread", we need to
-    // ensure that usbhub_wait_for_host() is done before.
-    if ( m_usb_host_port == USB_PORT_UNKNOWN )
-        return;
-
-    switch ( m_usb_extra_state ) {
-        case USB_EXTRA_STATE_FORCED_DISABLED:
-            // Detect unplug and reset state to disabled
-            if ( !is_extra_plugged_in )
-                m_usb_extra_state = USB_EXTRA_STATE_DISABLED;
-            m_usb_extra_manual = false;
-            break;  // Do nothing even if unplug detected
-
-        case USB_EXTRA_STATE_DISABLED:
-            if ( is_extra_plugged_in || m_usb_extra_manual )
-                change_extra_port_state(USB_EXTRA_STATE_ENABLED);
-            break;
-
-        case USB_EXTRA_STATE_ENABLED:
-            if ( !is_extra_plugged_in && !m_usb_extra_manual )
-                change_extra_port_state(USB_EXTRA_STATE_DISABLED);
-            break;
-    }
+    (void)event;
+    // It is always that usbport::v_extra != nullptr as this method is called only when
+    // v_extra->schedule_periodic() is executed.
+    if ( usbport::v_extra->is_connected_level() )
+        usbport::pstate->process_extra_connected();
+    else
+        usbport::pstate->process_extra_unconnected();
 }

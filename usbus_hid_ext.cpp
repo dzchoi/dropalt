@@ -110,7 +110,7 @@ static void _event_handler(usbus_t* usbus, usbus_handler_t* handler,
             // eeconfig_update_keymap(keymap_config.raw);  // Todo: ???
 #endif
             // The "main" thread does not monitor the flag yet.
-            // main_thread::instance().signal_usb_reset();
+            // main_thread::obj().signal_usb_reset();
             break;
 
         // "The Suspend Interrupt bit in the Device Interrupt Flag register (INTFLAG
@@ -123,11 +123,11 @@ static void _event_handler(usbus_t* usbus, usbus_handler_t* handler,
         // written to one and CTRLB.DETACH is written to zero."
 
         case USBUS_EVENT_USB_SUSPEND:   // USB suspend condition detected
-            main_thread::instance().signal_usb_suspend();
+            main_thread::obj().signal_usb_suspend();
             break;
 
         case USBUS_EVENT_USB_RESUME:    // USB resume condition detected
-            main_thread::instance().signal_usb_resume();
+            main_thread::obj().signal_usb_resume();
             break;
 
         default:
@@ -140,7 +140,7 @@ static void _transfer_handler(usbus_t* usbus, usbus_handler_t* handler,
 {
     (void)usbus;
     (void)event;
-    DEBUG("USB_HID: transfer_handler\n");
+    // DEBUG("USB_HID: transfer_handler\n");  // Would be emitted every printf().
 
     usbus_hid_device_ext_t* const hidx =
         static_cast<usbus_hid_device_ext_t*>((usbus_hid_device_t*)handler);

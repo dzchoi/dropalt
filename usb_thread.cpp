@@ -66,7 +66,7 @@ usb_thread::usb_thread()
 #endif
 
     // Create "usbus" thread.
-    usbus_create(m_stack, USBUS_STACKSIZE, USBUS_PRIO, USBUS_TNAME, &m_usbus);
+    usbus_create(m_stack, USBUS_STACKSIZE, THREAD_PRIO_USB, USBUS_TNAME, &m_usbus);
     m_pthread = thread_get(m_usbus.pid);
 }
 

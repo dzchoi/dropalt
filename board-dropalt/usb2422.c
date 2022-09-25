@@ -1,11 +1,9 @@
 #include <stdbool.h>
 #include <string.h>                 // memcpy()
-#include "periph/gpio.h"
 #include "periph/i2c.h"
 #include "xtimer.h"
 
 #include "_usb2422_t.h"             // Usb2422 type
-#include "sr_exp.h"
 #include "usb2422.h"
 
 // This usb2422.c is for initializing USB2422 hub and for enabling and disabling the
@@ -89,7 +87,7 @@ static void retrieve_factory_serial(void)
     }
 }
 
-static inline void usbhub_reset(void)
+static inline void _usbhub_reset(void)
 {
     // Pulse reset for at least 1 usec.
     sr_exp_writedata(0, SR_CTRL_HUB_RESET_N);  // reset low
@@ -102,7 +100,7 @@ static inline void usbhub_reset(void)
 // Returns true if configured successfully, or false otherwise.
 bool usbhub_configure(void)
 {
-    usbhub_reset();
+    _usbhub_reset();
     xtimer_usleep(10);
 
     bool status = true;
@@ -128,9 +126,12 @@ bool usbhub_configure(void)
     return status;
 }
 
-void usbhub_init(void)
+void usbhub_init(gpio_cb_t cb, void* arg)
 {
-    gpio_init(USB2422_ACTIVE, GPIO_IN);
+    if ( cb == NULL )
+        gpio_init(USB2422_ACTIVE, GPIO_IN);
+    else
+        gpio_init_int(USB2422_ACTIVE, GPIO_IN, GPIO_RISING, cb, arg);
 
     // I2C clk must be high at USB2422 reset release time to signal SMB configuration.
     // i2c0_init();
@@ -138,11 +139,18 @@ void usbhub_init(void)
     // connect signal, reset high
     sr_exp_writedata(SR_CTRL_HUB_CONNECT | SR_CTRL_HUB_RESET_N, 0);
 
-    // Can't use xtimer_usleep() here, since this function is called from board_init().
-    // clk_busy_wait_us(100);  // Is it needed?
+    // xtimer_usleep(100);  // Is it needed?
 
     // Prepare the HUB configuration data
     retrieve_factory_serial();
+
+    // When the keyboard is powered up by manually plugging in to a host port instead of
+    // powering up the host with the keyboard already connected, usbhub_configure() can
+    // fail sometimes. HUB does not respond to the configuration data sent over I2C
+    // (until the voltage or clock is stable?).
+    // Todo: Seamlessly configure without setting SR_CTRL_HUB_RESET_N again.
+    while ( !usbhub_configure() )
+        xtimer_msleep(100);
 }
 
 // Note:
@@ -194,15 +202,8 @@ void usbhub_enable_host_port(uint8_t port)
     xtimer_usleep(10);
 }
 
-// Read the host port from the value from the last call of sr_exp_writedata().
-uint8_t usbhub_host_port(void)
-{
-    return sr_exp_data.bit.E_UP_N ? USB_PORT_UNKNOWN :
-        (sr_exp_data.bit.SRC_1 ? USB_PORT_1 : USB_PORT_2);
-}
-
 #ifndef MD_BOOTLOADER
-void usbhub_enable_disable_extra_port(uint8_t port, bool on_off)
+void usbhub_enable_extra_port(uint8_t port, bool yes_no)
 {
     if ( port == USB_PORT_UNKNOWN )
         return;
@@ -210,7 +211,7 @@ void usbhub_enable_disable_extra_port(uint8_t port, bool on_off)
     const uint16_t vbus =
         port == USB_PORT_1 ? SR_CTRL_E_VBUS_1 : SR_CTRL_E_VBUS_2;
 
-    if ( on_off )
+    if ( yes_no )
         sr_exp_writedata(vbus, SR_CTRL_E_DN1_N);
     else  // state == USB_EXTRA_STATE_DISABLED or USB_EXTRA_STATE_FORCED_DISABLED
         sr_exp_writedata(SR_CTRL_E_DN1_N, vbus);

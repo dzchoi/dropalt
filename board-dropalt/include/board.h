@@ -120,6 +120,12 @@ extern "C" {
 // long, we jump to the bootloader.
 #define WDT_TIMEOUT                     (4 *1000U)      // 4 sec
 
+#define THREAD_PRIO_USB                 4
+#define THREAD_PRIO_ADC                 5
+#if THREAD_PRIORITY_MAIN != 7
+#   error THREAD_PRIORITY_MAIN != 7
+#endif
+
 //extern uint32_t _srom;
 extern uint32_t _sfixed;
 extern uint32_t _lrom;
@@ -145,11 +151,15 @@ extern uint32_t _erom;
 // 5V low level (LED power rolled back to stay above this limit)
 #define ADC_5V_LOW                      2480
 
-// 5V catastrophic level (Host USB port potential to shut down)
-#define ADC_5V_CAT                      2200
+// 5V panic level (Host USB port potential to shut down)
+#define ADC_5V_PANIC                    2200
 
-// median value of adcs between plugged CON1 (= ~1040) and unplugged CON2 (= ~1140)
-#define USB_EXTRA_ADC_THRESHOLD         1090
+// Nominal level on "extra" port with no devices.
+//   - +200 indicates a producer (e.g. another laptop) is connected???
+//   - -200 indicates a consumer (power-consuming device) is connected.
+// Todo: Adjust these values when LED is enabled.
+#define ADC_CON1_NOMINAL                1915
+#define ADC_CON2_NOMINAL                1200
 /** @} */
 
 
