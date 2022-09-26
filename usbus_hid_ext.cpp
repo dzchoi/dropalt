@@ -176,9 +176,10 @@ static int _control_handler(usbus_t* usbus, usbus_handler_t* handler,
                             usbus_control_request_state_t state,
                             usb_setup_t* setup)
 {
-    usbus_hid_device_t* hid = (usbus_hid_device_t*)handler;
+    usbus_hid_device_ext_t* const hidx =
+        static_cast<usbus_hid_device_ext_t*>((usbus_hid_device_t*)handler);
 
-    DEBUG("USB_HID: request: %d type: %d value: %d length: %d state: %d \n",
+    DEBUG("USB_HID: request: %d type: %d value: %d length: %d state: %d\n",
           setup->request, setup->type, setup->value >> 8, setup->length, state);
 
     /* Requests defined in USB HID 1.11 spec section 7 */
@@ -186,8 +187,8 @@ static int _control_handler(usbus_t* usbus, usbus_handler_t* handler,
         case USB_SETUP_REQ_GET_DESCRIPTOR: {
             uint8_t desc_type = setup->value >> 8;
             if ( desc_type == USB_HID_DESCR_REPORT ) {
-                usbus_control_slicer_put_bytes(usbus, hid->report_desc,
-                                               hid->report_desc_size);
+                usbus_control_slicer_put_bytes(usbus, hidx->report_desc,
+                                               hidx->report_desc_size);
             }
             else if ( desc_type == USB_HID_DESCR_HID ) {
                 _gen_hid_descriptor(usbus, nullptr);
@@ -205,7 +206,7 @@ static int _control_handler(usbus_t* usbus, usbus_handler_t* handler,
             break;
 
         case USB_HID_REQUEST_GET_PROTOCOL:
-            if ( (static_cast<const usbus_hid_device_ext_t*>(hid))->is_keyboard() )
+            if ( hidx->is_keyboard() )
                 if ( setup->length == 1 ) {
                     usbus_control_slicer_put_char(usbus, keyboard_protocol);
                     DEBUG("USB_HID: report keyboard_protocol=%d\n", keyboard_protocol);
@@ -216,9 +217,8 @@ static int _control_handler(usbus_t* usbus, usbus_handler_t* handler,
             if ( state == USBUS_CONTROL_REQUEST_STATE_OUTDATA ) {
                 size_t size = 0;
                 uint8_t* data = usbus_control_get_out_data(usbus, &size);
-                if ( size > 0 && hid->cb ) {
-                    hid->cb(hid, data, size);
-                }
+                if ( size > 0 && hidx->cb )
+                    hidx->cb(dynamic_cast<usbus_hid_device_t*>(hidx), data, size);
             }
             break;
 
@@ -241,7 +241,7 @@ static int _control_handler(usbus_t* usbus, usbus_handler_t* handler,
             // "The SETUP packet's request type would contain 0x21, the request code for
             // SetProtocol is 0x0B, and the value field of the SETUP packet should
             // contain 0 to indicate boot protocol, or 1 to indicate report protocol."
-            if ( (static_cast<const usbus_hid_device_ext_t*>(hid))->is_keyboard() ) {
+            if ( hidx->is_keyboard() ) {
                 keyboard_protocol = (uint8_t)setup->value;  // LSB(wValue)
                 DEBUG("USB_HID: set keyboard_protocol=%d\n", keyboard_protocol);
 #ifdef NKRO_ENABLE
