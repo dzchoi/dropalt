@@ -1,4 +1,5 @@
 #include "usb2422.h"            // for USB_PORT_*
+#include "xtimer.h"             // for xtimer_now_usec()
 
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
@@ -24,15 +25,18 @@ void adc_input::wait_for_stable_5v()
 {
     constexpr int V_5V_STABILITY_COUNT = 5;
 
+#if ENABLE_DEBUG
+    const uint32_t since = xtimer_now_usec();
+#endif
+
     int repeat = 0;
-    int count = 0;
     while ( repeat++ < V_5V_STABILITY_COUNT ) {
         (void)v_5v.sync_measure();
         if ( v_5v.level() < adc_input_v_5v::V_5V_STABLE )
             repeat = 0;
-        ++count;
     }
-    DEBUG("ADC: v_5v stabilized in %d ms\n", count);
+
+    DEBUG("ADC: v_5v stabilized in %ld us\n", xtimer_now_usec() - since);
 }
 
 uint8_t adc_input::measure_host_port()

@@ -25,6 +25,13 @@
 // suspend_power_down_kb() in addtion to defining it, since they are already handled so.
 #define RGB_DISABLE_WHEN_USB_SUSPENDED  true
 
+// Keyboard matrix scan rate (while operating in timer-based scan mode)
+constexpr uint32_t MATRIX_SCAN_PERIOD_US = 887u;
+
+// Keys are registered only after this time period of no bounces.
+// If too short, it may double a register, but too long period may miss.
+constexpr uint32_t DEBOUNCE_TIME_US = 3 *1000u;
+
 
 
 #ifdef KEYBOARD_SHARED_EP

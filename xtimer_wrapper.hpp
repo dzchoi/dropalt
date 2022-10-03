@@ -3,13 +3,18 @@
 #include "thread_flags.h"
 #include "xtimer.h"
 
+#include <utility>              // for std::forward<>
+
 
 
 class xtimer_periodic_signal_t: xtimer_t {
 public:
     // Set up (but not start) an xtimer that will trigger the given signal periodically.
-    xtimer_periodic_signal_t(uint32_t period_us, thread_flags_t flags =THREAD_FLAG_TIMEOUT)
-    : m_period_us(period_us), m_flags(flags)
+    // Note that m_pthread is initialized to the thread that "owns" this timer, which can
+    // be a different thread or even an ISR.
+    xtimer_periodic_signal_t(uint32_t period_us,
+        thread_t* pthread =thread_get_active(), thread_flags_t flags =THREAD_FLAG_TIMEOUT)
+    : m_period_us(period_us), m_pthread(pthread), m_flags(flags)
     {
         callback = &_tmo_periodic_signal;
         arg = this;
@@ -34,7 +39,7 @@ public:
 
 private:
     const uint32_t m_period_us;
-    thread_t* const m_pthread = thread_get_active();
+    thread_t* const m_pthread;
     const thread_flags_t m_flags;
     // uint32_t m_wakeup_us = xtimer_now_usec();
 
@@ -89,8 +94,9 @@ private:
 
 class xtimer_onetime_signal_t: xtimer_t {
 public:
-    xtimer_onetime_signal_t(uint32_t timeout_us, thread_flags_t flags =THREAD_FLAG_TIMEOUT)
-    : m_timeout_us(timeout_us), m_flags(flags)
+    xtimer_onetime_signal_t(uint32_t timeout_us,
+        thread_t* pthread =thread_get_active(), thread_flags_t flags =THREAD_FLAG_TIMEOUT)
+    : m_timeout_us(timeout_us), m_pthread(pthread), m_flags(flags)
     {
         callback = &_tmo_onetime_signal;
         arg = this;
@@ -109,7 +115,7 @@ public:
 
 private:
     const uint32_t m_timeout_us;
-    thread_t* const m_pthread = thread_get_active();
+    thread_t* const m_pthread;
     const thread_flags_t m_flags;
 
     static void _tmo_onetime_signal(void* arg) {

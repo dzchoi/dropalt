@@ -5,6 +5,7 @@
 #include "debug.h"
 
 // #include "_keymap_config.h"     // Todo: NKRO_ENABLE
+#include "adc_thread.hpp"
 #include "main_thread.hpp"
 #include "usb_thread.hpp"
 
@@ -100,6 +101,7 @@ static void _event_handler(usbus_t* usbus, usbus_handler_t* handler,
     (void)handler;
 
     switch (event) {
+        // "A line reset is a host initiated USB reset to the peripheral"
         case USBUS_EVENT_USB_RESET:     // USB reset event
             // When PC is booting, PC first does SET_PROTOCOL on BIOS screen to set boot
             // protocol, then sends USB_RESET on entering OS to set it back to report
@@ -109,6 +111,9 @@ static void _event_handler(usbus_t* usbus, usbus_handler_t* handler,
             keymap_config.nkro = 1;
             // eeconfig_update_keymap(keymap_config.raw);  // Todo: ???
 #endif
+            // Send a signal to adc_thread to exit from the state_determine_host.
+            adc_thread::obj().signal_usbhub_active();
+
             // The "main" thread does not monitor the flag yet.
             // main_thread::obj().signal_usb_reset();
             break;

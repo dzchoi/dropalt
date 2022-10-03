@@ -6,6 +6,9 @@
  * directory for more details.
  */
 
+// Todo: Redefine Riot-independent global constants using "static const" and "static
+//   inline".
+
 /**
  * @ingroup     board-dropalt
  * @{
@@ -121,7 +124,8 @@ extern "C" {
 #define WDT_TIMEOUT                     (4 *1000U)      // 4 sec
 
 #define THREAD_PRIO_USB                 4
-#define THREAD_PRIO_ADC                 5
+#define THREAD_PRIO_MATRIX              5
+#define THREAD_PRIO_ADC                 6
 #if THREAD_PRIORITY_MAIN != 7
 #   error THREAD_PRIORITY_MAIN != 7
 #endif
@@ -131,7 +135,7 @@ extern uint32_t _sfixed;
 extern uint32_t _lrom;
 extern uint32_t _erom;
 
-#define BOOTLOADER_SERIAL_MAX_SIZE 20  // DO NOT MODIFY!
+#define BOOTLOADER_SERIAL_MAX_SIZE      20  // DO NOT MODIFY!
 
 /**
  * @name    ADC threshold parameters

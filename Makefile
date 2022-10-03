@@ -26,12 +26,21 @@ CXXEXFLAGS += -fno-use-cxa-atexit
 FEATURES_REQUIRED += cpp
 FEATURES_REQUIRED += periph_adc_get
 FEATURES_REQUIRED += periph_gpio_irq
+FEATURES_REQUIRED += periph_matrix
 FEATURES_REQUIRED += periph_sr_595
 FEATURES_REQUIRED += periph_usb2422
 FEATURES_REQUIRED += periph_wdt
 
 # Enable DMA for I2C transfer
 FEATURES_REQUIRED += periph_dma     # will #define MODULE_PERIPH_DMA
+
+# Todo:
+# /* The Cortex-m0 based ATSAM devices can use the Single-cycle I/O Port for GPIO.
+# * When used, the gpio_t is mapped to the IOBUS area and must be mapped back to
+# * the peripheral memory space for configuration access. When it is not
+# * available, the _port_iobus() and _port() functions behave identical.
+# */
+# FEATURES_OPTIONAL += PERIPH_GPIO_FAST_READ
 
 # RIOT modules
 # USEMODULE += cpp11-compat

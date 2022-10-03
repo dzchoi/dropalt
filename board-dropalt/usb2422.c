@@ -126,12 +126,9 @@ bool usbhub_configure(void)
     return status;
 }
 
-void usbhub_init(gpio_cb_t cb, void* arg)
+void usbhub_init(void)
 {
-    if ( cb == NULL )
-        gpio_init(USB2422_ACTIVE, GPIO_IN);
-    else
-        gpio_init_int(USB2422_ACTIVE, GPIO_IN, GPIO_RISING, cb, arg);
+    gpio_init(USB2422_ACTIVE, GPIO_IN);
 
     // I2C clk must be high at USB2422 reset release time to signal SMB configuration.
     // i2c0_init();

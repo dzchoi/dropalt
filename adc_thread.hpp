@@ -12,6 +12,18 @@ public:
         return obj;
     }
 
+    // Note that signal_usbhub_active() could be called by an interrupt on detecting
+    // GPIO_RISING on the USB2422_ACTIVE pin (= GPIO_PIN(PA, 18)). However, Riot's
+    // gpio_init_int() seems assigning the same _exti (i.e. EXTINTx) to it along with
+    // row_pins[2] (= GPIO_PIN(PA, 2)), causing one of them not working. The
+    // signal_usbhub_active() is now triggered by usb_thread (on USBUS_EVENT_USB_RESET).
+    void signal_usbhub_active() { thread_flags_set(m_pthread, FLAG_USBHUB_ACTIVE); }
+
+    // Todo: Figure out the trigger to switchover automatically?
+    void signal_usbhub_switchover() {
+        thread_flags_set(m_pthread, FLAG_USBHUB_SWITCHOVER);
+    }
+
     // Signal a (generic) event to adc_thread.
     void signal_event(event_t* event) { event_post(&m_queue, event); }
 
@@ -36,8 +48,6 @@ private:
 
     // thread body
     static void* _adc_thread(void* arg);
-
-    static void _isr_usbhub_active(void* arg);
 
     event_t m_event_report_host;
     static void _hdlr_report_host(event_t* event);

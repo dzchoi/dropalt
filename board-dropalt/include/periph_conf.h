@@ -312,6 +312,40 @@ static const uart_conf_t uart_config[] = {
 /** @} */
 #endif
 
+
+
+/* key matrix size */
+#define MATRIX_ROWS 5
+#define MATRIX_COLS 15
+
+/* Port and Pin definition of key row hardware configuration */
+static const gpio_t row_pins[MATRIX_ROWS] = {  // for input
+    GPIO_PIN(PA, 0),
+    GPIO_PIN(PA, 1),
+    GPIO_PIN(PA, 2),
+    GPIO_PIN(PA, 3),
+    GPIO_PIN(PA, 4)
+};
+
+/* Port and Pin definition of key column hardware configuration */
+static const gpio_t col_pins[MATRIX_COLS] = {  // for output
+    GPIO_PIN(PB, 4),
+    GPIO_PIN(PB, 5),
+    GPIO_PIN(PB, 6),
+    GPIO_PIN(PB, 7),
+    GPIO_PIN(PB, 8),
+    GPIO_PIN(PB, 9),
+    GPIO_PIN(PB, 10),
+    GPIO_PIN(PB, 11),
+    GPIO_PIN(PB, 12),
+    GPIO_PIN(PB, 13),
+    GPIO_PIN(PA, 5),
+    GPIO_PIN(PA, 6),
+    GPIO_PIN(PA, 7),
+    GPIO_PIN(PA, 10),
+    GPIO_PIN(PA, 11),
+};
+
 #ifdef __cplusplus
 }
 #endif

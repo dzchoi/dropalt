@@ -1,25 +1,13 @@
 #pragma once
 
 #include "adc_get.h"            // for adc_get()
-#include "event.h"              // for event_t
 #include "mutex.h"
 
 #include <atomic>               // for std::atomic<>
+#include "event_ext.hpp"        // for event_ext_t
 #include "xtimer_wrapper.hpp"   // for xtimer_periodic_callback_t
 
 
-
-// Extended event_t type
-template <typename T, typename U =void>
-struct event_ext_t: event_t {
-    T arg0;
-    U arg1;
-};
-
-template <typename T>
-struct event_ext_t<T, void>: event_t {
-    T arg;
-};
 
 class adc_thread;
 class adc_input_v_5v;

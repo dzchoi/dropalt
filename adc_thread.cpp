@@ -20,8 +20,9 @@ adc_thread::adc_thread()
     adc_init(ADC_LINE_CON2);
     adc_configure(ADC0, ADC_RES_12BIT);
 
+    // Todo: Why can't this move following "m_pthread = ..." below?
     // Initialize USB2422.
-    usbhub_init(&_isr_usbhub_active, this);
+    usbhub_init();
 
     // Initialize events.
     m_event_report_host.handler = &_hdlr_report_host;
@@ -89,15 +90,6 @@ void* adc_thread::_adc_thread(void* arg)
     // Should never reach this point.
     adc_input::v_5v.schedule_cancel();
     return nullptr;
-}
-
-// Called on GPIO_RISING (On) as set up by usbhub_init().
-void adc_thread::_isr_usbhub_active(void* arg)
-{
-    adc_thread* const that = static_cast<adc_thread*>(arg);
-    thread_flags_set(that->m_pthread, FLAG_USBHUB_ACTIVE);
-    // Todo: Figure out the trigger to switchover automatically?
-    //   thread_flags_set(that->m_pthread, FLAG_USBHUB_SWITCHOVER);
 }
 
 void adc_thread::_hdlr_report_host(event_t* event)

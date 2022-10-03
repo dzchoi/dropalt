@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-void usbhub_init(gpio_cb_t cb, void* arg);
+void usbhub_init(void);
 
 bool usbhub_configure(void);
 
