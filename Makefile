@@ -22,6 +22,10 @@ CXXEXFLAGS += -fno-threadsafe-statics
 CXXEXFLAGS += -fno-use-cxa-atexit
 # INCLUDES += -I...
 
+# Todo: Organize usb*.[ch]pp in subdirectory usb/.
+# EXTERNAL_MODULE_DIRS += $(CURDIR)
+# USEMODULE += usb
+
 # Peripherals and features to be used from the board.
 FEATURES_REQUIRED += cpp
 FEATURES_REQUIRED += periph_adc_get
@@ -42,14 +46,19 @@ FEATURES_REQUIRED += periph_dma     # will #define MODULE_PERIPH_DMA
 # */
 # FEATURES_OPTIONAL += PERIPH_GPIO_FAST_READ
 
+FEATURES_HPP = features.hpp
+
 # RIOT modules
 # USEMODULE += cpp11-compat
 USEMODULE += usbus
 DISABLE_MODULE += usbus_hid         # We use our own implementation of usbus_hid,
 DISABLE_MODULE += auto_init_usbus   # and do not execute auto_init_usb().
-# Todo: ifneq (,$(findstring VIRTSER_ENABLE,$(QMK_DEFS)))
-USEMODULE += stdio_cdc_acm			# Use CDC ACM as default STDIO.
-# USEMODULE += stdio_null           # Or, stdio_cdc_acm
+$(shell grep -q 'VIRTSER_ENABLE = true' $(FEATURES_HPP))
+ifeq ($(.SHELLSTATUS),0)
+    USEMODULE += stdio_cdc_acm      # Use CDC ACM as default STDIO.
+else
+    USEMODULE += stdio_null         # Or, avoid using stdio and UART at all.
+endif
 USEMODULE += xtimer
 
 # Configure linker script

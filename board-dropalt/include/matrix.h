@@ -1,6 +1,5 @@
 #pragma once
 
-#include <stdint.h>
 #include "periph/gpio.h"
 
 #ifdef __cplusplus

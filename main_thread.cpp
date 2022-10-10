@@ -9,7 +9,7 @@
 
 
 
-unsigned info = 0;
+uint32_t info = 0;
 
 int main()
 {
@@ -22,16 +22,15 @@ int main()
         wdt_kick();
         xtimer_sleep(1);
 
-        // usb_thread::obj().console_printf(
-/*
+        usb_thread::obj().hid_raw.puts("Alive\n");
         printf(
-            "v: %d %d %d usb=%d info=%u\n",
+            "v: %d %d %d fsmstatus=0x%x keyboard_protocol=%u info=%lu\n",
             adc_input::v_5v.read(),
             adc_input::v_con1.read(),
             adc_input::v_con2.read(),
             usb_thread::obj().fsmstatus(),
+            usb_thread::obj().hid_keyboard.get_protocol(),
             info);
-*/
         // LED0_TOGGLE;
     }
 

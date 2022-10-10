@@ -2,16 +2,33 @@
 
 #pragma once
 
+#include <stdint.h>             // for uint8_t
+
+
+
+// These *_ENABLE constants will enable/disable the corresponding feature and also
+// add/remove the source code that implements the feature.
+// (e.g. if constexpr (VIRTSER_ENABLE)).
+
+constexpr bool NKRO_ENABLE = true;
 // #define MOUSE_ENABLE
 // #define EXTRAKEY_ENABLE
-// #define NKRO_ENABLE
 
-#define KEYBOARD_SHARED_EP
-// #define MOUSE_SHARED_EP
+// Interval for keyboard reporting to the host. Keyboard changes are reported to the host
+// periodically at this rate (1-10 ms recommended). When keyboard is working in Boot
+// protocol this value is ignored and fixed to 10 ms.
+constexpr uint8_t KEYBOARD_REPORT_INTERVAL_MS = 10;
 
-// #define RAW_ENABLE
-// #define CONSOLE_ENABLE
-#define VIRTSER_ENABLE
+// Hid Raw device
+constexpr bool RAW_ENABLE = false;
+constexpr uint8_t RAW_REPORT_INTERVAL_MS = 1;
+// #define CONSOLE_PRINTBUF_SIZE           512
+
+// Serial over USB (CDC_ACM)
+constexpr bool VIRTSER_ENABLE = true;
+
+// Note that the data packet size for every endpoint is defined as *_REPORT_SIZE in
+// usb_descriptor.hpp.
 
 // Undefine this to not blink debug LED while USB suspend.
 #define LED_BLINK_TIMER_DURING_SUSPEND  (1 *1000000U)   // 1 sec
@@ -31,24 +48,3 @@ constexpr uint32_t MATRIX_SCAN_PERIOD_US = 887u;
 // Keys are registered only after this time period of no bounces.
 // If too short, it may double a register, but too long period may miss.
 constexpr uint32_t DEBOUNCE_TIME_US = 3 *1000u;
-
-
-
-#ifdef KEYBOARD_SHARED_EP
-// With the current usb_descriptor.c code,
-// you can't share kbd without sharing mouse;
-// that would be a very unexpected use case anyway
-#   define MOUSE_SHARED_EP
-#endif
-
-#if defined(KEYBOARD_SHARED_EP) || defined(MOUSE_SHARED_EP) || defined(EXTRAKEY_ENABLE) || defined(NKRO_ENABLE)
-#   define SHARED_EP_ENABLE
-#endif
-
-
-
-#ifdef KEYBOARD_SHARED_EP
-#    define KEYBOARD_REPORT_SIZE 9
-#else
-#    define KEYBOARD_REPORT_SIZE 8
-#endif

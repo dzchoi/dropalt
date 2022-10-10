@@ -1,34 +1,16 @@
-#include "board.h"              // for CONSOLE_EPSIZE, SHARED_EPSIZE
-#include "features.hpp"
+#pragma once
+
+#include <stddef.h>             // for size_t
+#include <stdint.h>             // for uint8_t
+
+#include <array>
 
 #define CONCAT(x, y) x##y
 #define CONCAT_EXPANDED(x, y) CONCAT(x, y)
 #include "_HIDReportData.h"
 
-#ifndef RAW_USAGE_PAGE
-#    define RAW_USAGE_PAGE 0xFF60
-#endif
 
-#ifndef RAW_USAGE_ID
-#    define RAW_USAGE_ID 0x61
-#endif
-
-#define RAW_USAGE_PAGE_HI ((uint8_t)(RAW_USAGE_PAGE >> 8))
-#define RAW_USAGE_PAGE_LO ((uint8_t)(RAW_USAGE_PAGE & 0xFF))
-
-// from #include "tmk_core/common/report.h"
-
-/* key report size (NKRO or boot mode) */
-// Todo: Rename or remove PROTOCOL_ARM_ATSAM
-// #        include "protocol/arm_atsam/usb/udi_device_epsize.h"
-// #        define KEYBOARD_REPORT_BITS (NKRO_EPSIZE - 1)
-// #        undef NKRO_SHARED_EP
-// #        undef MOUSE_SHARED_EP
-// #        include "protocol/usb_descriptor.h"
-#define KEYBOARD_REPORT_BITS (SHARED_EPSIZE - 2)
-
-
-/* HID report IDs */
+// HID report IDs, used only for Shared EP
 enum hid_report_ids {
     REPORT_ID_KEYBOARD = 1,
     REPORT_ID_MOUSE,
@@ -43,13 +25,15 @@ enum hid_report_ids {
  * HID report descriptors
  */
 
-inline constexpr uint8_t KeyboardReport[] = {
+constexpr size_t SKRO_REPORT_SIZE = 8;
+constexpr size_t SKRO_KEYS_SIZE = SKRO_REPORT_SIZE - 2;
+// So, 6 keys can be reported simultaneously.
+
+inline constexpr uint8_t SkroReportDescriptor[] = {
     HID_RI_USAGE_PAGE(8, 0x01),        // Generic Desktop
     HID_RI_USAGE(8, 0x06),             // Keyboard
     HID_RI_COLLECTION(8, 0x01),        // Application
-#ifdef KEYBOARD_SHARED_EP
-        HID_RI_REPORT_ID(8, REPORT_ID_KEYBOARD),
-#endif
+        // HID_RI_REPORT_ID(8, REPORT_ID_KEYBOARD),  // for Shared EP
         // Modifiers (8 bits)
         HID_RI_USAGE_PAGE(8, 0x07),    // Keyboard/Keypad
         HID_RI_USAGE_MINIMUM(8, 0xE0), // Keyboard Left Control
@@ -68,11 +52,10 @@ inline constexpr uint8_t KeyboardReport[] = {
         HID_RI_USAGE_MINIMUM(8, 0x00),
         HID_RI_USAGE_MAXIMUM(8, 0xFF),
         HID_RI_LOGICAL_MINIMUM(8, 0x00),
-        // This maximum value should not be the 16-bit 0x00FF as is in QMK, or Windows
-        // won't be able to recognize the keyboard (e.g. when NKRO_ENABLE=no and
-        // KEYBOARD_SHARED_EP=no,) thought Linux seems fine with it.
+        // This Maximum value should not be 16-bit 0x00FF as is in QMK, or Windows won't
+        // be able to recognize the device though Linux seems fine with it.
         HID_RI_LOGICAL_MAXIMUM(8, 0xFF),
-        HID_RI_REPORT_COUNT(8, 0x06),
+        HID_RI_REPORT_COUNT(8, SKRO_KEYS_SIZE),
         HID_RI_REPORT_SIZE(8, 0x08),
         HID_RI_INPUT(8, HID_IOF_DATA | HID_IOF_ARRAY | HID_IOF_ABSOLUTE),
 
@@ -90,13 +73,89 @@ inline constexpr uint8_t KeyboardReport[] = {
     HID_RI_END_COLLECTION(0)
 };
 
-inline constexpr uint8_t MouseReport[] = {
+constexpr size_t NKRO_REPORT_SIZE = 32;  // must be 8, 16, 32 or 64.
+constexpr size_t NKRO_KEYS_SIZE = NKRO_REPORT_SIZE - 1;  // == 31 bytes
+// So, 248 (= 31*8 = 0xF8) keys can be reported.
+
+inline constexpr uint8_t NkroReportDescriptor[] = {
+    HID_RI_USAGE_PAGE(8, 0x01),        // Generic Desktop
+    HID_RI_USAGE(8, 0x06),             // Keyboard
+    HID_RI_COLLECTION(8, 0x01),        // Application
+        // HID_RI_REPORT_ID(8, REPORT_ID_NKRO),  // for Shared EP
+        // Modifiers (8 bits)
+        HID_RI_USAGE_PAGE(8, 0x07),    // Keyboard/Keypad
+        HID_RI_USAGE_MINIMUM(8, 0xE0), // Keyboard Left Control
+        HID_RI_USAGE_MAXIMUM(8, 0xE7), // Keyboard Right GUI
+        HID_RI_LOGICAL_MINIMUM(8, 0x00),
+        HID_RI_LOGICAL_MAXIMUM(8, 0x01),
+        HID_RI_REPORT_COUNT(8, 0x08),
+        HID_RI_REPORT_SIZE(8, 0x01),
+        HID_RI_INPUT(8, HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_ABSOLUTE),
+        // Keycodes
+        HID_RI_USAGE_PAGE(8, 0x07),    // Keyboard/Keypad
+        HID_RI_USAGE_MINIMUM(8, 0x00),
+        HID_RI_USAGE_MAXIMUM(8, NKRO_KEYS_SIZE * 8 - 1),
+        HID_RI_LOGICAL_MINIMUM(8, 0x00),
+        HID_RI_LOGICAL_MAXIMUM(8, 0x01),
+        HID_RI_REPORT_COUNT(8, NKRO_KEYS_SIZE * 8),
+        HID_RI_REPORT_SIZE(8, 0x01),
+        HID_RI_INPUT(8, HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_ABSOLUTE),
+
+        // Status LEDs (5 bits)
+        HID_RI_USAGE_PAGE(8, 0x08),    // LED
+        HID_RI_USAGE_MINIMUM(8, 0x01), // Num Lock
+        HID_RI_USAGE_MAXIMUM(8, 0x05), // Kana
+        HID_RI_REPORT_COUNT(8, 0x05),
+        HID_RI_REPORT_SIZE(8, 0x01),
+        HID_RI_OUTPUT(8, HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_ABSOLUTE | HID_IOF_NON_VOLATILE),
+        // LED padding (3 bits)
+        HID_RI_REPORT_COUNT(8, 0x01),
+        HID_RI_REPORT_SIZE(8, 0x03),
+        HID_RI_OUTPUT(8, HID_IOF_CONSTANT),
+    HID_RI_END_COLLECTION(0)
+};
+
+// For "hid_listen"
+constexpr uint16_t RAW_USAGE_PAGE = 0xFF31u;  // PJRC Teensy compatible
+constexpr uint8_t RAW_USAGE_ID = 0x74;        // PJRC Teensy compatible
+
+// For ...???
+// constexpr uint16_t RAW_USAGE_PAGE = 0xFF60u;
+// constexpr uint8_t RAW_USAGE_ID = 0x61;
+
+constexpr uint8_t RAW_USAGE_PAGE_HI = (uint8_t)(RAW_USAGE_PAGE >> 8);
+constexpr uint8_t RAW_USAGE_PAGE_LO = (uint8_t)(RAW_USAGE_PAGE & 0xFF);
+
+constexpr size_t RAW_REPORT_SIZE = 64;  // must be 8, 16, 32 or 64.
+
+inline constexpr uint8_t RawReportDescriptor[] = {
+    HID_RI_USAGE_PAGE(16, RAW_USAGE_PAGE), // Vendor Defined
+    HID_RI_USAGE(8, RAW_USAGE_ID),         // Vendor Defined
+    HID_RI_COLLECTION(8, 0x01),    // Application
+        // Data to host
+        HID_RI_USAGE(8, RAW_USAGE_ID + 1), // Vendor Defined
+        HID_RI_LOGICAL_MINIMUM(8, 0x00),
+        HID_RI_LOGICAL_MAXIMUM(8, 0xFF),
+        HID_RI_REPORT_COUNT(8, RAW_REPORT_SIZE),
+        HID_RI_REPORT_SIZE(8, 0x08),
+        HID_RI_INPUT(8, HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_ABSOLUTE),
+
+        // Data from host
+        HID_RI_USAGE(8, RAW_USAGE_ID + 2), // Vendor Defined
+        HID_RI_LOGICAL_MINIMUM(8, 0x00),
+        HID_RI_LOGICAL_MAXIMUM(8, 0xFF),
+        HID_RI_REPORT_COUNT(8, RAW_REPORT_SIZE),
+        HID_RI_REPORT_SIZE(8, 0x08),
+        HID_RI_OUTPUT(8, HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_ABSOLUTE | HID_IOF_NON_VOLATILE),
+    HID_RI_END_COLLECTION(0)
+};
+
+/*
+inline constexpr uint8_t MouseReportDescriptor[] = {
     HID_RI_USAGE_PAGE(8, 0x01),            // Generic Desktop
     HID_RI_USAGE(8, 0x02),                 // Mouse
     HID_RI_COLLECTION(8, 0x01),            // Application
-#   ifdef MOUSE_SHARED_EP
-        HID_RI_REPORT_ID(8, REPORT_ID_MOUSE),
-#   endif
+        // HID_RI_REPORT_ID(8, REPORT_ID_MOUSE),  // for Shared EP
         HID_RI_USAGE(8, 0x01),             // Pointer
         HID_RI_COLLECTION(8, 0x00),        // Physical
             // Buttons (8 bits)
@@ -138,11 +197,11 @@ inline constexpr uint8_t MouseReport[] = {
     HID_RI_END_COLLECTION(0)
 };
 
-inline constexpr uint8_t ExtrakeyReport[] = {
+inline constexpr uint8_t ExtrakeyReportDescriptor[] = {
     HID_RI_USAGE_PAGE(8, 0x01),           // Generic Desktop
     HID_RI_USAGE(8, 0x80),                // System Control
     HID_RI_COLLECTION(8, 0x01),           // Application
-        HID_RI_REPORT_ID(8, REPORT_ID_SYSTEM),
+        // HID_RI_REPORT_ID(8, REPORT_ID_SYSTEM),  // for Shared EP
         HID_RI_USAGE_MINIMUM(8, 0x01),    // Pointer
         HID_RI_USAGE_MAXIMUM(16, 0x00B7), // System Display LCD Autoscale
         HID_RI_LOGICAL_MINIMUM(8, 0x01),
@@ -155,7 +214,7 @@ inline constexpr uint8_t ExtrakeyReport[] = {
     HID_RI_USAGE_PAGE(8, 0x0C),           // Consumer
     HID_RI_USAGE(8, 0x01),                // Consumer Control
     HID_RI_COLLECTION(8, 0x01),           // Application
-        HID_RI_REPORT_ID(8, REPORT_ID_CONSUMER),
+        // HID_RI_REPORT_ID(8, REPORT_ID_CONSUMER),  // for Shared EP
         HID_RI_USAGE_MINIMUM(8, 0x01),    // Consumer Control
         HID_RI_USAGE_MAXIMUM(16, 0x02A0), // AC Desktop Show All Applications
         HID_RI_LOGICAL_MINIMUM(8, 0x01),
@@ -166,89 +225,7 @@ inline constexpr uint8_t ExtrakeyReport[] = {
     HID_RI_END_COLLECTION(0)
 };
 
-inline constexpr uint8_t NkroReport[] = {
-    HID_RI_USAGE_PAGE(8, 0x01),        // Generic Desktop
-    HID_RI_USAGE(8, 0x06),             // Keyboard
-    HID_RI_COLLECTION(8, 0x01),        // Application
-        HID_RI_REPORT_ID(8, REPORT_ID_NKRO),
-        // Modifiers (8 bits)
-        HID_RI_USAGE_PAGE(8, 0x07),    // Keyboard/Keypad
-        HID_RI_USAGE_MINIMUM(8, 0xE0), // Keyboard Left Control
-        HID_RI_USAGE_MAXIMUM(8, 0xE7), // Keyboard Right GUI
-        HID_RI_LOGICAL_MINIMUM(8, 0x00),
-        HID_RI_LOGICAL_MAXIMUM(8, 0x01),
-        HID_RI_REPORT_COUNT(8, 0x08),
-        HID_RI_REPORT_SIZE(8, 0x01),
-        HID_RI_INPUT(8, HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_ABSOLUTE),
-        // Keycodes
-        HID_RI_USAGE_PAGE(8, 0x07),    // Keyboard/Keypad
-        HID_RI_USAGE_MINIMUM(8, 0x00),
-        HID_RI_USAGE_MAXIMUM(8, KEYBOARD_REPORT_BITS * 8 - 1),
-        HID_RI_LOGICAL_MINIMUM(8, 0x00),
-        HID_RI_LOGICAL_MAXIMUM(8, 0x01),
-        HID_RI_REPORT_COUNT(8, KEYBOARD_REPORT_BITS * 8),
-        HID_RI_REPORT_SIZE(8, 0x01),
-        HID_RI_INPUT(8, HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_ABSOLUTE),
-
-        // Status LEDs (5 bits)
-        HID_RI_USAGE_PAGE(8, 0x08),    // LED
-        HID_RI_USAGE_MINIMUM(8, 0x01), // Num Lock
-        HID_RI_USAGE_MAXIMUM(8, 0x05), // Kana
-        HID_RI_REPORT_COUNT(8, 0x05),
-        HID_RI_REPORT_SIZE(8, 0x01),
-        HID_RI_OUTPUT(8, HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_ABSOLUTE | HID_IOF_NON_VOLATILE),
-        // LED padding (3 bits)
-        HID_RI_REPORT_COUNT(8, 0x01),
-        HID_RI_REPORT_SIZE(8, 0x03),
-        HID_RI_OUTPUT(8, HID_IOF_CONSTANT),
-    HID_RI_END_COLLECTION(0)
-};
-
-inline constexpr uint8_t RawReport[] = {
-    HID_RI_USAGE_PAGE(16, RAW_USAGE_PAGE), // Vendor Defined
-    HID_RI_USAGE(8, RAW_USAGE_ID),         // Vendor Defined
-    HID_RI_COLLECTION(8, 0x01),    // Application
-        // Data to host
-        HID_RI_USAGE(8, 0x62),     // Vendor Defined
-        HID_RI_LOGICAL_MINIMUM(8, 0x00),
-        HID_RI_LOGICAL_MAXIMUM(8, 0xFF),
-        HID_RI_REPORT_COUNT(8, RAW_EPSIZE),
-        HID_RI_REPORT_SIZE(8, 0x08),
-        HID_RI_INPUT(8, HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_ABSOLUTE),
-
-        // Data from host
-        HID_RI_USAGE(8, 0x63),     // Vendor Defined
-        HID_RI_LOGICAL_MINIMUM(8, 0x00),
-        HID_RI_LOGICAL_MAXIMUM(8, 0xFF),
-        HID_RI_REPORT_COUNT(8, RAW_EPSIZE),
-        HID_RI_REPORT_SIZE(8, 0x08),
-        HID_RI_OUTPUT(8, HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_ABSOLUTE | HID_IOF_NON_VOLATILE),
-    HID_RI_END_COLLECTION(0)
-};
-
-inline constexpr uint8_t ConsoleReport[] = {
-    HID_RI_USAGE_PAGE(16, 0xFF31), // Vendor Defined (PJRC Teensy compatible)
-    HID_RI_USAGE(8, 0x74),         // Vendor Defined (PJRC Teensy compatible)
-    HID_RI_COLLECTION(8, 0x01),    // Application
-        // Data to host
-        HID_RI_USAGE(8, 0x75),     // Vendor Defined
-        HID_RI_LOGICAL_MINIMUM(8, 0x00),
-        HID_RI_LOGICAL_MAXIMUM(8, 0xFF),
-        HID_RI_REPORT_COUNT(8, CONSOLE_EPSIZE),
-        HID_RI_REPORT_SIZE(8, 0x08),
-        HID_RI_INPUT(8, HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_ABSOLUTE),
-
-        // Data from host
-        HID_RI_USAGE(8, 0x76),     // Vendor Defined
-        HID_RI_LOGICAL_MINIMUM(8, 0x00),
-        HID_RI_LOGICAL_MAXIMUM(8, 0xFF),
-        HID_RI_REPORT_COUNT(8, CONSOLE_EPSIZE),
-        HID_RI_REPORT_SIZE(8, 0x08),
-        HID_RI_OUTPUT(8, HID_IOF_DATA | HID_IOF_VARIABLE | HID_IOF_ABSOLUTE | HID_IOF_NON_VOLATILE),
-    HID_RI_END_COLLECTION(0)
-};
-
-inline constexpr uint8_t JoystickReport[] = {
+inline constexpr uint8_t JoystickReportDescriptor[] = {
 #ifdef JOYSTICK_ENABLE
 #if JOYSTICK_AXES_COUNT == 0 && JOYSTICK_BUTTON_COUNT == 0
 #   error Need at least one axis or button for joystick
@@ -311,6 +288,7 @@ inline constexpr uint8_t JoystickReport[] = {
         HID_RI_END_COLLECTION(0),
     HID_RI_END_COLLECTION(0)
 };
+*/
 
 #if 0
 inline constexpr uint8_t report_desc_con[] = {
@@ -352,7 +330,7 @@ inline constexpr uint8_t report_desc_raw[] = {
     0xC0                // End Collection
 };
 
-inline constexpr uint8_t CtapReport[] = {
+inline constexpr uint8_t CtapReportDescriptor[] = {
     // this descriptor is used, because the basic usb_hid interface was developed in
     // conjunction with FIDO2. Descriptor is taken from CTAP2 specification
     // (version 20190130) section 8.1.8.2
@@ -374,3 +352,59 @@ inline constexpr uint8_t CtapReport[] = {
     0xC0,               // HID_EndCollection
 };
 #endif
+
+
+
+// Simplified std::copy_n() but constexpr function.
+template <typename T>
+constexpr void _copy_n(const T* src, size_t n, T* dst)
+{
+    for ( size_t i = 0 ; i < n ; ++i )
+        dst[i] = src[i];
+}
+
+// Converts C-arrays into a std::array<>.
+// inspired by https://stackoverflow.com/a/66317066/10451825
+template <typename T, size_t... Ns>
+constexpr auto array_of(const T (&... arrs)[Ns])
+{
+    std::array<T, (0 + ... + Ns)> result {};
+    size_t i = 0;
+    ((_copy_n(arrs, Ns, result.data() + i), i += Ns), ...);
+    return result;
+}
+
+// Not used.
+template <typename T, size_t N>
+constexpr auto remove_report_id(const std::array<T, N>& arr)
+{
+    // Due to the current limitation of C++ that cannot specify the size of std::array<>
+    // with an implicit constexpr value in a constexpr function, this function can remove
+    // only the HID_RI_REPORT_ID(8, x) which occupies 2 bytes.
+    // size_t n = 0;
+    // size_t i = 0;
+    // for ( i = 0 ; i < N ; ++i ) {
+    //     if ( (arr[i] & ~0x3u) == HID_RI_REPORT_ID(0) ) {  // i.e. == 0x84
+    //         n = (arr[i] & 0x3u) + 1;  // +1 to include the Type byte.
+    //         break;
+    //     }
+    // }
+
+    constexpr size_t n = 2;
+    size_t i = 0;
+    for ( i = 0 ; i < N ; ++i ) {
+        if ( arr[i] == HID_RI_REPORT_ID(0) + 1 )  // i.e. == 0x85
+            break;
+    }
+
+    // arr[i, i+n) is the bytes containing the report id.
+
+    std::array<T, N - n> result {};
+    size_t j = 0;
+    for ( j = 0 ; j < i ; ++j )
+        result[j] = arr[j];
+    for ( j = i + n ; j < N ; ++i, ++j )
+        result[i] = arr[j];
+
+    return result;
+}

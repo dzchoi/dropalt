@@ -1,5 +1,4 @@
 #include <stdbool.h>
-#include <string.h>                 // memcpy()
 #include "periph/i2c.h"
 #include "xtimer.h"
 
@@ -83,7 +82,7 @@ static void retrieve_factory_serial(void)
 
     if ( serial_str != NULL ) {
         usb2422_cfg.SERSL.reg = serial_len;
-        memcpy(usb2422_cfg.SERSTR, serial_str, serial_len * sizeof(uint16_t));
+        __builtin_memcpy(usb2422_cfg.SERSTR, serial_str, serial_len * sizeof(uint16_t));
     }
 }
 

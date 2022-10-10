@@ -3,8 +3,6 @@
 #include "thread.h"
 #include "thread_flags.h"
 
-#include "features.hpp"
-
 
 
 class main_thread {

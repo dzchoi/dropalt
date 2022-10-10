@@ -1,10 +1,11 @@
 #include "board.h"              // for THREAD_PRIO_MATRIX
-#include <string.h>             // memset()
+#include "hid_keycodes.hpp"     // for reporting KC_CAPSLOCK (debugging)
 
 #define ENABLE_DEBUG 1
 #include "debug.h"
 
 #include "matrix_thread.hpp"
+#include "usb_thread.hpp"       // for reporting KC_CAPSLOCK (debugging)
 
 
 
@@ -20,8 +21,8 @@ matrix_thread::matrix_thread():
     debounce_timer { DEBOUNCE_TIME_US, m_pthread, FLAG_DEBOUNCE_TIMEOUT }
 {
     // Initialize matrix state: all keys off
-    memset(matrix, 0, sizeof(matrix));
-    memset(raw_matrix, 0, sizeof(raw_matrix));
+    __builtin_memset(matrix, 0, sizeof(matrix));
+    __builtin_memset(raw_matrix, 0, sizeof(raw_matrix));
 
     // Initialize matrix gpio pins and start ISR for detecting GPIO_RISING.
     matrix_init(&_isr_detect_any_key_down, this);
@@ -69,6 +70,7 @@ void matrix_thread::start_scan()
 
     scan_timer.start();
     debounce_timer.start();
+    usb_thread::obj().hid_keyboard.press(KC_CAPSLOCK);  // debugging
 }
 
 void matrix_thread::continue_scan()
@@ -119,8 +121,9 @@ void matrix_thread::debounce_done()
     if ( is_changed && is_all_zero ) {
         matrix_enable_interrupts();
         scan_timer.stop();
-        // CLear any FLAG_SCAN_TIMEOUT that might be set before/during scan_timer.stop().
+        // Clear any FLAG_SCAN_TIMEOUT that might be set before/during scan_timer.stop().
         thread_flags_clear(FLAG_SCAN_TIMEOUT);
+        usb_thread::obj().hid_keyboard.release(KC_CAPSLOCK);  // debugging
         DEBUG("--- done\n");
     }
 }

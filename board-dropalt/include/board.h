@@ -104,19 +104,6 @@ extern "C" {
 
 // Buffer size for STDIN and STDOUT data to and from USB for USBUS_CDC_ACM_STDIO module
 #define CONFIG_USBUS_CDC_ACM_STDIO_BUF_SIZE (4096)
-
-// Used in keyboard and mouse USB interfaces. This also determines the keyboard_task()
-// running period, and the rgb_matrix_task() too if RGB_TASK_IN_SEPARATE_THREAD is not
-// defined.
-#define USB_POLLING_INTERVAL_MS         10
-
-#define KEYBOARD_EPSIZE                 8
-#define MOUSE_EPSIZE                    8
-#define SHARED_EPSIZE                   32
-#define CONSOLE_EPSIZE                  32
-#define RAW_EPSIZE                      32
-
-#define CONSOLE_PRINTBUF_SIZE           512
 /** @} */
 
 // Watchdog timeout for debugging aid; if matrix scan is not performed for this period
