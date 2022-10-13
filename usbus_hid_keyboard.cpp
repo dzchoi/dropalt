@@ -95,14 +95,28 @@ void usbus_hid_keyboard_t::_hdlr_receive_data(
 // -----+--------+--------+--------+--------+--------+--------+--------+--------
 // desc |Lcontrol|Lshift  |Lalt    |Lgui    |Rcontrol|Rshift  |Ralt    |Rgui
 
-bool usbus_hid_keyboard_t::help_skro_press(uint8_t keys[], uint8_t key)
+bool usbus_hid_keyboard_t::help_skro_key_event(uint8_t keys[], uint8_t key, bool pressed)
 {
     size_t i;
     for ( i = 0 ; i < SKRO_KEYS_SIZE && keys[i] != KC_NO ; i++ )
         if ( keys[i] == key ) {
-            DEBUG("Keyboard: Key (0x%x) is already pressed\n", key);
-            return false;
+            if ( pressed ) {
+                DEBUG("Keyboard: Key (0x%x) is already pressed\n", key);
+                return false;
+            } else {
+                changed = false;  // Disable _tmo_automatic_report() while updating.
+                while ( ++i < SKRO_KEYS_SIZE && keys[i] )
+                    keys[i-1] = keys[i];
+                keys[--i] = KC_NO;
+                changed = true;
+                return true;
+            }
         }
+
+    if ( !pressed ) {
+        DEBUG("Keyboard: Key (0x%x) is already released\n", key);
+        return false;
+    }
 
     if ( i == SKRO_KEYS_SIZE ) {
         DEBUG("Keyboard: no room to report key (0x%x) press\n", key);
@@ -115,57 +129,24 @@ bool usbus_hid_keyboard_t::help_skro_press(uint8_t keys[], uint8_t key)
     return true;
 }
 
-bool usbus_hid_keyboard_t::help_skro_release(uint8_t keys[], uint8_t key)
-{
-    for ( size_t i = 0 ; i < SKRO_KEYS_SIZE && keys[i] != KC_NO ; i++ )
-        if ( keys[i] == key ) {
-            changed = false;  // Disable _tmo_automatic_report() while updating.
-            while ( ++i < SKRO_KEYS_SIZE && keys[i] )
-                keys[i-1] = keys[i];
-            keys[--i] = KC_NO;
-            changed = true;
-            return true;
-        }
-
-    DEBUG("Keyboard: Key (0x%x) is already released\n", key);
-    return false;
-}
-
-bool usbus_hid_keyboard_t::help_nkro_press(uint8_t bits[], uint8_t key)
+bool usbus_hid_keyboard_t::help_nkro_key_event(uint8_t bits[], uint8_t key, bool pressed)
 {
     if ( (key >> 3) >= NKRO_KEYS_SIZE ) {
         DEBUG("Keyboard: Key (0x%x) is out of NKRO report range\n", key);
         return false;
     }
 
-    const bool ok = help_bits_press(bits[key >> 3], key);
+    const bool ok = help_update_bits(bits[key >> 3], key, pressed);
     if ( !ok )
-        DEBUG("Keyboard: Key (0x%x) is already pressed\n", key);
-    return ok;
-}
-
-bool usbus_hid_keyboard_t::help_nkro_release(uint8_t bits[], uint8_t key)
-{
-    if ( (key >> 3) >= NKRO_KEYS_SIZE ) {
-        DEBUG("Keyboard: Key (0x%x) is out of NKRO report range\n", key);
-        return false;
-    }
-
-    const bool ok = help_bits_release(bits[key >> 3], key);
-    if ( !ok )
-        DEBUG("Keyboard: Key (0x%x) is already released\n", key);
+        DEBUG("Keyboard: Key (0x%x) is already %sed\n", key,
+            pressed ? "press" : "releas");
     return ok;
 }
 
 void usbus_hid_keyboard_tl<NKRO>::set_protocol(uint8_t protocol)
 {
     usbus_hid_keyboard_t::set_protocol(protocol);
-
-    if ( protocol == 0 ) {
-        xkro_press = &usbus_hid_keyboard_tl::skro_press;
-        xkro_release = &usbus_hid_keyboard_tl::skro_release;
-    } else {
-        xkro_press = &usbus_hid_keyboard_tl::nkro_press;
-        xkro_release = &usbus_hid_keyboard_tl::nkro_release;
-    }
+    xkro_key_event = (protocol == 0)
+        ? &usbus_hid_keyboard_tl::skro_key_event
+        : &usbus_hid_keyboard_tl::nkro_key_event;
 }

@@ -252,7 +252,6 @@ enum hid_keyboard_keypad_usage: uint8_t {
 /*
  * Short names for ease of definition of keymap
  */
-#if 0
 constexpr uint8_t KC_LCTL = KC_LCTRL;
 constexpr uint8_t KC_RCTL = KC_RCTRL;
 constexpr uint8_t KC_LSFT = KC_LSHIFT;
@@ -325,22 +324,22 @@ constexpr uint8_t KC_SLCT = KC_SELECT;
 constexpr uint8_t KC_AGIN = KC_AGAIN;
 constexpr uint8_t KC_PSTE = KC_PASTE;
 /* Mousekey */
-constexpr uint8_t KC_MS_U = KC_MS_UP;
-constexpr uint8_t KC_MS_D = KC_MS_DOWN;
-constexpr uint8_t KC_MS_L = KC_MS_LEFT;
-constexpr uint8_t KC_MS_R = KC_MS_RIGHT;
-constexpr uint8_t KC_BTN1 = KC_MS_BTN1;
-constexpr uint8_t KC_BTN2 = KC_MS_BTN2;
-constexpr uint8_t KC_BTN3 = KC_MS_BTN3;
-constexpr uint8_t KC_BTN4 = KC_MS_BTN4;
-constexpr uint8_t KC_BTN5 = KC_MS_BTN5;
-constexpr uint8_t KC_WH_U = KC_MS_WH_UP;
-constexpr uint8_t KC_WH_D = KC_MS_WH_DOWN;
-constexpr uint8_t KC_WH_L = KC_MS_WH_LEFT;
-constexpr uint8_t KC_WH_R = KC_MS_WH_RIGHT;
-constexpr uint8_t KC_ACL0 = KC_MS_ACCEL0;
-constexpr uint8_t KC_ACL1 = KC_MS_ACCEL1;
-constexpr uint8_t KC_ACL2 = KC_MS_ACCEL2;
+// constexpr uint8_t KC_MS_U = KC_MS_UP;
+// constexpr uint8_t KC_MS_D = KC_MS_DOWN;
+// constexpr uint8_t KC_MS_L = KC_MS_LEFT;
+// constexpr uint8_t KC_MS_R = KC_MS_RIGHT;
+// constexpr uint8_t KC_BTN1 = KC_MS_BTN1;
+// constexpr uint8_t KC_BTN2 = KC_MS_BTN2;
+// constexpr uint8_t KC_BTN3 = KC_MS_BTN3;
+// constexpr uint8_t KC_BTN4 = KC_MS_BTN4;
+// constexpr uint8_t KC_BTN5 = KC_MS_BTN5;
+// constexpr uint8_t KC_WH_U = KC_MS_WH_UP;
+// constexpr uint8_t KC_WH_D = KC_MS_WH_DOWN;
+// constexpr uint8_t KC_WH_L = KC_MS_WH_LEFT;
+// constexpr uint8_t KC_WH_R = KC_MS_WH_RIGHT;
+// constexpr uint8_t KC_ACL0 = KC_MS_ACCEL0;
+// constexpr uint8_t KC_ACL1 = KC_MS_ACCEL1;
+// constexpr uint8_t KC_ACL2 = KC_MS_ACCEL2;
 
 /* Transparent */
 constexpr uint8_t KC_TRANSPARENT = 1;
@@ -353,6 +352,5 @@ constexpr uint8_t KC_RWIN = KC_RGUI;
 constexpr uint8_t _______ = KC_TRNS;
 constexpr uint8_t XXXXXXX = KC_NO;
 
-constexpr uint8_t KC_LABK = KC_LT;
-constexpr uint8_t KC_RABK = KC_GT;
-#endif
+// constexpr uint8_t KC_LABK = KC_LT;
+// constexpr uint8_t KC_RABK = KC_GT;

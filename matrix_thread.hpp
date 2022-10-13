@@ -4,7 +4,6 @@
 #include "thread.h"
 
 #include <algorithm>            // for std::max()
-#include <utility>              // for std::pair
 #include "features.hpp"         // for DEBOUNCE_TIME_US
 #include "xtimer_wrapper.hpp"
 
@@ -38,9 +37,6 @@ private:
     //  - Global: one timer for all keys. Any key change state affects the global timer.
     //  - Timer-based scan while any key pressing, then goes interrupt-based when idle.
 
-    // helper method to copy raw_matrix[] to matrix[].
-    std::pair<bool, bool> matrix_copy();
-
     void start_scan();
     void continue_scan();
     void debounce_done();
@@ -56,4 +52,6 @@ private:
         FLAG_DEBOUNCE_TIMEOUT   = 0x0004,
         FLAG_SCAN_TIMEOUT       = THREAD_FLAG_TIMEOUT  // (1u << 14)
     };
+
+    bool do_not_die = false;
 };
