@@ -10,20 +10,17 @@
 
 
 
-matrix_thread::matrix_thread():
-    m_pthread {
-        thread_get( thread_create(
-            m_stack, sizeof(m_stack),
-            THREAD_PRIO_MATRIX,
-            THREAD_CREATE_STACKTEST,
-            _matrix_thread, this, "matrix_thread") )
-    },
-    scan_timer { MATRIX_SCAN_PERIOD_US, m_pthread },
-    debounce_timer { DEBOUNCE_TIME_US, m_pthread, FLAG_DEBOUNCE_TIMEOUT }
+matrix_thread::matrix_thread()
 {
     // Initialize matrix state: all keys off
     __builtin_memset(matrix, 0, sizeof(matrix));
     __builtin_memset(raw_matrix, 0, sizeof(raw_matrix));
+
+    m_pthread = thread_get( thread_create(
+        m_stack, sizeof(m_stack),
+        THREAD_PRIO_MATRIX,
+        THREAD_CREATE_STACKTEST,
+        _matrix_thread, this, "matrix_thread") );
 
     // Initialize matrix gpio pins and start ISR for detecting GPIO_RISING.
     matrix_init(&_isr_detect_any_key_down, this);
@@ -38,113 +35,87 @@ void* matrix_thread::_matrix_thread(void* arg)
         thread_flags_t flags = thread_flags_wait_any(
             FLAG_EVENT
             | FLAG_START_SCAN
-            | FLAG_DEBOUNCE_TIMEOUT
-            | FLAG_SCAN_TIMEOUT
+            | FLAG_CONTINUE_SCAN
             );
 
         if ( flags & FLAG_START_SCAN )
-            that->start_scan();
+            that->detect_change(true);
 
-        // FLAG_DEBOUNCE_TIMEOUT has higher priority than FLAG_SCAN_TIMEOUT does.
-        else if ( flags & FLAG_DEBOUNCE_TIMEOUT )
-            that->debounce_done();
-
-        else if ( flags & FLAG_SCAN_TIMEOUT )
-            that->continue_scan();
+        if ( flags & FLAG_CONTINUE_SCAN )
+            that->detect_change(false);
     }
 
     return nullptr;
 }
 
-void matrix_thread::start_scan()
+void matrix_thread::detect_change(bool first_scan)
 {
-    // The first scan following the interrupt is very unreliable as there tends to be a
-    // lot of bounces. It depends on when the scan is performed, either during a bounce
-    // or not. Ignore the measurement for now but defer the determination at the next
-    // scan. (Deferred algorithm)
-    (void)matrix_scan(raw_matrix);
-    DEBUG("Matrix: pressed\t%x %x %x %x %x\n",
-        raw_matrix[0], raw_matrix[1], raw_matrix[2], raw_matrix[3], raw_matrix[4]);
+    // Note that the first scan following the interrupt is not reliable as there tends to
+    // be a lot of bounces. It depends on when the scan is performed, whether during a
+    // bounce or not.
+    const bool is_changed = matrix_scan(raw_matrix) || first_scan;
+    bool continue_scan = true;
 
-    scan_timer.start();
-    debounce_timer.start();
-}
-
-void matrix_thread::continue_scan()
-{
-    const bool is_changed = matrix_scan(raw_matrix);
     if ( is_changed ) {
-        debounce_timer.start();
-        DEBUG("Matrix: changed\t%x %x %x %x %x\n",
+        // Very rare but it is possible to have debounce_started = 0 even though we meant
+        // to start debounce. Even so, it is not a problem at all, being regarded as
+        // missing one true change, which happens quite often during scans.
+        debounce_started = xtimer_now_usec();
+        DEBUG("Matrix: changed\t\t%x %x %x %x %x\n",
             raw_matrix[0], raw_matrix[1], raw_matrix[2], raw_matrix[3], raw_matrix[4]);
     }
-}
 
-void matrix_thread::debounce_done()
-{
-    // Find the difference per each row since last report. However, We do not report
-    // the change right now in order to enable the interrupt below as soon as possible.
-    matrix_row_t _or_all = 0;
-    matrix_row_t _xor_all = 0;
-    for ( unsigned row = 0 ; row < MATRIX_ROWS ; row++ ) {
-        _or_all |= raw_matrix[row];
-        _xor_all |= (matrix[row] ^= raw_matrix[row]);
+    else if ( is_debounce_done() ) {
+        continue_scan = report_change();
+        debounce_started = 0;
     }
 
-    const bool is_changed = (_xor_all != 0);
+    if ( continue_scan )
+        xtimer_set_timeout_flag(&scan_timer, MATRIX_SCAN_PERIOD_US);
+}
+
+bool matrix_thread::report_change()
+{
+    // Update matrix[] and report any changes from the last report.
+    // Todo: Would it be better to report it in another thread context? It can be
+    //  expensive as we will need to send the report through msg queue.
+    matrix_row_t is_any_down = 0;
+    bool is_changed = false;
+    for ( unsigned row = 0 ; row < MATRIX_ROWS ; row++ ) {
+        is_any_down |= raw_matrix[row];
+        if ( matrix_row_t _xor = matrix[row] ^ raw_matrix[row] ) {
+            do {
+                const unsigned col = __builtin_ctz(_xor);
+                const matrix_row_t mask = matrix_row_t(1) << col;
+                const bool is_pressed = ((raw_matrix[row] & mask) != 0);
+                keymap[row][col].handle(is_pressed);
+                _xor &= ~mask;
+                DEBUG("Matrix: report %s\n", is_pressed ? "press" : "release");
+            } while ( _xor != 0 );
+            matrix[row] = raw_matrix[row];
+            is_changed = true;
+        }
+    }
+
     if ( !is_changed ) {
         // If !is_changed, we stay awake because we know that something was changing to
         // initiate the debouncing process, but not yet detected until the debouncing
         // is done. Wait for it further.
-        DEBUG("Matrix: --- no report\t%x %x %x %x %x\n",
+        DEBUG("Matrix:\e[0;31m --- no report\e[0m\n");
+        return true;
+    }
+
+    if ( is_any_down ) {
+        DEBUG("Matrix: still pressed\t\t%x %x %x %x %x\n",
             raw_matrix[0], raw_matrix[1], raw_matrix[2], raw_matrix[3], raw_matrix[4]);
-        return;
+        return true;
     }
 
-    // When the matrix is changed and all keys are up, we prepare to go back to sleep,
-    // setting up the interrupt to take over the following detection.
-    const bool is_all_zero = (_or_all == 0);
-    if ( is_all_zero ) {
-        matrix_enable_interrupts();
-        scan_timer.stop();
-        // Clear any FLAG_SCAN_TIMEOUT that might be set before/during scan_timer.stop().
-        // Otherwise, at the following continue_scan() all matrix column pins will be
-        // unselected, causing the interrupt never triggered again.
-        thread_flags_clear(FLAG_SCAN_TIMEOUT);
-    }
-
-    // Update matrix[] and report the change. We do it now as it is fine to start the
-    // following first scan a little late as the scan will be likely unreliable.
-    for ( unsigned row = 0 ; row < MATRIX_ROWS ; row++ ) {
-        matrix_row_t _xor = matrix[row];  // has the difference found above.
-        while ( _xor != 0 ) {
-            const unsigned col = __builtin_ctz(_xor);
-            const matrix_row_t mask = matrix_row_t(1) << col;
-            const bool is_pressed = ((raw_matrix[row] & mask) != 0);
-            usb_thread::obj().hid_keyboard.key_event(keymap[row][col], is_pressed);
-            DEBUG("Matrix: reported key (0x%x) %s\n", keymap[row][col],
-                is_pressed ? "press" : "release");
-            _xor &= ~mask;
-        }
-        matrix[row] = raw_matrix[row];
-    }
-
-    if ( is_all_zero ) {
-        DEBUG("--- done\n");
-        // Bug!: Without the following trivial statement debounce_done() crashes at the
-        //  first key press and release. I don't know why. Alternatively, we can do:
-        //   - do not call hid_keyboard.key_event() above,
-        //   - wrap the accessing of `bits` in usbus_hid_keyboard_t::help_update_bits()
-        //      with irq_disable() and irq_restore(),
-        //  But, xtimer_xsleep() does not work.
-        // Symptom:
-        //   - At first release, sw reset is hit in hid_keyboard.key_event(), in
-        //     usbus_hid_keyboard_t::help_update_bits().
-        //   - Before release, if we hold the key down, watchdog reset is caused while
-        //     matrix_thread is running the scan_timer and continuous_scan().
-        //   - This trivial statement seems to get rid of the problem, but why?
-        // do_not_die = true;
-    }
+    // When the matrix has been changed and all keys are up, we go back to sleep, setting
+    // up the interrupt to take over the following detection.
+    matrix_enable_interrupts();
+    DEBUG("Matrix: --- done\n");
+    return false;  // to stop scan.
 }
 
 void matrix_thread::_isr_detect_any_key_down(void* arg)

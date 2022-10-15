@@ -44,13 +44,11 @@ static size_t _gen_hid_descriptor(usbus_t* usbus, void* arg)
 static const usbus_descr_gen_funcs_t _hid_descriptor = {
     .fmt_pre_descriptor = nullptr,
     .fmt_post_descriptor = _gen_hid_descriptor,
-    .len = {
-        .fixed_len = sizeof(usb_desc_hid_t)
-    },
+    .len = { .fixed_len = sizeof(usb_desc_hid_t) },
     .len_type = USBUS_DESCR_LEN_FIXED
 };
 
-static void _handle_tx_ready(event_t* ev)
+static void _hdlr_tx_ready(event_t* ev)
 {
     usbus_hid_device_ext_t* const hidx = static_cast<usbus_hid_device_ext_t*>(
         (usbus_hid_device_t*)container_of(ev, usbus_hid_device_t, tx_ready));
@@ -116,7 +114,7 @@ static void _init(usbus_t* usbus, usbus_handler_t* handler)
     hidx->hid_descr.arg = dynamic_cast<usbus_hid_device_t*>(hidx);
     hidx->init(usbus);
 
-    hidx->tx_ready.handler = _handle_tx_ready;
+    hidx->tx_ready.handler = _hdlr_tx_ready;
     hidx->tx_timer.arg = hidx;
     if ( hidx->is_automatic_reporting() ) {
         hidx->tx_timer.callback = _tmo_automatic_report;
@@ -218,7 +216,7 @@ static int _control_handler(usbus_t* usbus, usbus_handler_t* handler,
     /* Requests defined in USB HID 1.11 spec section 7 */
     switch ( setup->request ) {
         case USB_SETUP_REQ_GET_DESCRIPTOR: {
-            uint8_t desc_type = setup->value >> 8;
+            const uint8_t desc_type = setup->value >> 8;
             if ( desc_type == USB_HID_DESCR_REPORT ) {
                 usbus_control_slicer_put_bytes(usbus, hidx->report_desc,
                                                hidx->report_desc_size);
@@ -242,7 +240,7 @@ static int _control_handler(usbus_t* usbus, usbus_handler_t* handler,
             if ( setup->length == 1 ) {
                 const uint8_t protocol = hidx->get_protocol();
                 usbus_control_slicer_put_char(usbus, protocol);
-                DEBUG("USB_HID: report keyboard_protocol=%d\n", protocol);
+                DEBUG("USB_HID: report protocol=%d\n", protocol);
             }
             break;
 
@@ -276,7 +274,7 @@ static int _control_handler(usbus_t* usbus, usbus_handler_t* handler,
             // contain 0 to indicate boot protocol, or 1 to indicate report protocol."
             const uint8_t protocol = (uint8_t)setup->value;  // LSB(wValue)
             hidx->set_protocol(protocol);
-            DEBUG("USB_HID: set keyboard_protocol=%d\n", protocol);
+            DEBUG("USB_HID: set protocol=%d\n", protocol);
             break;
         }
 

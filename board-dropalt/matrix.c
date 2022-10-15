@@ -30,7 +30,7 @@ static inline unsigned _pin_mask(gpio_t pin) {
 
 static inline bool read_rows_on_col(matrix_row_t raw_matrix[], unsigned col)
 {
-    bool changed = false;
+    matrix_row_t changed = 0;
 
     // Select col
     select_col(col);
@@ -47,14 +47,13 @@ static inline bool read_rows_on_col(matrix_row_t raw_matrix[], unsigned col)
             raw_matrix[row_index] |= ((matrix_row_t)1 << col);
         else
             raw_matrix[row_index] &= ~((matrix_row_t)1 << col);
-        if ( last_row_value != raw_matrix[row_index] )
-            changed = true;
+        changed |= (last_row_value ^ raw_matrix[row_index]);
     }
 
     // Unselect col
     unselect_col(col);
 
-    return changed;
+    return changed != 0;
 }
 #else
 static inline bool read_rows_on_col(matrix_row_t raw_matrix[], unsigned col)

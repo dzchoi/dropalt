@@ -2,10 +2,9 @@
 
 #include "matrix.h"
 #include "thread.h"
+#include "xtimer.h"
 
-#include <algorithm>            // for std::max()
 #include "features.hpp"         // for DEBOUNCE_TIME_US
-#include "xtimer_wrapper.hpp"
 
 
 
@@ -17,7 +16,7 @@ public:
     }
 
 private:
-    thread_t* const m_pthread;
+    thread_t* m_pthread;
 
     // THREAD_STACKSIZE_TINY cannot be used with printf().
     char m_stack[THREAD_STACKSIZE_SMALL];
@@ -37,21 +36,22 @@ private:
     //  - Global: one timer for all keys. Any key change state affects the global timer.
     //  - Timer-based scan while any key pressing, then goes interrupt-based when idle.
 
-    void start_scan();
-    void continue_scan();
-    void debounce_done();
+    void detect_change(bool first_scan);
+    bool report_change();
 
     static void _isr_detect_any_key_down(void* arg);
 
-    xtimer_periodic_signal_t scan_timer;
-    xtimer_onetime_signal_t debounce_timer;
+    xtimer_t scan_timer;
+    uint32_t debounce_started;  // no need to initialize.
+
+    bool is_debounce_done() const {
+        return debounce_started
+            && int32_t(xtimer_now_usec() - debounce_started) >= int32_t(DEBOUNCE_TIME_US);
+    }
 
     enum {
         FLAG_EVENT              = 0x0001,  // == THREAD_FLAG_EVENT from event.h
         FLAG_START_SCAN         = 0x0002,
-        FLAG_DEBOUNCE_TIMEOUT   = 0x0004,
-        FLAG_SCAN_TIMEOUT       = THREAD_FLAG_TIMEOUT  // (1u << 14)
+        FLAG_CONTINUE_SCAN      = THREAD_FLAG_TIMEOUT  // (1u << 14)
     };
-
-    bool do_not_die = false;
 };

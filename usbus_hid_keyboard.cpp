@@ -101,7 +101,7 @@ bool usbus_hid_keyboard_t::help_skro_key_event(uint8_t keys[], uint8_t key, bool
     for ( i = 0 ; i < SKRO_KEYS_SIZE && keys[i] != KC_NO ; i++ )
         if ( keys[i] == key ) {
             if ( pressed ) {
-                DEBUG("Keyboard: Key (0x%x) is already pressed\n", key);
+                DEBUG("Keyboard:\e[0;31m Key (0x%x) is already pressed\e[0m\n", key);
                 return false;
             } else {
                 changed = false;  // Disable _tmo_automatic_report() while updating.
@@ -114,12 +114,12 @@ bool usbus_hid_keyboard_t::help_skro_key_event(uint8_t keys[], uint8_t key, bool
         }
 
     if ( !pressed ) {
-        DEBUG("Keyboard: Key (0x%x) is already released\n", key);
+        DEBUG("Keyboard:\e[0;31m Key (0x%x) is already released\e[0m\n", key);
         return false;
     }
 
     if ( i == SKRO_KEYS_SIZE ) {
-        DEBUG("Keyboard: no room to report key (0x%x) press\n", key);
+        DEBUG("Keyboard:\e[0;31m no room to report key press (0x%x)\e[0m\n", key);
         return false;
     }
 
@@ -132,13 +132,13 @@ bool usbus_hid_keyboard_t::help_skro_key_event(uint8_t keys[], uint8_t key, bool
 bool usbus_hid_keyboard_t::help_nkro_key_event(uint8_t bits[], uint8_t key, bool pressed)
 {
     if ( (key >> 3) >= NKRO_KEYS_SIZE ) {
-        DEBUG("Keyboard: Key (0x%x) is out of NKRO report range\n", key);
+        DEBUG("Keyboard:\e[0;31m Key (0x%x) is out of NKRO report range\e[0m\n", key);
         return false;
     }
 
     const bool ok = help_update_bits(bits[key >> 3], key, pressed);
     if ( !ok )
-        DEBUG("Keyboard: Key (0x%x) is already %sed\n", key,
+        DEBUG("Keyboard:\e[0;31m Key (0x%x) is already %sed\e[0m\n", key,
             pressed ? "press" : "releas");
     return ok;
 }
