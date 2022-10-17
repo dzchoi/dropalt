@@ -4,6 +4,7 @@
 #include "hid_keycodes.hpp"
 #include "usb_descriptor.hpp"
 #include "usbus_hid_device.hpp"
+#include "xtimer_wrapper.hpp"
 
 
 
@@ -20,6 +21,13 @@ public:
 
     void set_protocol(uint8_t protocol) { m_keyboard_protocol = protocol; }
 
+    virtual bool key_report(uint8_t keycode, bool pressed) =0;
+
+    bool key_press(uint8_t keycode) { return key_report(keycode, true); }
+    bool key_release(uint8_t keycode) { return key_report(keycode, false); }
+    // Todo: Delayed release should be handled through list of pressed keys.
+    bool key_tap(uint8_t keycode);
+
 protected:
     using usbus_hid_device_tl<AUTOMATIC_REPORTING>::usbus_hid_device_tl;
 
@@ -35,15 +43,23 @@ protected:
     // USB_HID_REQUEST_SET_PROTOCOL. Keyboard device cannot set it to 0 on its own.
     uint8_t m_keyboard_protocol = 1;
 
-    bool help_update_bits(uint8_t& mods, uint8_t key, bool pressed);
-    bool help_skro_key_event(uint8_t keys[], uint8_t key, bool pressed);
-    bool help_nkro_key_event(uint8_t bits[], uint8_t key, bool pressed);
+    bool help_update_report_bits(uint8_t& bits, uint8_t keycode, bool pressed);
+    bool help_skro_key_report(uint8_t keys[], uint8_t keycode, bool pressed);
+    bool help_nkro_key_report(uint8_t bits[], uint8_t keycode, bool pressed);
+
+    uint8_t key_in_press;  // No need to initialize.
+    static constexpr uint32_t TAPPING_DELAY_RELEASE_US = 20 *US_PER_MS;
+    xtimer_onetime_callback_t<usbus_hid_keyboard_t*> tap_timer {
+        TAPPING_DELAY_RELEASE_US, _tmo_key_delayed_release, this };
+    static void _tmo_key_delayed_release(usbus_hid_keyboard_t* that) {
+        that->key_release(that->key_in_press);
+    }
 };
 
-inline bool usbus_hid_keyboard_t::help_update_bits(
-    uint8_t& bits, uint8_t key, bool pressed)
+inline bool usbus_hid_keyboard_t::help_update_report_bits(
+    uint8_t& bits, uint8_t keycode, bool pressed)
 {
-    const uint8_t mask = uint8_t(1) << (key & 7);
+    const uint8_t mask = uint8_t(1) << (keycode & 7);
     if ( ((bits & mask) != 0) == pressed )
         return false;
 
@@ -83,10 +99,10 @@ public:
     void _isr_fill_in_buf() { __builtin_memcpy(in_buf, m_report.raw, KEYBOARD_EPSIZE); }
 
     // Update the report that will be sent to the host automatically (no blocking).
-    bool key_event(uint8_t key, bool pressed) {
-        return key >= KC_LCTRL
-            ? help_update_bits(m_report.mods, key, pressed)
-            : help_skro_key_event(m_report.keys, key, pressed);
+    bool key_report(uint8_t keycode, bool pressed) {
+        return keycode >= ::keycode(KC_LCTRL)
+            ? help_update_report_bits(m_report.mods, keycode, pressed)
+            : help_skro_key_report(m_report.keys, keycode, pressed);
     }
 
 private:
@@ -124,10 +140,10 @@ public:
 
     void _isr_fill_in_buf() { __builtin_memcpy(in_buf, m_report.raw, KEYBOARD_EPSIZE); }
 
-    bool key_event(uint8_t key, bool pressed) {
-        return key >= KC_LCTRL
-            ? help_update_bits(m_report.mods, key, pressed)
-            : (this->*xkro_key_event)(key, pressed);
+    bool key_report(uint8_t keycode, bool pressed) {
+        return keycode >= ::keycode(KC_LCTRL)
+            ? help_update_report_bits(m_report.mods, keycode, pressed)
+            : (this->*xkro_key_report)(keycode, pressed);
     }
 
 private:
@@ -147,14 +163,14 @@ private:
     static_assert( sizeof(keyboard_report_t) == KEYBOARD_EPSIZE );
 
     // These pointers-to-members are changed according to the current protocol.
-    bool (usbus_hid_keyboard_tl::*xkro_key_event)(uint8_t key, bool pressed) =
-        &usbus_hid_keyboard_tl::nkro_key_event;
+    bool (usbus_hid_keyboard_tl::*xkro_key_report)(uint8_t keycode, bool pressed) =
+        &usbus_hid_keyboard_tl::nkro_key_report;
 
-    bool skro_key_event(uint8_t key, bool pressed) {
-        return help_skro_key_event(m_report.keys, key, pressed);
+    bool skro_key_report(uint8_t keycode, bool pressed) {
+        return help_skro_key_report(m_report.keys, keycode, pressed);
     }
 
-    bool nkro_key_event(uint8_t key, bool pressed) {
-        return help_nkro_key_event(m_report.bits, key, pressed);
+    bool nkro_key_report(uint8_t keycode, bool pressed) {
+        return help_nkro_key_report(m_report.bits, keycode, pressed);
     }
 };

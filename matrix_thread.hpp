@@ -36,8 +36,8 @@ private:
     //  - Global: one timer for all keys. Any key change state affects the global timer.
     //  - Timer-based scan while any key pressing, then goes interrupt-based when idle.
 
-    void detect_change(bool first_scan);
-    bool report_change();
+    void check_change(bool first_scan);
+    bool apply_change();
 
     static void _isr_detect_any_key_down(void* arg);
 

@@ -4,353 +4,372 @@
 
 #pragma once
 
+#include <type_traits>          // for std::integral_constant<>
 
+
+
+template <uint8_t CODE>
+using Key = std::integral_constant<uint8_t, CODE>;
 
 // USB HID Keyboard/Keypad Usage(0x07)
-enum hid_keyboard_keypad_usage: uint8_t {
-    KC_NO               = 0x00,
-    KC_ROLL_OVER,       // this is equivalent to KC_TRANSPARENT
-    KC_POST_FAIL,
-    KC_UNDEFINED,
-    KC_A,
-    KC_B,
-    KC_C,
-    KC_D,
-    KC_E,
-    KC_F,
-    KC_G,
-    KC_H,
-    KC_I,
-    KC_J,
-    KC_K,
-    KC_L,
-    KC_M,               // 0x10
-    KC_N,
-    KC_O,
-    KC_P,
-    KC_Q,
-    KC_R,
-    KC_S,
-    KC_T,
-    KC_U,
-    KC_V,
-    KC_W,
-    KC_X,
-    KC_Y,
-    KC_Z,
-    KC_1,
-    KC_2,
-    KC_3,               // 0x20
-    KC_4,
-    KC_5,
-    KC_6,
-    KC_7,
-    KC_8,
-    KC_9,
-    KC_0,
-    KC_ENTER,
-    KC_ESCAPE,
-    KC_BSPACE,
-    KC_TAB,
-    KC_SPACE,
-    KC_MINUS,
-    KC_EQUAL,
-    KC_LBRACKET,
-    KC_RBRACKET,        // 0x30
-    KC_BSLASH,          // \ (and |)
-    KC_NONUS_HASH,      // Non-US # and ~ (Typically near the Enter key)
-    KC_SCOLON,          // ; (and :)
-    KC_QUOTE,           // ' and "
-    KC_GRAVE,           // Grave accent and tilde
-    KC_COMMA,           // , and <
-    KC_DOT,             // . and >
-    KC_SLASH,           // / and ?
-    KC_CAPSLOCK,
-    KC_F1,
-    KC_F2,
-    KC_F3,
-    KC_F4,
-    KC_F5,
-    KC_F6,
-    KC_F7,              // 0x40
-    KC_F8,
-    KC_F9,
-    KC_F10,
-    KC_F11,
-    KC_F12,
-    KC_PSCREEN,
-    KC_SCROLLLOCK,
-    KC_PAUSE,
-    KC_INSERT,
-    KC_HOME,
-    KC_PGUP,
-    KC_DELETE,
-    KC_END,
-    KC_PGDOWN,
-    KC_RIGHT,
-    KC_LEFT,            // 0x50
-    KC_DOWN,
-    KC_UP,
-    KC_NUMLOCK,
-    KC_KP_SLASH,
-    KC_KP_ASTERISK,
-    KC_KP_MINUS,
-    KC_KP_PLUS,
-    KC_KP_ENTER,
-    KC_KP_1,
-    KC_KP_2,
-    KC_KP_3,
-    KC_KP_4,
-    KC_KP_5,
-    KC_KP_6,
-    KC_KP_7,
-    KC_KP_8,            // 0x60
-    KC_KP_9,
-    KC_KP_0,
-    KC_KP_DOT,
-    KC_NONUS_BSLASH,    // Non-US \ and | (Typically near the Left-Shift key)
-    KC_APPLICATION,
-    KC_POWER,
-    KC_KP_EQUAL,
-    KC_F13,
-    KC_F14,
-    KC_F15,
-    KC_F16,
-    KC_F17,
-    KC_F18,
-    KC_F19,
-    KC_F20,
-    KC_F21,             // 0x70
-    KC_F22,
-    KC_F23,
-    KC_F24,
-    KC_EXECUTE,
-    KC_HELP,
-    KC_MENU,
-    KC_SELECT,
-    KC_STOP,
-    KC_AGAIN,
-    KC_UNDO,
-    KC_CUT,
-    KC_COPY,
-    KC_PASTE,
-    KC_FIND,
-    KC_MUTE,
-    KC_VOLUP,           // 0x80
-    KC_VOLDOWN,
-    KC_LOCKING_CAPS,    // locking Caps Lock
-    KC_LOCKING_NUM,     // locking Num Lock
-    KC_LOCKING_SCROLL,  // locking Scroll Lock
-    KC_KP_COMMA,
-    KC_KP_EQUAL_AS400,  // equal sign on AS/400
-    KC_INT1,
-    KC_INT2,
-    KC_INT3,
-    KC_INT4,
-    KC_INT5,
-    KC_INT6,
-    KC_INT7,
-    KC_INT8,
-    KC_INT9,
-    KC_LANG1,           // 0x90
-    KC_LANG2,
-    KC_LANG3,
-    KC_LANG4,
-    KC_LANG5,
-    KC_LANG6,
-    KC_LANG7,
-    KC_LANG8,
-    KC_LANG9,
-    KC_ALT_ERASE,
-    KC_SYSREQ,
-    KC_CANCEL,
-    KC_CLEAR,
-    KC_PRIOR,
-    KC_RETURN,
-    KC_SEPARATOR,
-    KC_OUT,             // 0xA0
-    KC_OPER,
-    KC_CLEAR_AGAIN,
-    KC_CRSEL,
-    KC_EXSEL,           // 0xA4
+constexpr Key<0x00> KC_NO;
+constexpr Key<0x01> KC_ROLL_OVER;  // equals KC_TRANSPARENT
+constexpr Key<0x02> KC_POST_FAIL;
+constexpr Key<0x03> KC_UNDEFINED;
+constexpr Key<0x04> KC_A;
+constexpr Key<0x05> KC_B;
+constexpr Key<0x06> KC_C;
+constexpr Key<0x07> KC_D;
+constexpr Key<0x08> KC_E;
+constexpr Key<0x09> KC_F;
+constexpr Key<0x0A> KC_G;
+constexpr Key<0x0B> KC_H;
+constexpr Key<0x0C> KC_I;
+constexpr Key<0x0D> KC_J;
+constexpr Key<0x0E> KC_K;
+constexpr Key<0x0F> KC_L;
 
-    // 0xA5 to 0xAF - RESERVED
-    KC_RESERVED_A5,     // Used as macro identifier
-    KC_RESERVED_A6,     // this is used for special keyboard functions
-    KC_RESERVED_A7,
-    KC_RESERVED_A8,
-    KC_RESERVED_A9,
-    KC_RESERVED_AA,
-    KC_RESERVED_AB,
-    KC_RESERVED_AC,
-    KC_RESERVED_AD,
-    KC_RESERVED_AE,
-    KC_RESERVED_AF,
+constexpr Key<0x10> KC_M;
+constexpr Key<0x11> KC_N;
+constexpr Key<0x12> KC_O;
+constexpr Key<0x13> KC_P;
+constexpr Key<0x14> KC_Q;
+constexpr Key<0x15> KC_R;
+constexpr Key<0x16> KC_S;
+constexpr Key<0x17> KC_T;
+constexpr Key<0x18> KC_U;
+constexpr Key<0x19> KC_V;
+constexpr Key<0x1A> KC_W;
+constexpr Key<0x1B> KC_X;
+constexpr Key<0x1C> KC_Y;
+constexpr Key<0x1D> KC_Z;
+constexpr Key<0x1E> KC_1;
+constexpr Key<0x1F> KC_2;
 
-#if 0
-    /. NOTE: Following codes(0xB0-DD) are not used but are in the HID Document. Leaving them for reference.
-    KC_KP_00            = 0xB0,
-    KC_KP_000,
-    KC_THOUSANDS_SEPARATOR,
-    KC_DECIMAL_SEPARATOR,
-    KC_CURRENCY_UNIT,
-    KC_CURRENCY_SUB_UNIT,
-    KC_KP_LPAREN, KC_KP_RPAREN,
-    KC_KP_LCBRACKET,    // {
-    KC_KP_RCBRACKET,    // }
-    KC_KP_TAB,
-    KC_KP_BSPACE,
-    KC_KP_A,
-    KC_KP_B,
-    KC_KP_C,
-    KC_KP_D,
-    KC_KP_E,            // 0xC0
-    KC_KP_F,
-    KC_KP_XOR,
-    KC_KP_HAT,
-    KC_KP_PERC,
-    KC_KP_LT,
-    KC_KP_GT,
-    KC_KP_AND,
-    KC_KP_LAZYAND,
-    KC_KP_OR,
-    KC_KP_LAZYOR,
-    KC_KP_COLON,
-    KC_KP_HASH,
-    KC_KP_SPACE,
-    KC_KP_ATMARK,
-    KC_KP_EXCLAMATION,
-    KC_KP_MEM_STORE,    // 0xD0
-    KC_KP_MEM_RECALL,
-    KC_KP_MEM_CLEAR,
-    KC_KP_MEM_ADD,
-    KC_KP_MEM_SUB,
-    KC_KP_MEM_MUL,
-    KC_KP_MEM_DIV,
-    KC_KP_PLUS_MINUS,
-    KC_KP_CLEAR,
-    KC_KP_CLEAR_ENTRY,
-    KC_KP_BINARY,
-    KC_KP_OCTAL,
-    KC_KP_DECIMAL,
-    KC_KP_HEXADECIMAL,  // 0xDD
-#endif
+constexpr Key<0x20> KC_3;
+constexpr Key<0x21> KC_4;
+constexpr Key<0x22> KC_5;
+constexpr Key<0x23> KC_6;
+constexpr Key<0x24> KC_7;
+constexpr Key<0x25> KC_8;
+constexpr Key<0x26> KC_9;
+constexpr Key<0x27> KC_0;
+constexpr Key<0x28> KC_ENTER;
+constexpr Key<0x29> KC_ESCAPE;
+constexpr Key<0x2A> KC_BSPACE;
+constexpr Key<0x2B> KC_TAB;
+constexpr Key<0x2C> KC_SPACE;
+constexpr Key<0x2D> KC_MINUS;
+constexpr Key<0x2E> KC_EQUAL;
+constexpr Key<0x2F> KC_LBRACKET;
 
-    /* Modifiers */
-    KC_LCTRL            = 0xE0,
-    KC_LSHIFT,
-    KC_LALT,
-    KC_LGUI,
-    KC_RCTRL,
-    KC_RSHIFT,
-    KC_RALT,
-    KC_RGUI,
-};
+constexpr Key<0x30> KC_RBRACKET;
+constexpr Key<0x31> KC_BSLASH;      // \ (and |)
+constexpr Key<0x32> KC_NONUS_HASH;  // Non-US # and ~ (Typically near the Enter key)
+constexpr Key<0x33> KC_SCOLON;      // ; (and :)
+constexpr Key<0x34> KC_QUOTE;       // ' and "
+constexpr Key<0x35> KC_GRAVE;       // Grave accent and tilde
+constexpr Key<0x36> KC_COMMA;       // , and <
+constexpr Key<0x37> KC_DOT;         // . and >
+constexpr Key<0x38> KC_SLASH;       // / and ?
+constexpr Key<0x39> KC_CAPSLOCK;
+constexpr Key<0x3A> KC_F1;
+constexpr Key<0x3B> KC_F2;
+constexpr Key<0x3C> KC_F3;
+constexpr Key<0x3D> KC_F4;
+constexpr Key<0x3E> KC_F5;
+constexpr Key<0x3F> KC_F6;
 
+constexpr Key<0x40> KC_F7;
+constexpr Key<0x41> KC_F8;
+constexpr Key<0x42> KC_F9;
+constexpr Key<0x43> KC_F10;
+constexpr Key<0x44> KC_F11;
+constexpr Key<0x45> KC_F12;
+constexpr Key<0x46> KC_PSCREEN;
+constexpr Key<0x47> KC_SCROLLLOCK;
+constexpr Key<0x48> KC_PAUSE;
+constexpr Key<0x49> KC_INSERT;
+constexpr Key<0x4A> KC_HOME;
+constexpr Key<0x4B> KC_PGUP;
+constexpr Key<0x4C> KC_DELETE;
+constexpr Key<0x4D> KC_END;
+constexpr Key<0x4E> KC_PGDOWN;
+constexpr Key<0x4F> KC_RIGHT;
+
+constexpr Key<0x50> KC_LEFT;
+constexpr Key<0x51> KC_DOWN;
+constexpr Key<0x52> KC_UP;
+constexpr Key<0x53> KC_NUMLOCK;
+constexpr Key<0x54> KC_KP_SLASH;
+constexpr Key<0x55> KC_KP_ASTERISK;
+constexpr Key<0x56> KC_KP_MINUS;
+constexpr Key<0x57> KC_KP_PLUS;
+constexpr Key<0x58> KC_KP_ENTER;
+constexpr Key<0x59> KC_KP_1;
+constexpr Key<0x5A> KC_KP_2;
+constexpr Key<0x5B> KC_KP_3;
+constexpr Key<0x5C> KC_KP_4;
+constexpr Key<0x5D> KC_KP_5;
+constexpr Key<0x5E> KC_KP_6;
+constexpr Key<0x5F> KC_KP_7;
+
+constexpr Key<0x60> KC_KP_8;
+constexpr Key<0x61> KC_KP_9;
+constexpr Key<0x62> KC_KP_0;
+constexpr Key<0x63> KC_KP_DOT;
+constexpr Key<0x64> KC_NONUS_BSLASH;  // Non-US \ and | (Typically near the Left-Shift key)
+constexpr Key<0x65> KC_APPLICATION;
+constexpr Key<0x66> KC_POWER;
+constexpr Key<0x67> KC_KP_EQUAL;
+constexpr Key<0x68> KC_F13;
+constexpr Key<0x69> KC_F14;
+constexpr Key<0x6A> KC_F15;
+constexpr Key<0x6B> KC_F16;
+constexpr Key<0x6C> KC_F17;
+constexpr Key<0x6D> KC_F18;
+constexpr Key<0x6E> KC_F19;
+constexpr Key<0x6F> KC_F20;
+
+constexpr Key<0x70> KC_F21;
+constexpr Key<0x71> KC_F22;
+constexpr Key<0x72> KC_F23;
+constexpr Key<0x73> KC_F24;
+constexpr Key<0x74> KC_EXECUTE;
+constexpr Key<0x75> KC_HELP;
+constexpr Key<0x76> KC_MENU;
+constexpr Key<0x77> KC_SELECT;
+constexpr Key<0x78> KC_STOP;
+constexpr Key<0x79> KC_AGAIN;
+constexpr Key<0x7A> KC_UNDO;
+constexpr Key<0x7B> KC_CUT;
+constexpr Key<0x7C> KC_COPY;
+constexpr Key<0x7D> KC_PASTE;
+constexpr Key<0x7E> KC_FIND;
+constexpr Key<0x7F> KC_MUTE;
+
+constexpr Key<0x80> KC_VOLUP;
+constexpr Key<0x81> KC_VOLDOWN;
+constexpr Key<0x82> KC_LOCKING_CAPS;    // locking Caps Lock
+constexpr Key<0x83> KC_LOCKING_NUM;     // locking Num Lock
+constexpr Key<0x84> KC_LOCKING_SCROLL;  // locking Scroll Lock
+constexpr Key<0x85> KC_KP_COMMA;
+constexpr Key<0x86> KC_KP_EQUAL_AS400;  // equal sign on AS/400
+constexpr Key<0x87> KC_INT1;
+constexpr Key<0x88> KC_INT2;
+constexpr Key<0x89> KC_INT3;
+constexpr Key<0x8A> KC_INT4;
+constexpr Key<0x8B> KC_INT5;
+constexpr Key<0x8C> KC_INT6;
+constexpr Key<0x8D> KC_INT7;
+constexpr Key<0x8E> KC_INT8;
+constexpr Key<0x8F> KC_INT9;
+
+constexpr Key<0x90> KC_LANG1;
+constexpr Key<0x91> KC_LANG2;
+constexpr Key<0x92> KC_LANG3;
+constexpr Key<0x93> KC_LANG4;
+constexpr Key<0x94> KC_LANG5;
+constexpr Key<0x95> KC_LANG6;
+constexpr Key<0x96> KC_LANG7;
+constexpr Key<0x97> KC_LANG8;
+constexpr Key<0x98> KC_LANG9;
+constexpr Key<0x99> KC_ALT_ERASE;
+constexpr Key<0x9A> KC_SYSREQ;
+constexpr Key<0x9B> KC_CANCEL;
+constexpr Key<0x9C> KC_CLEAR;
+constexpr Key<0x9D> KC_PRIOR;
+constexpr Key<0x9E> KC_RETURN;
+constexpr Key<0x9F> KC_SEPARATOR;
+
+constexpr Key<0xA0> KC_OUT;
+constexpr Key<0xA1> KC_OPER;
+constexpr Key<0xA2> KC_CLEAR_AGAIN;
+constexpr Key<0xA3> KC_CRSEL;
+constexpr Key<0xA4> KC_EXSEL;
+constexpr Key<0xA5> KC_RESERVED_A5;
+constexpr Key<0xA6> KC_RESERVED_A6;
+constexpr Key<0xA7> KC_RESERVED_A7;
+constexpr Key<0xA8> KC_RESERVED_A8;
+constexpr Key<0xA9> KC_RESERVED_A9;
+constexpr Key<0xAA> KC_RESERVED_AA;
+constexpr Key<0xAB> KC_RESERVED_AB;
+constexpr Key<0xAC> KC_RESERVED_AC;
+constexpr Key<0xAD> KC_RESERVED_AD;
+constexpr Key<0xAE> KC_RESERVED_AE;
+constexpr Key<0xAF> KC_RESERVED_AF;
+
+// NOTE: Following codes(0xB0-DD) are not used but are in the HID Document. Leaving them for reference.
+constexpr Key<0xB0> KC_KP_00;
+constexpr Key<0xB1> KC_KP_000;
+constexpr Key<0xB2> KC_THOUSANDS_SEPARATOR;
+constexpr Key<0xB3> KC_DECIMAL_SEPARATOR;
+constexpr Key<0xB4> KC_CURRENCY_UNIT;
+constexpr Key<0xB5> KC_CURRENCY_SUB_UNIT;
+constexpr Key<0xB6> KC_KP_LPAREN;
+constexpr Key<0xB7> KC_KP_RPAREN;
+constexpr Key<0xB8> KC_KP_LCBRACKET;  // {
+constexpr Key<0xB9> KC_KP_RCBRACKET;  // }
+constexpr Key<0xBA> KC_KP_TAB;
+constexpr Key<0xBB> KC_KP_BSPACE;
+constexpr Key<0xBC> KC_KP_A;
+constexpr Key<0xBD> KC_KP_B;
+constexpr Key<0xBE> KC_KP_C;
+constexpr Key<0xBF> KC_KP_D;
+
+constexpr Key<0xC0> KC_KP_E;
+constexpr Key<0xC1> KC_KP_F;
+constexpr Key<0xC2> KC_KP_XOR;
+constexpr Key<0xC3> KC_KP_HAT;
+constexpr Key<0xC4> KC_KP_PERC;
+constexpr Key<0xC5> KC_KP_LT;
+constexpr Key<0xC6> KC_KP_GT;
+constexpr Key<0xC7> KC_KP_AND;
+constexpr Key<0xC8> KC_KP_LAZYAND;
+constexpr Key<0xC9> KC_KP_OR;
+constexpr Key<0xCA> KC_KP_LAZYOR;
+constexpr Key<0xCB> KC_KP_COLON;
+constexpr Key<0xCC> KC_KP_HASH;
+constexpr Key<0xCD> KC_KP_SPACE;
+constexpr Key<0xCE> KC_KP_ATMARK;
+constexpr Key<0xCF> KC_KP_EXCLAMATION;
+
+constexpr Key<0xD0> KC_KP_MEM_STORE;
+constexpr Key<0xD1> KC_KP_MEM_RECALL;
+constexpr Key<0xD2> KC_KP_MEM_CLEAR;
+constexpr Key<0xD3> KC_KP_MEM_ADD;
+constexpr Key<0xD4> KC_KP_MEM_SUB;
+constexpr Key<0xD5> KC_KP_MEM_MUL;
+constexpr Key<0xD6> KC_KP_MEM_DIV;
+constexpr Key<0xD7> KC_KP_PLUS_MINUS;
+constexpr Key<0xD8> KC_KP_CLEAR;
+constexpr Key<0xD9> KC_KP_CLEAR_ENTRY;
+constexpr Key<0xDA> KC_KP_BINARY;
+constexpr Key<0xDB> KC_KP_OCTAL;
+constexpr Key<0xDC> KC_KP_DECIMAL;
+constexpr Key<0xDD> KC_KP_HEXADECIMAL;
+// constexpr Key<0xDE> KC_???;
+// constexpr Key<0xDF> KC_???;
+
+// Modifiers
+constexpr Key<0xE0> KC_LCTRL;
+constexpr Key<0xE1> KC_LSHIFT;
+constexpr Key<0xE2> KC_LALT;
+constexpr Key<0xE3> KC_LGUI;
+constexpr Key<0xE4> KC_RCTRL;
+constexpr Key<0xE5> KC_RSHIFT;
+constexpr Key<0xE6> KC_RALT;
+constexpr Key<0xE7> KC_RGUI;
 
 
 /*
  * Short names for ease of definition of keymap
  */
-constexpr uint8_t KC_LCTL = KC_LCTRL;
-constexpr uint8_t KC_RCTL = KC_RCTRL;
-constexpr uint8_t KC_LSFT = KC_LSHIFT;
-constexpr uint8_t KC_RSFT = KC_RSHIFT;
-constexpr uint8_t KC_ESC  = KC_ESCAPE;
-constexpr uint8_t KC_BSPC = KC_BSPACE;
-constexpr uint8_t KC_ENT  = KC_ENTER;
-constexpr uint8_t KC_DEL  = KC_DELETE;
-constexpr uint8_t KC_INS  = KC_INSERT;
-constexpr uint8_t KC_CAPS = KC_CAPSLOCK;
-constexpr uint8_t KC_CLCK = KC_CAPSLOCK;
-constexpr uint8_t KC_RGHT = KC_RIGHT;
-constexpr uint8_t KC_PGDN = KC_PGDOWN;
-constexpr uint8_t KC_PSCR = KC_PSCREEN;
-constexpr uint8_t KC_SLCK = KC_SCROLLLOCK;
-constexpr uint8_t KC_PAUS = KC_PAUSE;
-constexpr uint8_t KC_BRK  = KC_PAUSE;
-constexpr uint8_t KC_NLCK = KC_NUMLOCK;
-constexpr uint8_t KC_SPC  = KC_SPACE;
-constexpr uint8_t KC_MINS = KC_MINUS;
-constexpr uint8_t KC_EQL  = KC_EQUAL;
-constexpr uint8_t KC_GRV  = KC_GRAVE;
-constexpr uint8_t KC_RBRC = KC_RBRACKET;
-constexpr uint8_t KC_LBRC = KC_LBRACKET;
-constexpr uint8_t KC_COMM = KC_COMMA;
-constexpr uint8_t KC_BSLS = KC_BSLASH;
-constexpr uint8_t KC_SLSH = KC_SLASH;
-constexpr uint8_t KC_SCLN = KC_SCOLON;
-constexpr uint8_t KC_QUOT = KC_QUOTE;
-constexpr uint8_t KC_APP  = KC_APPLICATION;
-constexpr uint8_t KC_NUHS = KC_NONUS_HASH;
-constexpr uint8_t KC_NUBS = KC_NONUS_BSLASH;
-constexpr uint8_t KC_LCAP = KC_LOCKING_CAPS;
-constexpr uint8_t KC_LNUM = KC_LOCKING_NUM;
-constexpr uint8_t KC_LSCR = KC_LOCKING_SCROLL;
-constexpr uint8_t KC_ERAS = KC_ALT_ERASE;
-constexpr uint8_t KC_CLR  = KC_CLEAR;
+constexpr auto KC_LCTL = KC_LCTRL;
+constexpr auto KC_RCTL = KC_RCTRL;
+constexpr auto KC_LSFT = KC_LSHIFT;
+constexpr auto KC_RSFT = KC_RSHIFT;
+constexpr auto KC_ESC  = KC_ESCAPE;
+constexpr auto KC_BSPC = KC_BSPACE;
+constexpr auto KC_ENT  = KC_ENTER;
+constexpr auto KC_DEL  = KC_DELETE;
+constexpr auto KC_INS  = KC_INSERT;
+constexpr auto KC_CAPS = KC_CAPSLOCK;
+constexpr auto KC_CLCK = KC_CAPSLOCK;
+constexpr auto KC_RGHT = KC_RIGHT;
+constexpr auto KC_PGDN = KC_PGDOWN;
+constexpr auto KC_PSCR = KC_PSCREEN;
+constexpr auto KC_SLCK = KC_SCROLLLOCK;
+constexpr auto KC_PAUS = KC_PAUSE;
+constexpr auto KC_BRK  = KC_PAUSE;
+constexpr auto KC_NLCK = KC_NUMLOCK;
+constexpr auto KC_SPC  = KC_SPACE;
+constexpr auto KC_MINS = KC_MINUS;
+constexpr auto KC_EQL  = KC_EQUAL;
+constexpr auto KC_GRV  = KC_GRAVE;
+constexpr auto KC_RBRC = KC_RBRACKET;
+constexpr auto KC_LBRC = KC_LBRACKET;
+constexpr auto KC_COMM = KC_COMMA;
+constexpr auto KC_BSLS = KC_BSLASH;
+constexpr auto KC_SLSH = KC_SLASH;
+constexpr auto KC_SCLN = KC_SCOLON;
+constexpr auto KC_QUOT = KC_QUOTE;
+constexpr auto KC_APP  = KC_APPLICATION;
+constexpr auto KC_NUHS = KC_NONUS_HASH;
+constexpr auto KC_NUBS = KC_NONUS_BSLASH;
+constexpr auto KC_LCAP = KC_LOCKING_CAPS;
+constexpr auto KC_LNUM = KC_LOCKING_NUM;
+constexpr auto KC_LSCR = KC_LOCKING_SCROLL;
+constexpr auto KC_ERAS = KC_ALT_ERASE;
+constexpr auto KC_CLR  = KC_CLEAR;
 /* Japanese specific */
-constexpr uint8_t KC_ZKHK = KC_GRAVE;
-constexpr uint8_t KC_RO   = KC_INT1;
-constexpr uint8_t KC_KANA = KC_INT2;
-constexpr uint8_t KC_JYEN = KC_INT3;
-constexpr uint8_t KC_HENK = KC_INT4;
-constexpr uint8_t KC_MHEN = KC_INT5;
+constexpr auto KC_ZKHK = KC_GRAVE;
+constexpr auto KC_RO   = KC_INT1;
+constexpr auto KC_KANA = KC_INT2;
+constexpr auto KC_JYEN = KC_INT3;
+constexpr auto KC_HENK = KC_INT4;
+constexpr auto KC_MHEN = KC_INT5;
 /* Korean specific */
-constexpr uint8_t KC_HAEN = KC_LANG1;
-constexpr uint8_t KC_HANJ = KC_LANG2;
+constexpr auto KC_HAEN = KC_LANG1;
+constexpr auto KC_HANJ = KC_LANG2;
 /* Keypad */
-constexpr uint8_t KC_P1   = KC_KP_1;
-constexpr uint8_t KC_P2   = KC_KP_2;
-constexpr uint8_t KC_P3   = KC_KP_3;
-constexpr uint8_t KC_P4   = KC_KP_4;
-constexpr uint8_t KC_P5   = KC_KP_5;
-constexpr uint8_t KC_P6   = KC_KP_6;
-constexpr uint8_t KC_P7   = KC_KP_7;
-constexpr uint8_t KC_P8   = KC_KP_8;
-constexpr uint8_t KC_P9   = KC_KP_9;
-constexpr uint8_t KC_P0   = KC_KP_0;
-constexpr uint8_t KC_PDOT = KC_KP_DOT;
-constexpr uint8_t KC_PCMM = KC_KP_COMMA;
-constexpr uint8_t KC_PSLS = KC_KP_SLASH;
-constexpr uint8_t KC_PAST = KC_KP_ASTERISK;
-constexpr uint8_t KC_PMNS = KC_KP_MINUS;
-constexpr uint8_t KC_PPLS = KC_KP_PLUS;
-constexpr uint8_t KC_PEQL = KC_KP_EQUAL;
-constexpr uint8_t KC_PENT = KC_KP_ENTER;
+constexpr auto KC_P1   = KC_KP_1;
+constexpr auto KC_P2   = KC_KP_2;
+constexpr auto KC_P3   = KC_KP_3;
+constexpr auto KC_P4   = KC_KP_4;
+constexpr auto KC_P5   = KC_KP_5;
+constexpr auto KC_P6   = KC_KP_6;
+constexpr auto KC_P7   = KC_KP_7;
+constexpr auto KC_P8   = KC_KP_8;
+constexpr auto KC_P9   = KC_KP_9;
+constexpr auto KC_P0   = KC_KP_0;
+constexpr auto KC_PDOT = KC_KP_DOT;
+constexpr auto KC_PCMM = KC_KP_COMMA;
+constexpr auto KC_PSLS = KC_KP_SLASH;
+constexpr auto KC_PAST = KC_KP_ASTERISK;
+constexpr auto KC_PMNS = KC_KP_MINUS;
+constexpr auto KC_PPLS = KC_KP_PLUS;
+constexpr auto KC_PEQL = KC_KP_EQUAL;
+constexpr auto KC_PENT = KC_KP_ENTER;
 /* Unix function key */
-constexpr uint8_t KC_EXEC = KC_EXECUTE;
-constexpr uint8_t KC_SLCT = KC_SELECT;
-constexpr uint8_t KC_AGIN = KC_AGAIN;
-constexpr uint8_t KC_PSTE = KC_PASTE;
+constexpr auto KC_EXEC = KC_EXECUTE;
+constexpr auto KC_SLCT = KC_SELECT;
+constexpr auto KC_AGIN = KC_AGAIN;
+constexpr auto KC_PSTE = KC_PASTE;
 /* Mousekey */
-// constexpr uint8_t KC_MS_U = KC_MS_UP;
-// constexpr uint8_t KC_MS_D = KC_MS_DOWN;
-// constexpr uint8_t KC_MS_L = KC_MS_LEFT;
-// constexpr uint8_t KC_MS_R = KC_MS_RIGHT;
-// constexpr uint8_t KC_BTN1 = KC_MS_BTN1;
-// constexpr uint8_t KC_BTN2 = KC_MS_BTN2;
-// constexpr uint8_t KC_BTN3 = KC_MS_BTN3;
-// constexpr uint8_t KC_BTN4 = KC_MS_BTN4;
-// constexpr uint8_t KC_BTN5 = KC_MS_BTN5;
-// constexpr uint8_t KC_WH_U = KC_MS_WH_UP;
-// constexpr uint8_t KC_WH_D = KC_MS_WH_DOWN;
-// constexpr uint8_t KC_WH_L = KC_MS_WH_LEFT;
-// constexpr uint8_t KC_WH_R = KC_MS_WH_RIGHT;
-// constexpr uint8_t KC_ACL0 = KC_MS_ACCEL0;
-// constexpr uint8_t KC_ACL1 = KC_MS_ACCEL1;
-// constexpr uint8_t KC_ACL2 = KC_MS_ACCEL2;
+// constexpr auto KC_MS_U = KC_MS_UP;
+// constexpr auto KC_MS_D = KC_MS_DOWN;
+// constexpr auto KC_MS_L = KC_MS_LEFT;
+// constexpr auto KC_MS_R = KC_MS_RIGHT;
+// constexpr auto KC_BTN1 = KC_MS_BTN1;
+// constexpr auto KC_BTN2 = KC_MS_BTN2;
+// constexpr auto KC_BTN3 = KC_MS_BTN3;
+// constexpr auto KC_BTN4 = KC_MS_BTN4;
+// constexpr auto KC_BTN5 = KC_MS_BTN5;
+// constexpr auto KC_WH_U = KC_MS_WH_UP;
+// constexpr auto KC_WH_D = KC_MS_WH_DOWN;
+// constexpr auto KC_WH_L = KC_MS_WH_LEFT;
+// constexpr auto KC_WH_R = KC_MS_WH_RIGHT;
+// constexpr auto KC_ACL0 = KC_MS_ACCEL0;
+// constexpr auto KC_ACL1 = KC_MS_ACCEL1;
+// constexpr auto KC_ACL2 = KC_MS_ACCEL2;
 
 /* Transparent */
-constexpr uint8_t KC_TRANSPARENT = 1;
-constexpr uint8_t KC_TRNS = KC_TRANSPARENT;
+constexpr auto KC_TRANSPARENT = KC_ROLL_OVER;
+constexpr auto KC_TRNS = KC_TRANSPARENT;
 /* GUI key aliases */
-constexpr uint8_t KC_LCMD = KC_LGUI;
-constexpr uint8_t KC_LWIN = KC_LGUI;
-constexpr uint8_t KC_RCMD = KC_RGUI;
-constexpr uint8_t KC_RWIN = KC_RGUI;
-constexpr uint8_t _______ = KC_TRNS;
-constexpr uint8_t XXXXXXX = KC_NO;
+constexpr auto KC_LCMD = KC_LGUI;
+constexpr auto KC_LWIN = KC_LGUI;
+constexpr auto KC_RCMD = KC_RGUI;
+constexpr auto KC_RWIN = KC_RGUI;
 
-// constexpr uint8_t KC_LABK = KC_LT;
-// constexpr uint8_t KC_RABK = KC_GT;
+// constexpr auto KC_LABK = KC_LT;
+// constexpr auto KC_RABK = KC_GT;
+
+
+
+template <uint8_t CODE>
+constexpr uint8_t keycode(Key<CODE> key) {
+    (void)key;
+    return CODE;
+}
