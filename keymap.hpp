@@ -9,9 +9,16 @@
 class keymap_t {
 public:
     virtual void operator()(bool pressed) =0;
+    // virtual on_press()
+    // virtual on_release()
+    // bool send_press()
+    // bool send_tap()
+    // bool send_release()
 
 private:
-    // Todo: link pointer to unprocessed key list.
+    // Todo: link pointer to unprocessed keys list.
+    // Todo: link pointer to pressing keys list. This can help determining whether to
+    //  report or not, also debouncing per key.
     // Todo: Attribute, e.g. to get notified of other key being pressed while holding.
 };
 
@@ -20,7 +27,10 @@ private:
 class map_const_t: public keymap_t {
 public:
     void operator()(bool pressed) {
-        usb_thread::obj().hid_keyboard.key_report(m_code, pressed);
+        if ( pressed )
+            usb_thread::obj().hid_keyboard.report_press(m_code);
+        else
+            usb_thread::obj().hid_keyboard.report_release(m_code);
     }
 
     template <uint8_t CODE>

@@ -17,11 +17,11 @@ public:
             timer.start();
         }
         else if ( m_holding ) {
-            usb_thread::obj().hid_keyboard.key_release(m_code_hold);
+            usb_thread::obj().hid_keyboard.report_release(m_code_hold);
         }
         else {
             timer.stop();
-            usb_thread::obj().hid_keyboard.key_tap(m_code_tap);
+            usb_thread::obj().hid_keyboard.report_tap(m_code_tap);
         }
     }
 
@@ -34,14 +34,12 @@ private:
     const uint8_t m_code_hold;
     std::atomic<bool> m_holding = false;
 
-    // Todo: Define TAPPING_TERM_US in features.hpp.
-    static constexpr uint32_t TAPPING_TERM_US = 200 *US_PER_MS;
-    static void _tmo_tapping_not_detected(tap_hold_t* that) {
-        usb_thread::obj().hid_keyboard.key_press(that->m_code_hold);
+    static void _tmo_tapping_not_detected(void* arg) {
+        tap_hold_t* const that = static_cast<tap_hold_t*>(arg);
+        usb_thread::obj().hid_keyboard.report_press(that->m_code_hold);
         that->m_holding = true;
     }
-    xtimer_onetime_callback_t<tap_hold_t*> timer {
-        TAPPING_TERM_US, _tmo_tapping_not_detected, this };
+    xtimer_onetime_callback_t timer { TAPPING_TERM_US, _tmo_tapping_not_detected, this };
 };
 
 tap_hold_t EXT_LCTL { KC_ESC, KC_LCTL };

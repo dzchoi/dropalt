@@ -18,8 +18,11 @@ public:
 private:
     thread_t* m_pthread;
 
-    // THREAD_STACKSIZE_TINY cannot be used with printf().
+#ifdef DEVELHELP
+    char m_stack[THREAD_STACKSIZE_MEDIUM];
+#else
     char m_stack[THREAD_STACKSIZE_SMALL];
+#endif
 
     matrix_thread();  // Can be called only by obj().
 
@@ -36,8 +39,8 @@ private:
     //  - Global: one timer for all keys. Any key change state affects the global timer.
     //  - Timer-based scan while any key pressing, then goes interrupt-based when idle.
 
-    void check_change(bool first_scan);
-    bool apply_change();
+    void detect_change(bool first_scan);
+    bool commit_change();
 
     static void _isr_detect_any_key_down(void* arg);
 

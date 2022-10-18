@@ -3,6 +3,7 @@
 #pragma once
 
 #include <stdint.h>             // for uint8_t
+#include "time_units.h"         // for US_PER_MS
 
 
 
@@ -47,4 +48,10 @@ constexpr uint32_t MATRIX_SCAN_PERIOD_US = 887u;
 
 // Keys are registered only after this time period of no bounces.
 // If too short, it may double a register, but too long period may miss.
-constexpr uint32_t DEBOUNCE_TIME_US = 3 *1000u;
+constexpr uint32_t DEBOUNCE_TIME_US = 3 *US_PER_MS;
+
+// The delay time for release after hid_keyboard.report_tap().
+constexpr uint32_t TAPPING_RELEASE_DELAY_US = 40 *US_PER_MS;
+
+// TAPPING_TERM_US is the maximum time from press to release to be counted as a tap.
+constexpr uint32_t TAPPING_TERM_US = 200 *US_PER_MS;

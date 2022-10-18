@@ -33,7 +33,7 @@ public:
 
     ~xtimer_periodic_signal_t() { stop(); }
 
-    // Copies prohibited.
+    // Copies prohibited since the object itself can belong to a linked list.
     xtimer_periodic_signal_t(const xtimer_periodic_signal_t&) =delete;
     void operator=(const xtimer_periodic_signal_t&) =delete;
 
@@ -127,14 +127,13 @@ private:
 
 
 
-template <typename T>
 class xtimer_onetime_callback_t: xtimer_t {
 public:
-    xtimer_onetime_callback_t(uint32_t timeout_us, void (*callback)(T), T&& arg)
-    : m_timeout_us(timeout_us), m_callback(callback), m_arg(std::forward<T>(arg))
+    xtimer_onetime_callback_t(uint32_t timeout_us, void (*callback)(void*), void* arg)
+    : m_timeout_us(timeout_us)
     {
-        xtimer_t::callback = &_tmo_onetime_callback;
-        xtimer_t::arg = this;
+        xtimer_t::callback = callback;
+        xtimer_t::arg = arg;
     }
 
     void start() { xtimer_set(this, m_timeout_us); }
@@ -150,12 +149,4 @@ public:
 
 private:
     const uint32_t m_timeout_us;
-    void (*const m_callback)(T);
-    const T m_arg;
-
-    static void _tmo_onetime_callback(void* arg) {
-        xtimer_onetime_callback_t* const that =
-            static_cast<xtimer_onetime_callback_t*>(arg);
-        (that->m_callback)(that->m_arg);
-    }
 };

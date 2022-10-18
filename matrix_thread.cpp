@@ -39,16 +39,16 @@ void* matrix_thread::_matrix_thread(void* arg)
             );
 
         if ( flags & FLAG_START_SCAN )
-            that->check_change(true);
+            that->detect_change(true);
 
         if ( flags & FLAG_CONTINUE_SCAN )
-            that->check_change(false);
+            that->detect_change(false);
     }
 
     return nullptr;
 }
 
-void matrix_thread::check_change(bool first_scan)
+void matrix_thread::detect_change(bool first_scan)
 {
     // Note that the first scan following the interrupt is not reliable as there tends to
     // be a lot of bounces. It depends on when the scan is performed, whether during a
@@ -66,7 +66,7 @@ void matrix_thread::check_change(bool first_scan)
     }
 
     else if ( is_debounce_done() ) {
-        continue_scan = apply_change();
+        continue_scan = commit_change();
         debounce_started = 0;
     }
 
@@ -74,7 +74,7 @@ void matrix_thread::check_change(bool first_scan)
         xtimer_set_timeout_flag(&scan_timer, MATRIX_SCAN_PERIOD_US);
 }
 
-bool matrix_thread::apply_change()
+bool matrix_thread::commit_change()
 {
     // Update matrix[] and report any changes from the last report.
     // Todo: Would it be better to report it in another thread context? It can be
@@ -88,9 +88,9 @@ bool matrix_thread::apply_change()
                 const unsigned col = __builtin_ctz(_xor);
                 const matrix_row_t mask = matrix_row_t(1) << col;
                 const bool is_pressed = ((raw_matrix[row] & mask) != 0);
+                DEBUG("Matrix: report %s\n", is_pressed ? "press" : "release");
                 keymap[row][col](is_pressed);
                 _xor &= ~mask;
-                DEBUG("Matrix: report %s\n", is_pressed ? "press" : "release");
             } while ( _xor != 0 );
             matrix[row] = raw_matrix[row];
             is_changed = true;
