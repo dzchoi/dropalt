@@ -5,14 +5,14 @@
 #include <vector>               // for std::vector<> from Newlib
 #include "event_ext.hpp"        // for event_ext_t
 #include "features.hpp"         // for KEYBOARD_REPORT_INTERVAL_MS
-#include "hid_keycodes.hpp"
+#include "hid_keycodes.hpp"     // for KC_LCTRL
 #include "usb_descriptor.hpp"
 #include "usbus_hid_device.hpp"
 
 // Note that there are two types of key press/release events, those done physically and
 // those done reportedly (to the host). Physical events are received by matrix_thread,
-// mapped by keymap, and finally reported by usbus_hid_keyboard. So, the "keys" here in
-// usbus_hid_keyboard refer to the type being reported.
+// mapped by keymap_thread, and finally reported to usbus_hid_keyboard (i.e. usb_thread).
+// The "keys" here in usbus_hid_keyboard refer to the type being reported.
 
 
 
@@ -30,27 +30,28 @@ public:
     void set_protocol(uint8_t protocol) { m_keyboard_protocol = protocol; }
 
     // These methods register key presses/taps/releases by sending corresponding events
-    // to usb_thread. (Using the same event with only different arguments is usually
-    // prone to lose any previous events that are overwritten by a later one. In this
-    // case, however, usb_thread has the highest priority and there can be maximum two
-    // events of the same kind, one sent from any lower-priority thread(s) and one sent
-    // from interrupt.)
+    // to usb_thread. Note that they are not to be called from interrupt context.
+    // (Using the same event instance with only different arguments is usually prone to
+    // lose any previous events that are overwritten by a later one. In this case,
+    // however, as usb_thread has the highest priority and the events cannot be sent
+    // from interrupts, there can be at maximum only one event being handled at any
+    // moment.)
     void report_press(uint8_t keycode) {
-        const unsigned i = irq_is_in();
-        m_event_report_press[i].arg1 = keycode;
-        usbus_event_post(usbus, &m_event_report_press[i]);
+        m_event_report.handler = _hdlr_report_press;
+        m_event_report.arg1 = keycode;
+        usbus_event_post(usbus, &m_event_report);
     }
 
     void report_tap(uint8_t keycode) {
-        const unsigned i = irq_is_in();
-        m_event_report_tap[i].arg1 = keycode;
-        usbus_event_post(usbus, &m_event_report_tap[i]);
+        m_event_report.handler = _hdlr_report_tap;
+        m_event_report.arg1 = keycode;
+        usbus_event_post(usbus, &m_event_report);
     }
 
     void report_release(uint8_t keycode) {
-        const unsigned i = irq_is_in();
-        m_event_report_release[i].arg1 = keycode;
-        usbus_event_post(usbus, &m_event_report_release[i]);
+        m_event_report.handler = _hdlr_report_release;
+        m_event_report.arg1 = keycode;
+        usbus_event_post(usbus, &m_event_report);
     }
 
 protected:
@@ -58,6 +59,8 @@ protected:
         const uint8_t* report_desc, size_t report_desc_size, usbus_hid_cb_t cb_receive_data)
     : usbus_hid_device_tl(usbus, report_desc, report_desc_size, cb_receive_data)
     {
+        // Initialize the fixed part of m_event_report.
+        m_event_report.arg0 = this;
         // Initial capacity of m_reported_keys. It will be increased as needed.
         m_reported_keys.reserve(SKRO_KEYS_SIZE);
     }
@@ -108,22 +111,10 @@ protected:
 
     std::vector<reported_key_t> m_reported_keys;
 
-    event_ext_t<usbus_hid_keyboard_t*, uint8_t> m_event_report_press[2] = {
-        { {{.next = nullptr}, .handler = _hdlr_report_press}, .arg0 = this, .arg1 = 0 },
-        { {{.next = nullptr}, .handler = _hdlr_report_press}, .arg0 = this, .arg1 = 0 }
-    };
+    event_ext_t<usbus_hid_keyboard_t*, uint8_t> m_event_report;
+
     static void _hdlr_report_press(event_t* event);
-
-    event_ext_t<usbus_hid_keyboard_t*, uint8_t> m_event_report_tap[2] = {
-        { {{.next = nullptr}, .handler = _hdlr_report_tap}, .arg0 = this, .arg1 = 0 },
-        { {{.next = nullptr}, .handler = _hdlr_report_tap}, .arg0 = this, .arg1 = 0 }
-    };
     static void _hdlr_report_tap(event_t* event);
-
-    event_ext_t<usbus_hid_keyboard_t*, uint8_t> m_event_report_release[2] {
-        { {{.next = nullptr}, .handler = _hdlr_report_release}, .arg0 = this, .arg1 = 0 },
-        { {{.next = nullptr}, .handler = _hdlr_report_release}, .arg0 = this, .arg1 = 0 }
-    };
     static void _hdlr_report_release(event_t* event);
 };
 
@@ -154,7 +145,7 @@ constexpr bool NKRO = true;
 template<>
 class usbus_hid_keyboard_tl<SKRO>: public usbus_hid_keyboard_t {
 public:
-    static inline constexpr auto REPORT_DESC = array_of(SkroReportDescriptor);
+    static constexpr auto REPORT_DESC = array_of(SkroReportDescriptor);
 
     static constexpr size_t KEYBOARD_EPSIZE = SKRO_REPORT_SIZE;
 
@@ -181,7 +172,7 @@ private:
     static_assert( sizeof(keyboard_report_t) == KEYBOARD_EPSIZE );
 
     bool report_key(uint8_t keycode, bool pressed) {
-        return keycode >= ::keycode(KC_LCTRL)
+        return keycode >= KC_LCTRL
             ? help_report_bits(m_report.mods, keycode, pressed)
             : help_skro_report_key(m_report.keys, keycode, pressed);
     }
@@ -190,7 +181,7 @@ private:
 template<>
 class usbus_hid_keyboard_tl<NKRO>: public usbus_hid_keyboard_t {
 public:
-    static inline constexpr auto REPORT_DESC = array_of(NkroReportDescriptor);
+    static constexpr auto REPORT_DESC = array_of(NkroReportDescriptor);
 
     // The endpoint report size that we provided to the host in HID report descriptor.
     // Even so we should follow the current protocol; in Report protocol we report as we
@@ -239,7 +230,7 @@ private:
     }
 
     bool report_key(uint8_t keycode, bool pressed) {
-        return keycode >= ::keycode(KC_LCTRL)
+        return keycode >= KC_LCTRL
             ? help_report_bits(m_report.mods, keycode, pressed)
             : (this->*xkro_report_key)(keycode, pressed);
     }

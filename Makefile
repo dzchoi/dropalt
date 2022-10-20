@@ -14,20 +14,16 @@ BINDIRBASE ?= $(CURDIR)/.build
 
 # See https://github.com/cortexm/baremetal/blob/master/CMakeLists.txt
 # for compiler options for building embedded system.
-CXXEXFLAGS += -std=c++17			# for inline constexpr
+CXXEXFLAGS += -std=c++17    # for (constexpr) inline variables
 CXXEXFLAGS += -fno-exceptions
 CXXEXFLAGS += -fno-ms-extensions
-CXXEXFLAGS += -fno-rtti				# Todo: Is dynamic_cast<> still available?
+CXXEXFLAGS += -fno-rtti     # We don't need RTTI as no ambiguous base classes are used.
 CXXEXFLAGS += -fno-threadsafe-statics
 CXXEXFLAGS += -fno-use-cxa-atexit
 # INCLUDES += -I...
 
-# Todo: Organize usb*.[ch]pp in subdirectory usb/.
-# EXTERNAL_MODULE_DIRS += $(CURDIR)
-# USEMODULE += usb
-
 # Peripherals and features to be used from the board.
-FEATURES_REQUIRED += cpp
+FEATURES_REQUIRED += cpp  # Todo: "cpp libstdcpp" ???
 FEATURES_REQUIRED += periph_adc_get
 FEATURES_REQUIRED += periph_gpio_irq
 FEATURES_REQUIRED += periph_matrix
@@ -47,6 +43,12 @@ FEATURES_REQUIRED += periph_dma     # will #define MODULE_PERIPH_DMA
 # FEATURES_OPTIONAL += PERIPH_GPIO_FAST_READ
 
 FEATURES_HPP = features.hpp
+
+# Subdirectory modules
+EXTERNAL_MODULE_DIRS += $(CURDIR)
+USEMODULE += keymap
+
+# Todo: Separate usb module from the application directory.
 
 # RIOT modules
 # USEMODULE += cpp11-compat

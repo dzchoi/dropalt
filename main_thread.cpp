@@ -3,6 +3,7 @@
 
 #include "adc_input.hpp"
 #include "adc_thread.hpp"
+#include "keymap_thread.hpp"
 #include "main_thread.hpp"
 #include "matrix_thread.hpp"
 #include "usb_thread.hpp"
@@ -13,10 +14,12 @@ uint32_t info = 0;
 
 int main()
 {
-    (void)main_thread::obj();    // Create Main thread.
-    (void)adc_thread::obj();     // Create ADC thread.
-    (void)usb_thread::obj();     // Create USB thread.
-    (void)matrix_thread::obj();  // Create Matrix thread.
+    // Create all threads in the order of dependency.
+    (void)main_thread::obj();
+    (void)adc_thread::obj();
+    (void)usb_thread::obj();
+    (void)matrix_thread::obj();
+    (void)keymap_thread::obj();
 
     while ( true ) {
         wdt_kick();

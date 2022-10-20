@@ -5,8 +5,8 @@
 #include "debug.h"
 
 #include "keymap.hpp"
-#include "matrix_thread.hpp"
-#include "usb_thread.hpp"
+#include "keymap_thread.hpp"    // for key::maps[][]
+#include "matrix_thread.hpp"    // for signal_key_event()
 
 
 
@@ -77,8 +77,6 @@ void matrix_thread::detect_change(bool first_scan)
 bool matrix_thread::commit_change()
 {
     // Update matrix[] and report any changes from the last report.
-    // Todo: Would it be better to report it in another thread context? It can be
-    //  expensive as we will need to send the report through msg queue.
     matrix_row_t is_any_down = 0;
     bool is_changed = false;
     for ( unsigned row = 0 ; row < MATRIX_ROWS ; row++ ) {
@@ -89,7 +87,7 @@ bool matrix_thread::commit_change()
                 const matrix_row_t mask = matrix_row_t(1) << col;
                 const bool is_pressed = ((raw_matrix[row] & mask) != 0);
                 DEBUG("Matrix: report %s\n", is_pressed ? "press" : "release");
-                keymap[row][col](is_pressed);
+                keymap_thread::obj().signal_key_event(&key::maps[row][col], is_pressed);
                 _xor &= ~mask;
             } while ( _xor != 0 );
             matrix[row] = raw_matrix[row];

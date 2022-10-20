@@ -110,9 +110,10 @@ extern "C" {
 // long, we jump to the bootloader.
 #define WDT_TIMEOUT                     (4 *1000U)      // 4 sec
 
-#define THREAD_PRIO_USB                 4
-#define THREAD_PRIO_MATRIX              5
-#define THREAD_PRIO_ADC                 6
+#define THREAD_PRIO_USB                 2
+#define THREAD_PRIO_MATRIX              3
+#define THREAD_PRIO_ADC                 4
+#define THREAD_PRIO_KEYMAP              5
 #if THREAD_PRIORITY_MAIN != 7
 #   error THREAD_PRIORITY_MAIN != 7
 #endif

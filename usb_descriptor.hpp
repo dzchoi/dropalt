@@ -29,7 +29,7 @@ constexpr size_t SKRO_REPORT_SIZE = 8;
 constexpr size_t SKRO_KEYS_SIZE = SKRO_REPORT_SIZE - 2;
 // So, 6 keys can be reported simultaneously.
 
-inline constexpr uint8_t SkroReportDescriptor[] = {
+constexpr uint8_t SkroReportDescriptor[] = {
     HID_RI_USAGE_PAGE(8, 0x01),        // Generic Desktop
     HID_RI_USAGE(8, 0x06),             // Keyboard
     HID_RI_COLLECTION(8, 0x01),        // Application
@@ -77,7 +77,7 @@ constexpr size_t NKRO_REPORT_SIZE = 32;  // must be 8, 16, 32 or 64.
 constexpr size_t NKRO_KEYS_SIZE = NKRO_REPORT_SIZE - 1;  // == 31 bytes
 // So, 248 (= 31*8 = 0xF8) keys can be reported.
 
-inline constexpr uint8_t NkroReportDescriptor[] = {
+constexpr uint8_t NkroReportDescriptor[] = {
     HID_RI_USAGE_PAGE(8, 0x01),        // Generic Desktop
     HID_RI_USAGE(8, 0x06),             // Keyboard
     HID_RI_COLLECTION(8, 0x01),        // Application
@@ -128,7 +128,7 @@ constexpr uint8_t RAW_USAGE_PAGE_LO = (uint8_t)(RAW_USAGE_PAGE & 0xFF);
 
 constexpr size_t RAW_REPORT_SIZE = 64;  // must be 8, 16, 32 or 64.
 
-inline constexpr uint8_t RawReportDescriptor[] = {
+constexpr uint8_t RawReportDescriptor[] = {
     HID_RI_USAGE_PAGE(16, RAW_USAGE_PAGE), // Vendor Defined
     HID_RI_USAGE(8, RAW_USAGE_ID),         // Vendor Defined
     HID_RI_COLLECTION(8, 0x01),    // Application
@@ -151,7 +151,7 @@ inline constexpr uint8_t RawReportDescriptor[] = {
 };
 
 /*
-inline constexpr uint8_t MouseReportDescriptor[] = {
+constexpr uint8_t MouseReportDescriptor[] = {
     HID_RI_USAGE_PAGE(8, 0x01),            // Generic Desktop
     HID_RI_USAGE(8, 0x02),                 // Mouse
     HID_RI_COLLECTION(8, 0x01),            // Application
@@ -197,7 +197,7 @@ inline constexpr uint8_t MouseReportDescriptor[] = {
     HID_RI_END_COLLECTION(0)
 };
 
-inline constexpr uint8_t ExtrakeyReportDescriptor[] = {
+constexpr uint8_t ExtrakeyReportDescriptor[] = {
     HID_RI_USAGE_PAGE(8, 0x01),           // Generic Desktop
     HID_RI_USAGE(8, 0x80),                // System Control
     HID_RI_COLLECTION(8, 0x01),           // Application
@@ -225,7 +225,7 @@ inline constexpr uint8_t ExtrakeyReportDescriptor[] = {
     HID_RI_END_COLLECTION(0)
 };
 
-inline constexpr uint8_t JoystickReportDescriptor[] = {
+constexpr uint8_t JoystickReportDescriptor[] = {
 #ifdef JOYSTICK_ENABLE
 #if JOYSTICK_AXES_COUNT == 0 && JOYSTICK_BUTTON_COUNT == 0
 #   error Need at least one axis or button for joystick
@@ -291,7 +291,7 @@ inline constexpr uint8_t JoystickReportDescriptor[] = {
 */
 
 #if 0
-inline constexpr uint8_t report_desc_con[] = {
+constexpr uint8_t report_desc_con[] = {
     0x06, 0x31, 0xFF,   // Usage Page (Vendor Defined - PJRC Teensy compatible)
     0x09, 0x74,         // Usage (Vendor Defined - PJRC Teensy compatible)
     0xA1, 0x01,         // Collection (Application)
@@ -312,7 +312,7 @@ inline constexpr uint8_t report_desc_con[] = {
     0xC0                // End Collection
 };
 
-inline constexpr uint8_t report_desc_raw[] = {
+constexpr uint8_t report_desc_raw[] = {
     0x06, 0x60, 0xFF,   // Usage Page (Vendor Defined)
     0x09, 0x61,         // Usage (Vendor Defined)
     0xA1, 0x01,         // Collection (Application)
@@ -330,7 +330,7 @@ inline constexpr uint8_t report_desc_raw[] = {
     0xC0                // End Collection
 };
 
-inline constexpr uint8_t CtapReportDescriptor[] = {
+constexpr uint8_t CtapReportDescriptor[] = {
     // this descriptor is used, because the basic usb_hid interface was developed in
     // conjunction with FIDO2. Descriptor is taken from CTAP2 specification
     // (version 20190130) section 8.1.8.2

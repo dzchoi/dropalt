@@ -19,7 +19,7 @@ public:
 template<>
 class usbus_hid_raw_tl<true>: public usbus_hid_device_tl<MANUAL_REPORTING> {
 public:
-    static inline constexpr auto REPORT_DESC = array_of(RawReportDescriptor);
+    static constexpr auto REPORT_DESC = array_of(RawReportDescriptor);
 
     static constexpr size_t RAW_EPSIZE = RAW_REPORT_SIZE;
 

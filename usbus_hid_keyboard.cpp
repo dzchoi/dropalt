@@ -73,10 +73,16 @@ bool usbus_hid_keyboard_t::help_report_press(uint8_t keycode, bool is_tapping)
         DEBUG("Keyboard: register press of 0x%x\n", keycode);
         ok = report_key(keycode, true);
     }
-    else
+    else {
         // Already pressed
         ++it->ref_count;
+        DEBUG("Keyboard:\e[0;31m ignore press of 0x%x (ref_count=%d)\e[0m\n",
+            keycode, it->ref_count);
+    }
 
+    // Todo: Instead of using a timer we can delay the reverting changes that are made
+    //  within 10 ms and thus will not be reported to the host, to the next usb interrupt
+    //  frame.
     if ( ok && is_tapping )
         xtimer_set(&it->tapping_timer, TAPPING_RELEASE_DELAY_US);
 
@@ -99,6 +105,9 @@ bool usbus_hid_keyboard_t::help_report_release(uint8_t keycode)
         DEBUG("Keyboard: register release of 0x%x\n", keycode);
         report_key(keycode, false);
     }
+    else
+        DEBUG("Keyboard:\e[0;31m ignore release of 0x%x (ref_count=%d)\e[0m\n",
+            keycode, it->ref_count);
 
     return true;
 }
