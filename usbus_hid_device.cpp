@@ -88,8 +88,11 @@ static void _tmo_automatic_report(void* arg)
         hidx->changed = false;
         hidx->occupied = 0;
         mutex_unlock(&hidx->in_lock);
-        DEBUG("USB_HID: data packet not sent!\n");
+        DEBUG("USB_HID:\e[0;31m data packet not sent!\e[0m\n");
     }
+
+    // Notify of report being done when hidx->changed becomes false.
+    hidx->_isr_report_done();
 }
 
 static void _tmo_tx_timer_expired(void* arg)

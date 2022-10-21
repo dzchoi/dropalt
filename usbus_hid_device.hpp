@@ -92,4 +92,7 @@ struct usbus_hid_device_tl<AUTOMATIC_REPORTING>: usbus_hid_device_ext_t {
     //   transferred to the host, whereas submit() transfers only up to the given `len`
     //   bytes of data.
     virtual void _isr_fill_in_buf() =0;
+
+    // Called when report is sent to the host.
+    virtual void _isr_report_done() {}
 };

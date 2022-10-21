@@ -50,8 +50,5 @@ constexpr uint32_t MATRIX_SCAN_PERIOD_US = 887u;
 // If too short, it may double a register, but too long period may miss.
 constexpr uint32_t DEBOUNCE_TIME_US = 3 *US_PER_MS;
 
-// The delay time for release after hid_keyboard.report_tap().
-constexpr uint32_t TAPPING_RELEASE_DELAY_US = 17 *US_PER_MS;
-
 // TAPPING_TERM_US is the maximum time from press to release to be counted as a tap.
 constexpr uint32_t TAPPING_TERM_US = 200 *US_PER_MS;
