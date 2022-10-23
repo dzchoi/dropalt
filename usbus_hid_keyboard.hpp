@@ -1,9 +1,10 @@
 #pragma once
 
-#include <vector>               // for std::vector<> from Newlib
+#include <mutex.h>
+
 #include "event_ext.hpp"        // for event_ext_t
 #include "features.hpp"         // for KEYBOARD_REPORT_INTERVAL_MS
-#include "hid_keycodes.hpp"     // for KC_LCTRL
+#include "hid_keycodes.hpp"     // for KC_LCTRL, KC_NO
 #include "usb_descriptor.hpp"
 #include "usbus_hid_device.hpp"
 
@@ -27,37 +28,15 @@ public:
 
     void set_protocol(uint8_t protocol) { m_keyboard_protocol = protocol; }
 
-    // These methods register key presses/taps/releases by triggering corresponding
-    // events to usb_thread. Note that they are not to be called from interrupt context.
-    // (Using the same event instance with only different arguments is usually prone to
-    // lose any previous events that are overwritten by a later one. In this case,
-    // however, as usb_thread has the highest priority and the events cannot be sent
-    // from interrupts, there can be at maximum only one event being handled at any
-    // moment.)
-    // They use report_key() to send report to the host eventually, but before that they
-    // sort out events to not conflict (e.g. consecutive presses without a release in
-    // between), whereas report_key() simply composes the report following SKRO or NKRO
-    // protocol and send it to the host.
-    void report_press(uint8_t keycode) {
-        m_event_report.handler = _hdlr_report_press;
-        m_event_report.arg1 = keycode;
-        usbus_event_post(usbus, &m_event_report);
-    }
+    // These user-facing methods register key presses/releases by triggering
+    // corresponding events to usb_thread. Note that they are not to be called from
+    // interrupt context. They use the private method report_key() to send report to the
+    // host, but after blocking if necesssay, in order to ensure that no two presses are
+    // made in the same report (for NKRO protocol in particular) and that a press and
+    // its immediate release are not reported at the same time.
+    void report_press(uint8_t keycode);
 
-    // The report_tap() is nothing but report_press() and then report_release(), just
-    // provided for convenience. The necessary time gap between them is taken care of by
-    // release deferral mechanism in help_report_release() and help_report_done().
-    void report_tap(uint8_t keycode) {
-        m_event_report.handler = _hdlr_report_tap;
-        m_event_report.arg1 = keycode;
-        usbus_event_post(usbus, &m_event_report);
-    }
-
-    void report_release(uint8_t keycode) {
-        m_event_report.handler = _hdlr_report_release;
-        m_event_report.arg1 = keycode;
-        usbus_event_post(usbus, &m_event_report);
-    }
+    void report_release(uint8_t keycode);
 
     // This code needs fixing _usbus_thread() to handle multiple events on event queue,
     // as an event can be pushed from interrupt while usbus (i.e. usb_thread) processing
@@ -66,17 +45,7 @@ public:
 
 protected:
     usbus_hid_keyboard_t(usbus_t* usbus,
-        const uint8_t* report_desc, size_t report_desc_size, usbus_hid_cb_t cb_receive_data)
-    : usbus_hid_device_tl(usbus, report_desc, report_desc_size, cb_receive_data)
-    {
-        // Initialize the fixed parts of events.
-        m_event_report.arg0 =
-        m_event_report_done.arg = this;
-        m_event_report_done.handler = _hdlr_report_done;
-
-        // Initial capacity of m_keys_being_reported. It will be increased as needed.
-        m_keys_being_reported.reserve(SKRO_KEYS_SIZE);
-    }
+        const uint8_t* report_desc, size_t report_desc_size, usbus_hid_cb_t cb_receive_data);
 
     void help_init(usbus_t* usbus, size_t epsize, uint8_t ep_interval_ms);
 
@@ -90,9 +59,20 @@ protected:
     // USB_HID_REQUEST_SET_PROTOCOL. Keyboard device cannot set it to 0 on its own.
     uint8_t m_keyboard_protocol = 1;
 
-    bool help_report_press(uint8_t keycode);
-    bool help_report_release(uint8_t keycode);
-    void help_report_done();
+    mutex_t m_lock_send;
+    mutex_t m_lock_release;
+    uint8_t m_key_being_reported = KC_NO;
+
+    // Event used by report_press/release()
+    event_ext_t<usbus_hid_keyboard_t*, uint8_t> m_event_report;
+
+    static void _hdlr_report_press(event_t* event);
+    static void _hdlr_report_release(event_t* event);
+
+    // Event triggered when report is sent to the host
+    event_ext_t<usbus_hid_keyboard_t*> m_event_report_done;
+
+    static void _hdlr_report_done(event_t* event);
 
     // Update the report that will be sent to the host automatically (non-blocking).
     virtual bool report_key(uint8_t keycode, bool pressed) =0;
@@ -100,45 +80,7 @@ protected:
     bool help_report_bits(uint8_t& bits, uint8_t keycode, bool pressed);
     bool help_skro_report_key(uint8_t keys[], uint8_t keycode, bool pressed);
     bool help_nkro_report_key(uint8_t bits[], uint8_t keycode, bool pressed);
-
-    struct key_being_reported_t {
-        key_being_reported_t(uint8_t keycode): code(keycode) {}
-
-        uint8_t code;
-        uint8_t ref_count = 1;
-        bool reported = false;
-    };
-
-    std::vector<key_being_reported_t> m_keys_being_reported;
-
-    // Event used by report_press/tap/release()
-    event_ext_t<usbus_hid_keyboard_t*, uint8_t> m_event_report;
-
-    static void _hdlr_report_press(event_t* event);
-    static void _hdlr_report_tap(event_t* event);
-    static void _hdlr_report_release(event_t* event);
-
-    // Event triggered when report is sent to the host
-    event_ext_t<usbus_hid_keyboard_t*> m_event_report_done;
-
-    static void _hdlr_report_done(event_t* event);
 };
-
-inline bool usbus_hid_keyboard_t::help_report_bits(
-    uint8_t& bits, uint8_t keycode, bool pressed)
-{
-    const uint8_t mask = uint8_t(1) << (keycode & 7);
-    if ( ((bits & mask) != 0) == pressed )
-        return false;
-
-    changed = false;  // Disable _tmo_automatic_report() while updating.
-    if ( pressed )
-        bits |= mask;
-    else
-        bits &= ~mask;
-    changed = true;
-    return true;
-}
 
 
 

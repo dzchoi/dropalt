@@ -30,8 +30,11 @@ private:
     kernel_pid_t m_pid;
     thread_t* m_pthread;
 
-    // THREAD_STACKSIZE_TINY cannot be used with printf().
+#ifdef DEVELHELP
+    char m_stack[THREAD_STACKSIZE_MEDIUM];
+#else
     char m_stack[THREAD_STACKSIZE_SMALL];
+#endif
 
     // message queue for buffering input key events
     static constexpr size_t KEY_EVENT_QUEUE_SIZE = 16;  // must be a power of two.

@@ -8,6 +8,19 @@
 
 
 
+usbus_hid_keyboard_t::usbus_hid_keyboard_t(usbus_t* usbus,
+    const uint8_t* report_desc, size_t report_desc_size, usbus_hid_cb_t cb_receive_data)
+: usbus_hid_device_tl(usbus, report_desc, report_desc_size, cb_receive_data)
+{
+    // Initialize the fixed parts of events.
+    m_event_report.arg0 =
+    m_event_report_done.arg = this;
+    m_event_report_done.handler = _hdlr_report_done;
+
+    mutex_init(&m_lock_send);
+    mutex_init(&m_lock_release);
+}
+
 void usbus_hid_keyboard_t::help_init(
     usbus_t* usbus, size_t epsize, uint8_t ep_interval_ms)
 {
@@ -59,102 +72,70 @@ void usbus_hid_keyboard_t::on_resume()
     main_thread::obj().signal_usb_resume();
 }
 
-bool usbus_hid_keyboard_t::help_report_press(uint8_t keycode)
+void usbus_hid_keyboard_t::report_press(uint8_t keycode)
 {
-    for ( key_being_reported_t& key: m_keys_being_reported )
-        if ( key.code == keycode ) {
-            // Already pressed
-            if ( key.ref_count++ == 0 ) {
-                if ( key.reported ) {
-                    DEBUG("Keyboard: register press of 0x%x\n", keycode);
-                    report_key(keycode, true);
-                } else
-                    DEBUG("Keyboard: ignore press of 0x%x whose release was deferred\n",
-                        keycode);
-            } else
-                DEBUG("Keyboard:\e[0;31m ignore press of 0x%x (ref_count=%d)\e[0m\n",
-                    keycode, key.ref_count);
+    // Once a press is being reported another press will be blocked so that no two
+    // presses are made in the same report.
+    mutex_lock(&m_lock_send);
 
-            return true;
-        }
-
-    // Pressed now
-    m_keys_being_reported.emplace_back(keycode);
-    DEBUG("Keyboard: register press of 0x%x\n", keycode);
-    return report_key(keycode, true);
+    m_event_report.handler = _hdlr_report_press;
+    m_event_report.arg1 = keycode;
+    DEBUG("Keyboard: register press (0x%x)\n", keycode);
+    usbus_event_post(usbus, &m_event_report);
 }
 
-bool usbus_hid_keyboard_t::help_report_release(uint8_t keycode)
+void usbus_hid_keyboard_t::report_release(uint8_t keycode)
 {
-    for ( key_being_reported_t& key: m_keys_being_reported )
-        if ( key.code == keycode ) {
-            if ( --key.ref_count == 0 ) {
-                if ( key.reported ) {
-                    DEBUG("Keyboard: register release of 0x%x\n", keycode);
-                    report_key(keycode, false);
-                } else
-                    DEBUG("Keyboard: defer release of 0x%x\n", keycode);
-            } else
-                DEBUG("Keyboard:\e[0;31m ignore release of 0x%x (ref_count=%d)\e[0m\n",
-                    keycode, key.ref_count);
+    // Once a press is being reported its release (and all subsequent other releases)
+    // will be blocked not to be made in the same report.
+    mutex_lock(&m_lock_release);
+    if ( m_key_being_reported == keycode ) {
+        DEBUG("Keyboard: defer release (0x%x)\n", keycode);
+        // Wait until the deferred release is completed.
+        mutex_lock(&m_lock_release);
+    }
+    mutex_unlock(&m_lock_release);
 
-            return true;
-        }
-
-    DEBUG("Keyboard:\e[1;31m Key (0x%x) is already released\e[0m\n", keycode);
-    return false;
+    m_event_report.handler = _hdlr_report_release;
+    m_event_report.arg1 = keycode;
+    DEBUG("Keyboard: register release (0x%x)\n", keycode);
+    usbus_event_post(usbus, &m_event_report);
 }
 
-void usbus_hid_keyboard_t::help_report_done()
-{
-    auto it = m_keys_being_reported.begin();
-    while ( it != m_keys_being_reported.end() )
-        if ( it->ref_count == 0 ) {
-            if ( !it->reported ) {
-                DEBUG("Keyboard: register deferred release of 0x%x\n", it->code);
-                report_key(it->code, false);
-            }
-            it = m_keys_being_reported.erase(it);
-        }
-        else {
-            it->reported = true;
-            ++it;
-        }
-}
-
+// Using the same event instance with only different arguments is usually prone to lose
+// any previous events that are overwritten by a later one. In this case, however, as
+// usb_thread has the highest priority and these events cannot be sent from interrupts,
+// there can be at maximum only one event being handled at any moment.
 void usbus_hid_keyboard_t::_hdlr_report_press(event_t* event)
 {
     usbus_hid_keyboard_t* const that =
         static_cast<event_ext_t<usbus_hid_keyboard_t*, uint8_t>*>(event)->arg0;
-    uint8_t keycode =
+    const uint8_t keycode =
         static_cast<event_ext_t<usbus_hid_keyboard_t*, uint8_t>*>(event)->arg1;
-    that->help_report_press(keycode);
-}
 
-void usbus_hid_keyboard_t::_hdlr_report_tap(event_t* event)
-{
-    usbus_hid_keyboard_t* const that =
-        static_cast<event_ext_t<usbus_hid_keyboard_t*, uint8_t>*>(event)->arg0;
-    uint8_t keycode =
-        static_cast<event_ext_t<usbus_hid_keyboard_t*, uint8_t>*>(event)->arg1;
-    that->help_report_press(keycode);
-    that->help_report_release(keycode);
+    if ( that->report_key(keycode, true) )
+        that->m_key_being_reported = keycode;
+    else
+        mutex_unlock(&that->m_lock_send);
 }
 
 void usbus_hid_keyboard_t::_hdlr_report_release(event_t* event)
 {
     usbus_hid_keyboard_t* const that =
         static_cast<event_ext_t<usbus_hid_keyboard_t*, uint8_t>*>(event)->arg0;
-    uint8_t keycode =
+    const uint8_t keycode =
         static_cast<event_ext_t<usbus_hid_keyboard_t*, uint8_t>*>(event)->arg1;
-    that->help_report_release(keycode);
+    that->report_key(keycode, false);
 }
 
 void usbus_hid_keyboard_t::_hdlr_report_done(event_t* event)
 {
     usbus_hid_keyboard_t* const that =
         static_cast<event_ext_t<usbus_hid_keyboard_t*>*>(event)->arg;
-    that->help_report_done();
+    that->m_key_being_reported = KC_NO;
+    // Unlock any pending presses and releases.
+    mutex_unlock(&that->m_lock_release);
+    mutex_unlock(&that->m_lock_send);
 }
 
 void usbus_hid_keyboard_t::_hdlr_receive_data(
@@ -194,6 +175,21 @@ void usbus_hid_keyboard_t::_hdlr_receive_data(
 // -----+--------+--------+--------+--------+--------+--------+--------+--------
 // desc |Lcontrol|Lshift  |Lalt    |Lgui    |Rcontrol|Rshift  |Ralt    |Rgui
 
+bool usbus_hid_keyboard_t::help_report_bits(uint8_t& bits, uint8_t keycode, bool pressed)
+{
+    const uint8_t mask = uint8_t(1) << (keycode & 7);
+    if ( ((bits & mask) != 0) == pressed )
+        return false;
+
+    changed = false;  // Disable _tmo_automatic_report() while updating.
+    if ( pressed )
+        bits |= mask;
+    else
+        bits &= ~mask;
+    changed = true;
+    return true;
+}
+
 bool usbus_hid_keyboard_t::help_skro_report_key(
     uint8_t keys[], uint8_t keycode, bool pressed)
 {
@@ -201,8 +197,6 @@ bool usbus_hid_keyboard_t::help_skro_report_key(
     for ( i = 0 ; i < SKRO_KEYS_SIZE && keys[i] != KC_NO ; i++ )
         if ( keys[i] == keycode ) {
             if ( pressed ) {
-                // Todo: Once m_keys_being_reported is proved out working fine, convert
-                // the DEBUGs with "\e[1;31m" into assert().
                 DEBUG("Keyboard:\e[1;31m Key (0x%x) is already pressed\e[0m\n", keycode);
                 return false;
             } else {

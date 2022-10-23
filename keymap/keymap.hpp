@@ -2,7 +2,7 @@
 
 #include "periph_conf.h"        // for MATRIX_ROWS and MATRIX_COLS
 
-#include "usb_thread.hpp"       // for report_press/tap/release()
+#include "usb_thread.hpp"       // for report_press/release()
 
 
 
@@ -32,10 +32,6 @@ protected:
     // Utility methods that can be used by child classes.
     void send_press(uint8_t keycode) {
         usb_thread::obj().hid_keyboard.report_press(keycode);
-    }
-
-    void send_tap(uint8_t keycode) {
-        usb_thread::obj().hid_keyboard.report_tap(keycode);
     }
 
     void send_release(uint8_t keycode) {

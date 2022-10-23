@@ -35,17 +35,17 @@ public:
         } else {
             stop_timer();
             stop_observe();
-            DEBUG("--- send_tap (0x%x)\n", m_code_tap);
-            send_tap(m_code_tap);
+            send_press(m_code_tap);
+            send_release(m_code_tap);
         }
     }
 
     void on_other_press(pmap_t*) {
+        DEBUG("---\e[0;34m Hold preferred\e[0m\n");
         stop_timer();
         stop_observe();
         m_holding = true;
         send_press(m_code_hold);
-        DEBUG("---\e[0;34m Hold preferred\e[0m\n");
     }
 
     void on_timeout(pmap_t*) {
