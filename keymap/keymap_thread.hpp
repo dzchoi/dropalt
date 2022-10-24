@@ -8,7 +8,7 @@
 
 
 namespace key {
-class pmap_t;
+class pbase_t;
 }
 
 // The keymap_thread receives (physical) key events such as presses/releases from matrix_
@@ -22,11 +22,11 @@ public:
     }
 
     // Handle input:
-    void signal_key_event(key::pmap_t* ppmap, bool pressed);
-    void signal_timeout(key::pmap_t* ppmap);
+    void signal_key_event(key::pbase_t* ppbase, bool pressed);
+    void signal_timeout(key::pbase_t* ppbase);
 
     // Handle output:
-    // Output is handled by key::map_t::send_press/release(). See keymap.hpp.
+    // Output is handled by key::base_t::send_press/release(). See keymap.hpp.
 
     // In the behavior of defer-presses, every press is deferred and triggered when its
     // release occurs or until stop_defer_presses() is called. To preserve the order of
@@ -62,17 +62,17 @@ private:
     static void* _keymap_thread(void* arg);
 
     unsigned m_behavior_defer_presses = 0;
-    std::vector<key::pmap_t*> m_deferred_presses;
+    std::vector<key::pbase_t*> m_deferred_presses;
     static constexpr size_t DEFERRED_PRESSES_SIZE = 2;
 
-    // Check if ppmap's press has been deferred.
-    bool is_press_deferred(key::pmap_t* ppmap) const;
+    // Check if ppbase's press has been deferred.
+    bool is_press_deferred(key::pbase_t* ppbase) const;
 
     // Complete all the deferred presses.
     void flush_deferred_presses();
 
-    // Complete the deferred presses up to ppmap.
-    void flush_deferred_presses(key::pmap_t* ppmap);
+    // Complete the deferred presses up to ppbase.
+    void flush_deferred_presses(key::pbase_t* ppbase);
 
     // message types
     enum : uint16_t {
@@ -81,7 +81,7 @@ private:
         EVENT_TIMEOUT,
     };
 
-    void help_handle_key_press(key::pmap_t* ppmap);
-    void help_handle_key_release(key::pmap_t* ppmap);
-    void help_handle_timeout(key::pmap_t* ppmap);
+    void help_handle_key_press(key::pbase_t* ppbase);
+    void help_handle_key_release(key::pbase_t* ppbase);
+    void help_handle_timeout(key::pbase_t* ppbase);
 };

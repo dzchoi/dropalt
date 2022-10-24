@@ -15,10 +15,10 @@ public:
     }
 
     // Will be called when the timer is expired.
-    virtual void on_timeout(pmap_t*) =0;
+    virtual void on_timeout(pbase_t*) =0;
 
-    void start_timer(pmap_t* ppmap) {
-        arg = ppmap;
+    void start_timer(pbase_t* ppbase) {
+        arg = ppbase;
         xtimer_set(this, m_timeout_us);
         m_timeout_expected = true;
     }
@@ -50,7 +50,7 @@ private:
     bool m_timeout_expected = false;
 
     static void _tmo_key_timer(void* arg) {
-        keymap_thread::obj().signal_timeout(static_cast<pmap_t*>(arg));
+        keymap_thread::obj().signal_timeout(static_cast<pbase_t*>(arg));
     }
 };
 

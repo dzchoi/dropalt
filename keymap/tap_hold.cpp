@@ -1,29 +1,29 @@
 #define ENABLE_DEBUG 1
 #include "debug.h"
 
-#include "basic.hpp"            // for keycode()
+#include "literal.hpp"          // for keycode()
 #include "tap_hold.hpp"
 
 
 
 namespace key {
 
-tap_hold_t::tap_hold_t(const basic_t& key_tap, const basic_t& key_hold,
+tap_hold_t::tap_hold_t(const literal_t& key_tap, const literal_t& key_hold,
     uint32_t tapping_term_us)
 : timer_t(tapping_term_us)
 , m_code_tap(key_tap.keycode()), m_code_hold(key_hold.keycode())
 {}
 
-void tap_hold_t::on_press(pmap_t* ppmap)
+void tap_hold_t::on_press(pbase_t* ppbase)
 {
-    start_timer(ppmap);
+    start_timer(ppbase);
     start_observe();
     start_defer_presses();
     if ( m_holding )
         DEBUG("TapHold:\e[1;31m spurious holding (0x%x)\e[0m\n", m_code_tap);
 }
 
-void tap_hold_t::on_release(pmap_t*)
+void tap_hold_t::on_release(pbase_t*)
 {
     if ( m_holding ) {
         m_holding = false;
