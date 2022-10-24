@@ -2,7 +2,7 @@
 
 #include "xtimer.h"
 
-#include "keymap_thread.hpp"
+#include "keymap_thread.hpp"    // for signal_timeout()
 
 
 

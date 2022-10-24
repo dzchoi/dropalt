@@ -12,7 +12,7 @@
 
 enum hid_keyboard_keypad_usage: uint8_t {
     KC_NO               = 0x00,
-    KC_ROLL_OVER,       // equals KC_TRANSPARENT
+    KC_ROLL_OVER,
     KC_POST_FAIL,
     KC_UNDEFINED,
     KC_A,

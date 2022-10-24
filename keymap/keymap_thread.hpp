@@ -3,6 +3,8 @@
 #include "msg.h"
 #include "thread.h"
 
+#include <vector>               // for std::vector<> from Newlib
+
 
 
 namespace key {
@@ -24,7 +26,21 @@ public:
     void signal_timeout(key::pmap_t* ppmap);
 
     // Handle output:
-    // Output is handled by key::map_t::send_press/tap/release(). See keymap.hpp.
+    // Output is handled by key::map_t::send_press/release(). See keymap.hpp.
+
+    // In the behavior of defer-presses, every press is deferred and triggered when its
+    // release occurs or until stop_defer_presses() is called. To preserve the order of
+    // presses, however, the release triggers not only its own press but also all other
+    // presses that have occurred and deferred before its own press. For example,
+    // suppose if A, B, C, D and E are pressed and deferred in that order. When C is
+    // released A, B and C are pressed before C is released. D and E are left still
+    // deferred.
+    void start_defer_presses() { m_behavior_defer_presses++; }
+
+    void stop_defer_presses() {
+        if ( m_behavior_defer_presses > 0 )
+            m_behavior_defer_presses--;
+    }
 
 private:
     kernel_pid_t m_pid;
@@ -45,11 +61,27 @@ private:
     // thread body
     static void* _keymap_thread(void* arg);
 
+    unsigned m_behavior_defer_presses = 0;
+    std::vector<key::pmap_t*> m_deferred_presses;
+    static constexpr size_t DEFERRED_PRESSES_SIZE = 2;
+
+    // Check if ppmap's press has been deferred.
+    bool is_press_deferred(key::pmap_t* ppmap) const;
+
+    // Complete all the deferred presses.
+    void flush_deferred_presses();
+
+    // Complete the deferred presses up to ppmap.
+    void flush_deferred_presses(key::pmap_t* ppmap);
+
     // message types
     enum : uint16_t {
         EVENT_KEY_PRESS = 1,
-        EVENT_KEY_TAP,
         EVENT_KEY_RELEASE,
         EVENT_TIMEOUT,
     };
+
+    void help_handle_key_press(key::pmap_t* ppmap);
+    void help_handle_key_release(key::pmap_t* ppmap);
+    void help_handle_timeout(key::pmap_t* ppmap);
 };

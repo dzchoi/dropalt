@@ -28,7 +28,6 @@ private:
 
 // Note that unused ones will not be allocated thanks to g++.
 
-inline basic_t NO = KC_NO;
 inline basic_t ROLL_OVER = KC_ROLL_OVER;
 inline basic_t POST_FAIL = KC_POST_FAIL;
 inline basic_t UNDEFINED = KC_UNDEFINED;
@@ -316,7 +315,5 @@ inline basic_t& LCMD  = LGUI;
 inline basic_t& LWIN  = LGUI;
 inline basic_t& RCMD  = RGUI;
 inline basic_t& RWIN  = RGUI;
-
-inline basic_t& ____  = NO;
 
 }  // namespace key

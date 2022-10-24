@@ -1,5 +1,5 @@
 #include "basic.hpp"
-#include "taphold.hpp"
+#include "tap_hold.hpp"
 
 
 
@@ -21,10 +21,63 @@ uint8_t keymap[MATRIX_ROWS][MATRIX_COLS] = {
 */
 
 tap_hold_t ext_LCTL { ESC, LCTL };
-tap_hold_t ext_SPC { SPC, RSFT };
+tap_hold_fast_t ext_SPC { SPC, RSFT };
 // Under context:
 //  = SPC + BKSP == DEL
 //  - SPC + LSFT == LSFT + SPC
+
+
+
+class pressing_t: public map_t {
+public:
+    void on_press(pmap_t*) { m_pressing = true; }
+    void on_release(pmap_t*) { m_pressing = false; }
+    bool is_pressing() const { return m_pressing; }
+
+private:
+    bool m_pressing = false;
+};
+
+inline pressing_t FN;
+
+
+
+class test_t: public map_t, timer_t {
+public:
+    test_t(): timer_t(500 *US_PER_MS) {}
+
+    timer_t* get_timer() { return dynamic_cast<timer_t*>(this); }
+
+    void on_press(pmap_t* ppmap) {
+        start_timer(ppmap);
+        start_defer_presses();
+        pressing = true;
+    }
+
+    void on_release(pmap_t*) {
+        stop_timer();
+        stop_defer_presses();
+        pressing = false;
+
+        if ( FN.is_pressing() )
+            system_reset();
+    }
+
+    void on_timeout(pmap_t*) {
+        if ( LSFT.is_pressing() )
+            perform_usbhub_switchover();
+        else if ( FN.is_pressing() )
+            assert( false );
+            // WDT->CLEAR.reg = 0;  // anything other than 0xA5
+    }
+
+    bool is_pressing() const { return pressing; }
+
+private:
+    bool pressing = false;
+};
+
+inline test_t TEST;
 
 
 
@@ -38,8 +91,8 @@ pmap_t maps[MATRIX_ROWS][MATRIX_COLS] = {
 
     LSFT, ____, Z, X, C, V, B, N, M, COMMA, DOT, SLASH, RSFT, UP, PGDN,
 
-    NO, LGUI, LALT, ____, ____, ____, ext_SPC, ____, ____, ____,
-        RCTL, RALT, LEFT, DOWN, RIGHT,
+    FN, LGUI, LALT, ____, ____, ____, ext_SPC, ____, ____, ____,
+        RCTL, TEST /*RALT*/, LEFT, DOWN, RIGHT,
 };
 
 }  // namespace key
