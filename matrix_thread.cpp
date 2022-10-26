@@ -1,5 +1,4 @@
 #include "board.h"              // for THREAD_PRIO_MATRIX
-#include "hid_keycodes.hpp"
 
 #define ENABLE_DEBUG 1
 #include "debug.h"

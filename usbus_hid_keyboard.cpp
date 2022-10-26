@@ -178,8 +178,11 @@ void usbus_hid_keyboard_t::_hdlr_receive_data(
 bool usbus_hid_keyboard_t::help_report_bits(uint8_t& bits, uint8_t keycode, bool pressed)
 {
     const uint8_t mask = uint8_t(1) << (keycode & 7);
-    if ( ((bits & mask) != 0) == pressed )
+    if ( ((bits & mask) != 0) == pressed ) {
+        DEBUG("Keyboard:\e[1;31m Key (0x%x) is already %sed\e[0m\n", keycode,
+            pressed ? "press" : "releas");
         return false;
+    }
 
     changed = false;  // Disable _tmo_automatic_report() while updating.
     if ( pressed )
@@ -233,11 +236,7 @@ bool usbus_hid_keyboard_t::help_nkro_report_key(
         return false;
     }
 
-    const bool ok = help_report_bits(bits[keycode >> 3], keycode, pressed);
-    if ( !ok )
-        DEBUG("Keyboard:\e[1;31m Key (0x%x) is already %sed\e[0m\n", keycode,
-            pressed ? "press" : "releas");
-    return ok;
+    return help_report_bits(bits[keycode >> 3], keycode, pressed);
 }
 
 void usbus_hid_keyboard_tl<NKRO>::set_protocol(uint8_t protocol)

@@ -22,9 +22,9 @@ uint8_t keymap[MATRIX_ROWS][MATRIX_COLS] = {
 
 tap_hold_t ext_LCTL { ESC, LCTL };
 tap_hold_fast_t ext_SPC { SPC, RSFT };
-// Under context:
-//  = SPC + BKSP == DEL
-//  - SPC + LSFT == LSFT + SPC
+// More ideas:
+//  - SPC + BKSP == DEL
+//  - Left + Left == Ctrl + Left
 
 
 
@@ -83,6 +83,28 @@ inline test_t TEST;
 
 
 
+class ext_lsft_t: public map_t {
+public:
+    void on_press(pmap_t*) {
+        m_code = ext_SPC.is_pressing() ? KC_SPACE : KC_LSHIFT;
+        send_press(m_code);
+    }
+
+    void on_release(pmap_t*) {
+        send_release(m_code);
+        m_code = 0;
+    }
+
+    bool is_pressing() const { return m_code != 0; }
+
+private:
+    uint8_t m_code = 0;
+};
+
+inline ext_lsft_t ext_LSFT;
+
+
+
 // Todo: Allocate them in PROGMEM(?).
 pmap_t maps[MATRIX_ROWS][MATRIX_COLS] = {
     GRV, _1, _2, _3, _4, _5, _6, _7, _8, _9, _0, MINUS, EQL, BKSP, DEL,
@@ -91,7 +113,7 @@ pmap_t maps[MATRIX_ROWS][MATRIX_COLS] = {
 
     ext_LCTL, A, S, D, F, G, H, J, K, L, COLON, QUOTE, ____, ENT, PGUP,
 
-    LSFT, ____, Z, X, C, V, B, N, M, COMMA, DOT, SLASH, RSFT, UP, PGDN,
+    ext_LSFT, ____, Z, X, C, V, B, N, M, COMMA, DOT, SLASH, RSFT, UP, PGDN,
 
     FN, LGUI, LALT, ____, ____, ____, ext_SPC, ____, ____, ____,
         RCTL, TEST /*RALT*/, LEFT, DOWN, RIGHT,

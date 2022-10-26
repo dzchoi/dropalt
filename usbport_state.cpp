@@ -44,7 +44,7 @@ void state_determine_host::begin() {
 
     if ( v_extra != nullptr ) {
         v_extra->schedule_cancel();
-        DEBUG("ADC: switchover to port %d\n", v_extra->line);
+        DEBUG("ADC: switchover to port %d\n", desired_port);  // == v_extra->line
         v_extra = nullptr;
     }
 
