@@ -10,17 +10,17 @@
 
 namespace key {
 
-class pbase_t;
+class pmap_t;
 class timer_t;
 
 
 
-// Base keymap that does nothing, not pressing nor releasing.
-class base_t {
+// The keymap base class, which does nothing, neither pressing nor releasing.
+class map_t {
 public:
-    virtual void on_press(pbase_t*) {};
+    virtual void on_press(pmap_t*) {};
 
-    virtual void on_release(pbase_t*) {};
+    virtual void on_release(pmap_t*) {};
 
     virtual bool is_pressing() const { return false; };
 
@@ -63,30 +63,30 @@ private:
 };
 
 // Keys that do nothing
-inline base_t NO;
-inline base_t& ____ = NO;
+inline map_t NO;
+inline map_t& ____ = NO;
 
 
 
-// The pbase_t is the same as base_t*. It can be initialized from an lvalue of base_t, to
+// The pmap_t is the same as pmap_t*. It can be initialized from an lvalue of map_t, to
 // save the typing of `&` when initializing maps[][]/
-class pbase_t {
+class pmap_t {
 public:
-    constexpr pbase_t(base_t& base): m_pbase(&base) {}
-    base_t* operator->() { return m_pbase; }
-    base_t& operator*() { return *m_pbase; }
+    constexpr pmap_t(map_t& map): m_pmap(&map) {}
+    map_t* operator->() { return m_pmap; }
+    map_t& operator*() { return *m_pmap; }
 
-    operator base_t*() { return m_pbase; }
+    operator map_t*() { return m_pmap; }
 
 private:
-    base_t* const m_pbase;
+    map_t* const m_pmap;
 };
 
-// The "matrix" that all keymaps reside in; `pbase_t*` can serve as a unique "slot id"
+// The "matrix" that all keymaps reside in; `pmap_t*` can serve as a unique "slot id"
 // that is assigned to each keymap in it.
 // Note that the keymaps are not identified by some 8-bit or 16-bit keycodes like in QMK,
 // but by their own lvalue. The literal_t keymaps do have their keycode() but more
 // complex types do not.
-extern pbase_t maps[MATRIX_ROWS][MATRIX_COLS];
+extern pmap_t maps[MATRIX_ROWS][MATRIX_COLS];
 
 }  // namespace key

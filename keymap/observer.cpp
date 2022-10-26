@@ -29,16 +29,16 @@ bool _any_t::unenroll(observer_t* observer)
     return false;
 }
 
-void _any_t::notify_of_press(pbase_t* ppbase)
+void _any_t::notify_of_press(pmap_t* ppmap)
 {
     for ( observer_t* observer = m_observers ; observer ; observer = observer->next )
-        observer->on_other_press(ppbase);
+        observer->on_other_press(ppmap);
 }
 
-void _any_t::notify_of_release(pbase_t* ppbase)
+void _any_t::notify_of_release(pmap_t* ppmap)
 {
     for ( observer_t* observer = m_observers ; observer ; observer = observer->next )
-        observer->on_other_release(ppbase);
+        observer->on_other_release(ppmap);
 }
 
 }  // namespace key

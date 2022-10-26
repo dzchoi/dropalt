@@ -10,11 +10,11 @@
 
 
 
-void keymap_thread::signal_key_event(key::pbase_t* ppbase, bool pressed)
+void keymap_thread::signal_key_event(key::pmap_t* ppmap, bool pressed)
 {
     msg_t msg;
     msg.type = pressed ? EVENT_KEY_PRESS : EVENT_KEY_RELEASE;
-    msg.content.ptr = ppbase;
+    msg.content.ptr = ppmap;
     // will block the caller (matrix_thread) until m_queue has a room if it is full.
     const int ok = msg_send(&msg, m_pid);
     if ( ok != 1 )
@@ -22,11 +22,11 @@ void keymap_thread::signal_key_event(key::pbase_t* ppbase, bool pressed)
             ok, msg_avail_thread(m_pid));
 }
 
-void keymap_thread::signal_timeout(key::pbase_t* ppbase)
+void keymap_thread::signal_timeout(key::pmap_t* ppmap)
 {
     msg_t msg;
     msg.type = EVENT_TIMEOUT;
-    msg.content.ptr = ppbase;
+    msg.content.ptr = ppmap;
     // will miss to send if m_queue is full (as being called from interrupt context.)
     const int ok = msg_send(&msg, m_pid);
     if ( ok != 1 )
@@ -59,19 +59,19 @@ void* keymap_thread::_keymap_thread(void* arg)
     msg_t msg;
     while ( true ) {
         msg_receive(&msg);
-        key::pbase_t* const ppbase = static_cast<key::pbase_t*>(msg.content.ptr);
+        key::pmap_t* const ppmap = static_cast<key::pmap_t*>(msg.content.ptr);
 
         switch ( msg.type ) {
             case EVENT_KEY_PRESS:
-                that->help_handle_key_press(ppbase);
+                that->help_handle_key_press(ppmap);
                 break;
 
             case EVENT_KEY_RELEASE:
-                that->help_handle_key_release(ppbase);
+                that->help_handle_key_release(ppmap);
                 break;
 
             case EVENT_TIMEOUT:
-                that->help_handle_timeout(ppbase);
+                that->help_handle_timeout(ppmap);
                 break;
 
             default:
@@ -84,27 +84,27 @@ void* keymap_thread::_keymap_thread(void* arg)
     return nullptr;
 }
 
-void keymap_thread::help_handle_key_press(key::pbase_t* ppbase)
+void keymap_thread::help_handle_key_press(key::pmap_t* ppmap)
 {
     if ( m_behavior_defer_presses > 0 ) {
-        m_deferred_presses.push_back(ppbase);
-        DEBUG("Keymap: defer press (%p)\n", ppbase);
+        m_deferred_presses.push_back(ppmap);
+        DEBUG("Keymap: defer press (%p)\n", ppmap);
     }
     else {
-        // Todo: ANY can be more than an observer. Its on_press(ppbase) can call
-        //  (*ppbase)->on_press(ppbase) inside.
-        key::ANY.on_press(ppbase);
-        (*ppbase)->on_press(ppbase);
+        // Todo: ANY can be more than an observer. Its on_press(ppmap) can call
+        //  (*ppmap)->on_press(ppmap) inside.
+        key::ANY.on_press(ppmap);
+        (*ppmap)->on_press(ppmap);
     }
 }
 
-void keymap_thread::help_handle_key_release(key::pbase_t* ppbase)
+void keymap_thread::help_handle_key_release(key::pmap_t* ppmap)
 {
-    if ( m_behavior_defer_presses > 0 && is_press_deferred(ppbase) )
-        flush_deferred_presses(ppbase);
+    if ( m_behavior_defer_presses > 0 && is_press_deferred(ppmap) )
+        flush_deferred_presses(ppmap);
 
-    (*ppbase)->on_release(ppbase);
-    key::ANY.on_release(ppbase);
+    (*ppmap)->on_release(ppmap);
+    key::ANY.on_release(ppmap);
 
     // In the case m_behavior_defer_presses is disabled from flush_deferred_presses()
     // (i.e. on_other_press()) or on_release() above, we flush all (remaining) deferred
@@ -113,18 +113,18 @@ void keymap_thread::help_handle_key_release(key::pbase_t* ppbase)
         flush_deferred_presses();
 }
 
-void keymap_thread::help_handle_timeout(key::pbase_t* ppbase)
+void keymap_thread::help_handle_timeout(key::pmap_t* ppmap)
 {
-    key::timer_t* const ptimer = (*ppbase)->get_timer();
+    key::timer_t* const ptimer = (*ppmap)->get_timer();
     assert( ptimer != nullptr );
 
     if ( !ptimer->timeout_expected() ) {
-        DEBUG("Keymap:\e[0;34m spurious timeout (%p)\e[0m\n", ppbase);
+        DEBUG("Keymap:\e[0;34m spurious timeout (ppmap=%p)\e[0m\n", ppmap);
         return;
     }
 
     // Timeout event is not deferred and handled immediately.
-    ptimer->on_timeout(ppbase);
+    ptimer->on_timeout(ppmap);
 
     // In the case m_behavior_defer_presses is disabled from on_timeout() above, we flush
     // all deferred presses now.
@@ -132,39 +132,39 @@ void keymap_thread::help_handle_timeout(key::pbase_t* ppbase)
         flush_deferred_presses();
 }
 
-bool keymap_thread::is_press_deferred(key::pbase_t* ppbase) const
+bool keymap_thread::is_press_deferred(key::pmap_t* ppmap) const
 {
-    for ( key::pbase_t* _ppbase: m_deferred_presses )
-        if ( _ppbase == ppbase )
+    for ( key::pmap_t* _ppmap: m_deferred_presses )
+        if ( _ppmap == ppmap )
             return true;
     return false;
 }
 
 void keymap_thread::flush_deferred_presses()
 {
-    for ( key::pbase_t* ppbase: m_deferred_presses ) {
-        key::ANY.on_press(ppbase);
-        DEBUG("Keymap: complete the deferred press (%p)\n", ppbase);
-        (*ppbase)->on_press(ppbase);
+    for ( key::pmap_t* ppmap: m_deferred_presses ) {
+        key::ANY.on_press(ppmap);
+        DEBUG("Keymap: complete the deferred press (%p)\n", ppmap);
+        (*ppmap)->on_press(ppmap);
     }
 
     m_deferred_presses.clear();
 }
 
-void keymap_thread::flush_deferred_presses(key::pbase_t* ppbase)
+void keymap_thread::flush_deferred_presses(key::pmap_t* ppmap)
 {
     auto it = m_deferred_presses.begin();
     while ( it != m_deferred_presses.end() ) {
-        key::pbase_t* const _ppbase = *it;
+        key::pmap_t* const _ppmap = *it;
         it = m_deferred_presses.erase(it);
 
-        key::ANY.on_press(_ppbase);
-        DEBUG("Keymap: complete the deferred press (%p)\n", _ppbase);
-        (*_ppbase)->on_press(_ppbase);
+        key::ANY.on_press(_ppmap);
+        DEBUG("Keymap: complete the deferred press (%p)\n", _ppmap);
+        (*_ppmap)->on_press(_ppmap);
         // Note that `it` is never invalidated as on_*_press/release() cannot call
         // flush_deferred_presses() directly or indirectly.
 
-        if ( _ppbase == ppbase )
+        if ( _ppmap == ppmap )
             break;
     }
 }

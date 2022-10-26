@@ -7,13 +7,13 @@
 
 namespace key {
 
-class literal_t: public base_t {
+class literal_t: public map_t {
 public:
     constexpr literal_t(uint8_t keycode): m_code(keycode) {}
 
-    void on_press(pbase_t*) { m_pressing = true; send_press(m_code); }
+    void on_press(pmap_t*) { m_pressing = true; send_press(m_code); }
 
-    void on_release(pbase_t*) { m_pressing = false; send_release(m_code); }
+    void on_release(pmap_t*) { m_pressing = false; send_release(m_code); }
 
     bool is_pressing() const { return m_pressing; }
 
@@ -44,7 +44,7 @@ inline literal_t J = KC_J;
 inline literal_t K = KC_K;
 inline literal_t L = KC_L;
 
-inline literal_t M = KC_M;                // 0x10
+inline literal_t M = KC_M;              // 0x10
 inline literal_t N = KC_N;
 inline literal_t O = KC_O;
 inline literal_t P = KC_P;
@@ -61,7 +61,7 @@ inline literal_t Z = KC_Z;
 inline literal_t _1 = KC_1;
 inline literal_t _2 = KC_2;
 
-inline literal_t _3 = KC_3;               // 0x20
+inline literal_t _3 = KC_3;             // 0x20
 inline literal_t _4 = KC_4;
 inline literal_t _5 = KC_5;
 inline literal_t _6 = KC_6;
@@ -95,7 +95,7 @@ inline literal_t F4 = KC_F4;
 inline literal_t F5 = KC_F5;
 inline literal_t F6 = KC_F6;
 
-inline literal_t F7 = KC_F7;              // 0x40
+inline literal_t F7 = KC_F7;            // 0x40
 inline literal_t F8 = KC_F8;
 inline literal_t F9 = KC_F9;
 inline literal_t F10 = KC_F10;
@@ -112,7 +112,7 @@ inline literal_t END = KC_END;
 inline literal_t PGDOWN = KC_PGDOWN;
 inline literal_t RIGHT = KC_RIGHT;
 
-inline literal_t LEFT = KC_LEFT;          // 0x50
+inline literal_t LEFT = KC_LEFT;        // 0x50
 inline literal_t DOWN = KC_DOWN;
 inline literal_t UP = KC_UP;
 inline literal_t NUMLOCK = KC_NUMLOCK;
@@ -129,7 +129,7 @@ inline literal_t KP_5 = KC_KP_5;
 inline literal_t KP_6 = KC_KP_6;
 inline literal_t KP_7 = KC_KP_7;
 
-inline literal_t KP_8 = KC_KP_8;          // 0x60
+inline literal_t KP_8 = KC_KP_8;        // 0x60
 inline literal_t KP_9 = KC_KP_9;
 inline literal_t KP_0 = KC_KP_0;
 inline literal_t KP_DOT = KC_KP_DOT;
@@ -146,7 +146,7 @@ inline literal_t F18 = KC_F18;
 inline literal_t F19 = KC_F19;
 inline literal_t F20 = KC_F20;
 
-inline literal_t F21 = KC_F21;            // 0x70
+inline literal_t F21 = KC_F21;          // 0x70
 inline literal_t F22 = KC_F22;
 inline literal_t F23 = KC_F23;
 inline literal_t F24 = KC_F24;
@@ -163,7 +163,7 @@ inline literal_t PASTE = KC_PASTE;
 inline literal_t FIND = KC_FIND;
 inline literal_t MUTE = KC_MUTE;
 
-inline literal_t VOLUP = KC_VOLUP;        // 0x80
+inline literal_t VOLUP = KC_VOLUP;      // 0x80
 inline literal_t VOLDOWN = KC_VOLDOWN;
 inline literal_t LOCKING_CAPS = KC_LOCKING_CAPS;      // locking Caps Lock
 inline literal_t LOCKING_NUM = KC_LOCKING_NUM;        // locking Num Lock
@@ -180,7 +180,7 @@ inline literal_t INT7 = KC_INT7;
 inline literal_t INT8 = KC_INT8;
 inline literal_t INT9 = KC_INT9;
 
-inline literal_t LANG1 = KC_LANG1;        // 0x90
+inline literal_t LANG1 = KC_LANG1;      // 0x90
 inline literal_t LANG2 = KC_LANG2;
 inline literal_t LANG3 = KC_LANG3;
 inline literal_t LANG4 = KC_LANG4;
@@ -197,11 +197,11 @@ inline literal_t PRIOR = KC_PRIOR;
 inline literal_t RETURN = KC_RETURN;
 inline literal_t SEPARATOR = KC_SEPARATOR;
 
-inline literal_t OUT = KC_OUT;            // 0xA0
+inline literal_t OUT = KC_OUT;          // 0xA0
 inline literal_t OPER = KC_OPER;
 inline literal_t CLEAR_AGAIN = KC_CLEAR_AGAIN;
 inline literal_t CRSEL = KC_CRSEL;
-inline literal_t EXSEL = KC_EXSEL;        // 0xA4
+inline literal_t EXSEL = KC_EXSEL;      // 0xA4
 
 // 0xA5 to 0xAF - RESERVED
 inline literal_t RESERVED_A5 = KC_RESERVED_A5;
@@ -217,18 +217,18 @@ inline literal_t RESERVED_AE = KC_RESERVED_AE;
 inline literal_t RESERVED_AF = KC_RESERVED_AF;
 
 // Modifiers
-inline literal_t LCTRL = KC_LCTRL;        // 0xE0
+inline literal_t LCTRL  = KC_LCTRL;     // 0xE0
 inline literal_t LSHIFT = KC_LSHIFT;
-inline literal_t LALT = KC_LALT;
-inline literal_t LGUI = KC_LGUI;
-inline literal_t RCTRL = KC_RCTRL;
+inline literal_t LALT   = KC_LALT;
+inline literal_t LGUI   = KC_LGUI;
+inline literal_t RCTRL  = KC_RCTRL;
 inline literal_t RSHIFT = KC_RSHIFT;
-inline literal_t RALT = KC_RALT;
-inline literal_t RGUI = KC_RGUI;
+inline literal_t RALT   = KC_RALT;
+inline literal_t RGUI   = KC_RGUI;
 
 
 
-// Short names for ease of definition of keymap
+// Short names for ease of definitions for some keymaps
 
 inline literal_t& LCTL  = LCTRL;
 inline literal_t& RCTL  = RCTRL;
@@ -311,9 +311,9 @@ inline literal_t& PSTE  = PASTE;
 // inline literal_t& ACL2 = MS_ACCEL2;
 
 // GUI key aliases
-inline literal_t& LCMD  = LGUI;
-inline literal_t& LWIN  = LGUI;
-inline literal_t& RCMD  = RGUI;
-inline literal_t& RWIN  = RGUI;
+inline literal_t& LCMD = LGUI;
+inline literal_t& LWIN = LGUI;
+inline literal_t& RCMD = RGUI;
+inline literal_t& RWIN = RGUI;
 
 }  // namespace key

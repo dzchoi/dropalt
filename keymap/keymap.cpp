@@ -28,10 +28,10 @@ tap_hold_fast_t ext_SPC { SPC, RSFT };
 
 
 
-class pressing_t: public base_t {
+class pressing_t: public map_t {
 public:
-    void on_press(pbase_t*) { m_pressing = true; }
-    void on_release(pbase_t*) { m_pressing = false; }
+    void on_press(pmap_t*) { m_pressing = true; }
+    void on_release(pmap_t*) { m_pressing = false; }
     bool is_pressing() const { return m_pressing; }
 
 private:
@@ -42,33 +42,35 @@ inline pressing_t FN;
 
 
 
-class test_t: public base_t, timer_t {
+class test_t: public map_t, timer_t {
 public:
     test_t(): timer_t(500 *US_PER_MS) {}
 
     timer_t* get_timer() { return dynamic_cast<timer_t*>(this); }
 
-    void on_press(pbase_t* ppbase) {
-        start_timer(ppbase);
+    void on_press(pmap_t* ppmap) {
+        start_timer(ppmap);
         start_defer_presses();
         pressing = true;
     }
 
-    void on_release(pbase_t*) {
+    void on_release(pmap_t*) {
         stop_timer();
         stop_defer_presses();
         pressing = false;
 
-        if ( FN.is_pressing() )
+        if ( FN.is_pressing() && ext_LCTL.is_pressing() )
             system_reset();
     }
 
-    void on_timeout(pbase_t*) {
-        if ( LSFT.is_pressing() )
-            perform_usbhub_switchover();
-        else if ( FN.is_pressing() )
-            assert( false );
-            // WDT->CLEAR.reg = 0;  // anything other than 0xA5
+    void on_timeout(pmap_t*) {
+        if ( FN.is_pressing() ) {
+            if ( ext_LCTL.is_pressing() )
+                // assert( false );
+                WDT->CLEAR.reg = 0;  // anything other than 0xA5
+            else
+                perform_usbhub_switchover();
+        }
     }
 
     bool is_pressing() const { return pressing; }
@@ -82,7 +84,7 @@ inline test_t TEST;
 
 
 // Todo: Allocate them in PROGMEM(?).
-pbase_t maps[MATRIX_ROWS][MATRIX_COLS] = {
+pmap_t maps[MATRIX_ROWS][MATRIX_COLS] = {
     GRV, _1, _2, _3, _4, _5, _6, _7, _8, _9, _0, MINUS, EQL, BKSP, DEL,
 
     TAB, Q, W, E, R, T, Y, U, I, O, P, LBRKT, RBRKT, BSLASH, HOME,
