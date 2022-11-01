@@ -1,3 +1,6 @@
+#define ENABLE_DEBUG    (1)
+#include "debug.h"
+
 #include "features.hpp"         // for RAW_REPORT_INTERVAL_MS
 #include "usbus_hid_raw.hpp"
 
@@ -34,7 +37,44 @@ void usbus_hid_raw_tl<true>::init(usbus_t* usbus)
     usbus_add_interface(usbus, &iface);
 }
 
-int usbus_hid_raw_tl<true>::puts(const char* str)
+size_t usbus_hid_raw_tl<true>::submit(const uint8_t* buf, size_t len)
+{
+    // If USB is not active we drop the data packet, which will otherwise cause the
+    // tx_timer expire eventually.
+    if ( !usbus_is_active() )
+        return 0;
+
+    const size_t maxpacketsize = ep_in->maxpacketsize;
+    assert( maxpacketsize == ep_in->ep->len );
+
+    if ( len > maxpacketsize )
+        len = maxpacketsize;
+
+    // Even if USB is active and our tx is ready, the host may not be able to consume the
+    // data packet (e.g. executing console print without hid_listen running on the host).
+    // So instead of waiting indefinitely for a previous packet to be delivered, we wait
+    // here no longer than this->ep_in->interval ms. See _tmo_transfer_timeout() and
+    // _transfer_handler().
+    mutex_lock(&in_lock);
+    __builtin_memcpy(in_buf, buf, len);
+    occupied = len;
+    usbus_event_post(usbus, &tx_ready);
+    return len;
+}
+
+void usbus_hid_raw_tl<true>::on_transfer_complete()
+{
+    occupied = 0;
+    mutex_unlock(&in_lock);
+}
+
+void usbus_hid_raw_tl<true>::isr_on_transfer_timeout()
+{
+    on_transfer_complete();
+    DEBUG("USB_HID:\e[0;31m tx_timer expired!\e[0m\n");
+}
+
+int usbus_hid_raw_tl<true>::print(const char* str)
 {
     size_t offset = 0;
     size_t len = __builtin_strlen(str);

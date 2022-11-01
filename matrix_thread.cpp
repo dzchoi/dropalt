@@ -1,6 +1,6 @@
 #include "board.h"              // for THREAD_PRIO_MATRIX
 
-#define ENABLE_DEBUG 1
+#define ENABLE_DEBUG 0
 #include "debug.h"
 
 #include "keymap.hpp"

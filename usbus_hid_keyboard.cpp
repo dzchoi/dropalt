@@ -1,25 +1,13 @@
+#include "mutex.h"
+
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
 
-#include "adc_thread.hpp"
-#include "main_thread.hpp"
+#include "adc_thread.hpp"       // for signal_usbhub_active()
+#include "main_thread.hpp"      // for signal_usb_suspend() and signal_usb_resume()
 #include "usbus_hid_keyboard.hpp"
-#include "usb_thread.hpp"       // for hid_keyboard.report_release()
 
 
-
-usbus_hid_keyboard_t::usbus_hid_keyboard_t(usbus_t* usbus,
-    const uint8_t* report_desc, size_t report_desc_size, usbus_hid_cb_t cb_receive_data)
-: usbus_hid_device_tl(usbus, report_desc, report_desc_size, cb_receive_data)
-{
-    // Initialize the fixed parts of events.
-    m_event_report.arg0 =
-    m_event_report_done.arg = this;
-    m_event_report_done.handler = _hdlr_report_done;
-
-    mutex_init(&m_lock_send);
-    mutex_init(&m_lock_release);
-}
 
 void usbus_hid_keyboard_t::help_init(
     usbus_t* usbus, size_t epsize, uint8_t ep_interval_ms)
@@ -72,105 +60,113 @@ void usbus_hid_keyboard_t::on_resume()
     main_thread::obj().signal_usb_resume();
 }
 
+// Low-latency key register algorithm:
+//  - If it is the first key press/release in the current frame, update the report and
+//    immediately submit it to the host.
+//  - For any subsequent presses/releases in the current frame, update the report but do
+//    not send it to the host. However, before updating the report the in_lock mutex
+//    blocks the caller (keymap_thread) for:
+//     = any 2nd press during this update-but-not-submit reporting [1], and
+//     = the release whose press was updated during this update-but-not-submit reporting.
+//  - When the submit (for the first key press/release) is acknowledged by the host,
+//     = if report was updated further since the submission, submit it now all at once.
+//     = unlock the in_lock mutex to allow any pending presses/releases.
+//  - Note that in_lock is used here to wait until the next frame (host polling) as
+//    opposed to protecting in_buf from simultaneous accesses, for which m_report_updated
+//    is used instead (See submit() below).
+//
+// [1] This condition, however, could be mitigated in 6KRO protocol.
+//     Even in NKRO protocol, we could submit a modifier along with a normal press in the
+//     same report.
+
 void usbus_hid_keyboard_t::report_press(uint8_t keycode)
 {
-    // Once a press is being reported another press will be blocked so that no two
-    // presses are made in the same report.
-    mutex_lock(&m_lock_send);
+    mutex_lock(&in_lock);
+    // If USB is not active we keep the report up to date but do not submit to the host.
+    if ( report_key(keycode, true) && usbus_is_active() ) {
+        if ( ++m_report_updated > 1 ) {
+            m_press_yet_to_submit = keycode;
+            DEBUG("Keyboard: defer press (0x%x)\n", keycode);
+            return;
+        }
 
-    m_event_report.handler = _hdlr_report_press;
-    m_event_report.arg1 = keycode;
-    DEBUG("Keyboard: register press (0x%x)\n", keycode);
-    usbus_event_post(usbus, &m_event_report);
+        // In the case m_report_updated == 1,
+        if ( keycode >= KC_A && keycode <= KC_Z )
+            DEBUG("Keyboard: register press (0x%x '%c')\n",
+                keycode, 'a' - KC_A + keycode);
+        else
+            DEBUG("Keyboard: register press (0x%x)\n", keycode);
+        submit();
+    }
+    mutex_unlock(&in_lock);
 }
 
 void usbus_hid_keyboard_t::report_release(uint8_t keycode)
 {
-    // Once a press is being reported its release (and all subsequent other releases)
-    // will be blocked not to be made in the same report.
-    mutex_lock(&m_lock_release);
-    if ( m_key_being_reported == keycode ) {
-        DEBUG("Keyboard: defer release (0x%x)\n", keycode);
-        // Wait until the deferred release is completed.
-        mutex_lock(&m_lock_release);
+    if ( m_press_yet_to_submit == keycode ) {
+        // Block until the deferred press is completed.
+        mutex_lock(&in_lock);
+        mutex_unlock(&in_lock);
     }
-    mutex_unlock(&m_lock_release);
 
-    m_event_report.handler = _hdlr_report_release;
-    m_event_report.arg1 = keycode;
-    DEBUG("Keyboard: register release (0x%x)\n", keycode);
-    usbus_event_post(usbus, &m_event_report);
-}
-
-// Using the same event instance with only different arguments is usually prone to lose
-// any previous events that are overwritten by a later one. In this case, however, as
-// usb_thread has the highest priority and these events cannot be sent from interrupts,
-// there can be at maximum only one event being handled at any moment.
-void usbus_hid_keyboard_t::_hdlr_report_press(event_t* event)
-{
-    usbus_hid_keyboard_t* const that =
-        static_cast<event_ext_t<usbus_hid_keyboard_t*, uint8_t>*>(event)->arg0;
-    const uint8_t keycode =
-        static_cast<event_ext_t<usbus_hid_keyboard_t*, uint8_t>*>(event)->arg1;
-
-    if ( that->report_key(keycode, true) )
-        that->m_key_being_reported = keycode;
-    else
-        mutex_unlock(&that->m_lock_send);
-}
-
-void usbus_hid_keyboard_t::_hdlr_report_release(event_t* event)
-{
-    usbus_hid_keyboard_t* const that =
-        static_cast<event_ext_t<usbus_hid_keyboard_t*, uint8_t>*>(event)->arg0;
-    const uint8_t keycode =
-        static_cast<event_ext_t<usbus_hid_keyboard_t*, uint8_t>*>(event)->arg1;
-    that->report_key(keycode, false);
-}
-
-void usbus_hid_keyboard_t::_hdlr_report_done(event_t* event)
-{
-    usbus_hid_keyboard_t* const that =
-        static_cast<event_ext_t<usbus_hid_keyboard_t*>*>(event)->arg;
-    that->m_key_being_reported = KC_NO;
-    // Unlock any pending presses and releases.
-    mutex_unlock(&that->m_lock_release);
-    mutex_unlock(&that->m_lock_send);
-}
-
-void usbus_hid_keyboard_t::_hdlr_receive_data(
-    usbus_hid_device_t* hid, uint8_t* data, size_t len)
-{
-    usbus_hid_keyboard_t* const hidx = static_cast<usbus_hid_keyboard_t*>(hid);
-
-    if ( len == 2 ) {
-        // for Shared EP, not used but retained as a reference.
-        const uint8_t report_id = data[0];
-        if ( report_id == REPORT_ID_KEYBOARD || report_id == REPORT_ID_NKRO ) {
-            hidx->m_keyboard_led_state = data[1];
+    if ( report_key(keycode, false) && usbus_is_active() ) {
+        if ( ++m_report_updated == 1 ) {
+            DEBUG("Keyboard: register release (0x%x)\n", keycode);
+            submit();
         }
-    } else
-        hidx->m_keyboard_led_state = data[0];
+        else
+            DEBUG("Keyboard: defer release (0x%x)\n", keycode);
+    }
+}
 
-    DEBUG("Keyboard: set keyboard_led_state=0x%x\n", hidx->m_keyboard_led_state);
+void usbus_hid_keyboard_t::submit()
+{
+    occupied = ep_in->maxpacketsize;
+    fill_in_buf();
+    usbus_event_post(usbus, &tx_ready);
+}
+
+void usbus_hid_keyboard_t::on_transfer_complete()
+{
+    DEBUG("Keyboard: --------\n");
+    if ( m_report_updated > 1 ) {
+        DEBUG("Keyboard:\e[0;34m register deferred events\e[0m\n");
+        // This needs fixing Riot's _usbus_thread() to handle multiple events on event
+        // queue, as submit() triggers an event while handling another event.
+        submit();
+        m_report_updated = 1;
+    }
+    else {  // i.e. if m_report_updated == 1,
+        m_report_updated = 0;
+        occupied = 0;
+    }
+
+    m_press_yet_to_submit = KC_NO;
+    mutex_unlock(&in_lock);
+}
+
+void usbus_hid_keyboard_t::isr_on_transfer_timeout()
+{
+    DEBUG("USB_HID:\e[0;31m tx_timer expired!\e[0m\n");
+    m_report_updated = 0;
+    m_press_yet_to_submit = KC_NO;
+    occupied = 0;
+    mutex_unlock(&in_lock);
 }
 
 
 
-// * Keyboard report is 8-byte array retains state of 8 modifiers and 6 keys.
-//
+// * Keyboard report is 8-byte array which retains states of 8 modifiers and 6 keys.
 // byte |0       |1       |2       |3       |4       |5       |6       |7
 // -----+--------+--------+--------+--------+--------+--------+--------+--------
 // desc |mods    |reserved|keys[0] |keys[1] |keys[2] |keys[3] |keys[4] |keys[5]
 //
-// It is exended to 16 bytes to retain 120 keys + 8 mods for NKRO mode.
+// * It is exended to 16 bytes to retain 120 keys + 8 mods for NKRO mode.
+// byte |0       |1       |2       |3       |4       |5       |6        ... |15
+// -----+--------+--------+--------+--------+--------+--------+--------     +--------
+// desc |mods    |bits[0] |bits[1] |bits[2] |bits[3] |bits[4] |bits[5]  ... |bit[14]
 //
-// byte |0       |1       |2       |3       |4       |5       |6       |7        ... |15
-// -----+--------+--------+--------+--------+--------+--------+--------+--------     +--------
-// desc |mods    |bits[0] |bits[1] |bits[2] |bits[3] |bits[4] |bits[5] |bits[6]  ... |bit[14]
-
-// * mods retains state of 8 modifiers.
-//
+// * mods retain state of 8 modifiers.
 //  bit |0       |1       |2       |3       |4       |5       |6       |7
 // -----+--------+--------+--------+--------+--------+--------+--------+--------
 // desc |Lcontrol|Lshift  |Lalt    |Lgui    |Rcontrol|Rshift  |Ralt    |Rgui
@@ -184,12 +180,10 @@ bool usbus_hid_keyboard_t::help_report_bits(uint8_t& bits, uint8_t keycode, bool
         return false;
     }
 
-    changed = false;  // Disable _tmo_automatic_report() while updating.
     if ( pressed )
         bits |= mask;
     else
         bits &= ~mask;
-    changed = true;
     return true;
 }
 
@@ -203,11 +197,9 @@ bool usbus_hid_keyboard_t::help_skro_report_key(
                 DEBUG("Keyboard:\e[1;31m Key (0x%x) is already pressed\e[0m\n", keycode);
                 return false;
             } else {
-                changed = false;  // Disable _tmo_automatic_report() while updating.
                 while ( ++i < SKRO_KEYS_SIZE && keys[i] )
                     keys[i-1] = keys[i];
                 keys[--i] = KC_NO;
-                changed = true;
                 return true;
             }
         }
@@ -222,9 +214,7 @@ bool usbus_hid_keyboard_t::help_skro_report_key(
         return false;
     }
 
-    changed = false;  // Disable _tmo_automatic_report() while updating.
     keys[i] = keycode;
-    changed = true;
     return true;
 }
 
@@ -239,6 +229,23 @@ bool usbus_hid_keyboard_t::help_nkro_report_key(
     return help_report_bits(bits[keycode >> 3], keycode, pressed);
 }
 
+void usbus_hid_keyboard_t::_hdlr_receive_data(
+    usbus_hid_device_t* hid, uint8_t* data, size_t len)
+{
+    usbus_hid_keyboard_t* const hidx = static_cast<usbus_hid_keyboard_t*>(hid);
+
+    if ( len == 2 ) {
+        // used only for Shared EP but retained as a reference.
+        const uint8_t report_id = data[0];
+        if ( report_id == REPORT_ID_KEYBOARD || report_id == REPORT_ID_NKRO ) {
+            hidx->m_keyboard_led_state = data[1];
+        }
+    } else
+        hidx->m_keyboard_led_state = data[0];
+
+    DEBUG("Keyboard: set keyboard_led_state=0x%x\n", hidx->m_keyboard_led_state);
+}
+
 void usbus_hid_keyboard_tl<NKRO>::set_protocol(uint8_t protocol)
 {
     usbus_hid_keyboard_t::set_protocol(protocol);
@@ -246,3 +253,72 @@ void usbus_hid_keyboard_tl<NKRO>::set_protocol(uint8_t protocol)
         ? &usbus_hid_keyboard_tl::skro_report_key
         : &usbus_hid_keyboard_tl::nkro_report_key;
 }
+
+
+
+/*
+#if defined(MOUSE_ENABLE) && !defined(MOUSE_SHARED_EP)
+void usbus_hid_mouse_t::init(usbus_t* usbus)
+{
+    iface._class = USB_CLASS_HID;
+    iface.subclass = USB_HID_SUBCLASS_BOOT;
+    iface.protocol = USB_HID_PROTOCOL_MOUSE;
+    iface.descr_gen = &hid_descr;
+    iface.handler = &handler_ctrl;
+
+    // Register the events that the hid will listen to.
+    usbus_handler_set_flag(&handler_ctrl,
+        USBUS_HANDLER_FLAG_RESET
+        | USBUS_HANDLER_FLAG_SUSPEND
+        | USBUS_HANDLER_FLAG_RESUME);
+
+    // IN endpoint to send data to host
+    ep_in = usbus_add_endpoint(usbus, &iface,
+                               USB_EP_TYPE_INTERRUPT,
+                               USB_EP_DIR_IN,
+                               MOUSE_EPSIZE);
+    // interrupt endpoint polling rate in ms
+    ep_in->interval = USB_POLLING_INTERVAL_MS;
+    usbus_enable_endpoint(ep_in);
+
+    usbus_add_interface(usbus, &iface);
+}
+#endif
+
+#ifdef SHARED_EP_ENABLE
+void usbus_hid_shared_t::init(usbus_t* usbus)
+{
+    iface._class = USB_CLASS_HID;
+#ifdef KEYBOARD_SHARED_EP
+    iface.subclass = USB_HID_SUBCLASS_BOOT;
+    iface.protocol = USB_HID_PROTOCOL_KEYBOARD;
+#else
+    // Configure generic HID device interface, choosing NONE for subclass and protocol
+    // in order to represent a generic I/O device
+    iface.subclass = USB_HID_SUBCLASS_NONE;
+    iface.protocol = USB_HID_PROTOCOL_NONE;
+#endif
+    iface.descr_gen = &hid_descr;
+    iface.handler = &handler_ctrl;
+
+#ifdef KEYBOARD_SHARED_EP
+    // Register the events that the hid will listen to.
+    usbus_handler_set_flag(&handler_ctrl,
+        USBUS_HANDLER_FLAG_RESET
+        | USBUS_HANDLER_FLAG_SUSPEND
+        | USBUS_HANDLER_FLAG_RESUME);
+#endif
+
+    // IN endpoint to send data to host
+    ep_in = usbus_add_endpoint(usbus, &iface,
+                               USB_EP_TYPE_INTERRUPT,
+                               USB_EP_DIR_IN,
+                               SHARED_EPSIZE);
+    // interrupt endpoint polling rate in ms
+    ep_in->interval = USB_POLLING_INTERVAL_MS;
+    usbus_enable_endpoint(ep_in);
+
+    usbus_add_interface(usbus, &iface);
+}
+#endif
+*/

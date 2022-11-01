@@ -9,12 +9,12 @@ RIOTBASE := $(CURDIR)/riot
 BOARD := board-dropalt
 EXTERNAL_BOARD_DIRS := $(CURDIR)
 
-# All RIOT output files will generate in qmk_firmware/.build/board-alt by default.
+# All output files will generate in qmk_firmware/.build/board-alt by default.
 BINDIRBASE ?= $(CURDIR)/.build
 
 # See https://github.com/cortexm/baremetal/blob/master/CMakeLists.txt
 # for compiler options for building embedded system.
-CXXEXFLAGS += -std=c++17    # for (constexpr) inline variables
+CXXEXFLAGS += -std=c++17    # for inline (const) variables
 CXXEXFLAGS += -fno-exceptions
 CXXEXFLAGS += -fno-ms-extensions
 CXXEXFLAGS += -fno-rtti     # We don't need RTTI as no ambiguous base classes are used.
@@ -72,7 +72,10 @@ RAM_LEN         = 0x00020000  # 128K
 BACKUP_RAM_ADDR = 0x47000000
 BACKUP_RAM_LEN  = 0x00002000  # 8K
 
-DEVELHELP ?= 0
+VERBOSE_ASSERT := 1
+# Enabling VERBOSE_ASSERT will set:
+#  - DEVELHELP := 1                    # Enable assert() and SCHED_TEST_STACK.
+#  - CFLAGS += -DDEBUG_ASSERT_VERBOSE  # assert() will print the filename and line number.
 QUIET ?= 1
 
 # PROGRAMMER = jlink

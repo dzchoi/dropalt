@@ -27,7 +27,7 @@ int main()
 
         // char buffer[32];
         // sprintf(buffer, "%lu\n", info);
-        // usb_thread::obj().hid_raw.puts(buffer);
+        // usb_thread::obj().hid_raw.print(buffer);
 
         // printf(
         //     "v: %d %d %d fsmstatus=0x%x keyboard_protocol=%u info=%lu\n",

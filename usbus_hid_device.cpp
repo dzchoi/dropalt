@@ -1,28 +1,10 @@
-#include "usbus_hid_device.hpp" // Patch hid.h that are included by control.h below.
+#include "usbus_hid_device.hpp" // Patch hid.h which is included by control.h below.
 
 #include "usb/usbus/control.h"  // for usbus_control_* definitions
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
 
 
-
-static void _init(usbus_t* usbus, usbus_handler_t* handler);
-static void _event_handler(usbus_t* usbus, usbus_handler_t* handler,
-                           usbus_event_usb_t event);
-static void _transfer_handler(usbus_t* usbus, usbus_handler_t* handler,
-                              usbdev_ep_t* ep, usbus_event_transfer_t event);
-static int _control_handler(usbus_t* usbus, usbus_handler_t* handler,
-                            usbus_control_request_state_t state,
-                            usb_setup_t* setup);
-
-
-
-static const usbus_handler_driver_t _hid_driver = {
-    .init = _init,
-    .event_handler = _event_handler,
-    .transfer_handler = _transfer_handler,
-    .control_handler = _control_handler,
-};
 
 static size_t _gen_hid_descriptor(usbus_t* usbus, void* arg)
 {
@@ -48,65 +30,49 @@ static const usbus_descr_gen_funcs_t _hid_descriptor = {
     .len_type = USBUS_DESCR_LEN_FIXED
 };
 
-static void _hdlr_tx_ready(event_t* ev)
+
+
+usbus_hid_device_ext_t::usbus_hid_device_ext_t(usbus_t* _usbus,
+    const uint8_t* _report_desc, size_t _report_desc_size, usbus_hid_cb_t cb_receive_data)
+{
+    __builtin_memset(
+        dynamic_cast<usbus_hid_device_t*>(this), 0, sizeof(usbus_hid_device_t));
+
+    handler_ctrl.driver = &_hid_driver;
+    report_desc = _report_desc;
+    report_desc_size = _report_desc_size;
+    usbus = _usbus;
+    cb = cb_receive_data;
+    tx_ready.handler = _hdlr_tx_ready;
+    tx_timer.callback = _tmo_transfer_timeout;
+    tx_timer.arg = this;
+    mutex_init(&in_lock);
+
+    DEBUG("hid pre_init: %d %d\n", report_desc_size, report_desc[0]);
+    usbus_register_event_handler(usbus, &handler_ctrl);
+}
+
+void usbus_hid_device_ext_t::_hdlr_tx_ready(event_t* event)
 {
     usbus_hid_device_ext_t* const hidx = static_cast<usbus_hid_device_ext_t*>(
-        (usbus_hid_device_t*)container_of(ev, usbus_hid_device_t, tx_ready));
+        (usbus_hid_device_t*)container_of(event, usbus_hid_device_t, tx_ready));
     usbdev_ep_xmit(hidx->ep_in->ep, hidx->in_buf, hidx->occupied);
 
-    if ( !hidx->is_automatic_reporting() )
-        // The host is supposed to read IN packets once in every hid->ep_in->interval ms
-        // at least. When we send packets we also start tx_timer so that we can check if
-        // the host is responsive or not (e.g. cable break while sending).
-        xtimer_set(
-            &hidx->tx_timer,
-            (hidx->ep_in->interval + 1) *US_PER_MS);  // +1 ms for margin
+    // The host will read IN packets once in every hidx->ep_in->interval ms at least,
+    // unless they are lost. When we send packets we also start tx_timer so that we can
+    // check if the host is unresponsive (e.g. due to cable break while sending).
+    xtimer_set(
+        &hidx->tx_timer,
+        (hidx->ep_in->interval + 1) *US_PER_MS);  // +1 ms for margin
 }
 
-// Send the (automatic) report in usb_thread context.
-static void _tmo_automatic_report(void* arg)
+void usbus_hid_device_ext_t::_tmo_transfer_timeout(void* arg)
 {
-    usbus_hid_device_tl<AUTOMATIC_REPORTING>* const hidx =
-        static_cast<usbus_hid_device_tl<AUTOMATIC_REPORTING>*>(arg);
-    xtimer_set(&hidx->tx_timer, hidx->ep_in->interval *US_PER_MS);
-
-    // Note that hidx->changed is used like a mutex. As we are now in ISR it cannot be
-    // changed until we are done.
-    if ( !hidx->changed )
-        return;
-
-    // If USB is not active we drop the report. Otherwise, the usbus driver would wait
-    // forever or freeze.
-    if ( hidx->usbus_is_active() && mutex_trylock(&hidx->in_lock) != 0 ) {
-        hidx->_isr_fill_in_buf();  // Fill in hidx->in_buf.
-        hidx->occupied = hidx->ep_in->maxpacketsize;
-        usbus_event_post(hidx->usbus, &hidx->tx_ready);
-        hidx->changed = false;
-    } else {
-        // If hidx->in_lock is already locked (for hidx->ep_in->interval ms) we drop the
-        // report instead of waiting for it to be unlocked indefinitely.
-        hidx->changed = false;
-        hidx->occupied = 0;
-        mutex_unlock(&hidx->in_lock);
-        DEBUG("USB_HID:\e[0;31m data packet not sent!\e[0m\n");
-    }
-
-    // Notify of report being done when hidx->changed becomes false.
-    hidx->_isr_report_done();
+    usbus_hid_device_ext_t* const hidx = static_cast<usbus_hid_device_ext_t*>(arg);
+    hidx->isr_on_transfer_timeout();
 }
 
-static void _tmo_tx_timer_expired(void* arg)
-{
-    // It's not a good situation when hidx->tx_timer expires, which means we might lose
-    // an IN packet that is to send to the host.
-    usbus_hid_device_tl<MANUAL_REPORTING>* const hidx =
-        static_cast<usbus_hid_device_tl<MANUAL_REPORTING>*>(arg);
-    hidx->occupied = 0;
-    mutex_unlock(&hidx->in_lock);
-    DEBUG("USB_HID: tx_timer expired!\n");
-}
-
-static void _init(usbus_t* usbus, usbus_handler_t* handler)
+void usbus_hid_device_ext_t::_init(usbus_t* usbus, usbus_handler_t* handler)
 {
     usbus_hid_device_ext_t* const hidx =
         static_cast<usbus_hid_device_ext_t*>((usbus_hid_device_t*)handler);
@@ -116,21 +82,11 @@ static void _init(usbus_t* usbus, usbus_handler_t* handler)
     hidx->hid_descr.funcs = &_hid_descriptor;
     hidx->hid_descr.arg = dynamic_cast<usbus_hid_device_t*>(hidx);
     hidx->init(usbus);
-
-    hidx->tx_ready.handler = _hdlr_tx_ready;
-    hidx->tx_timer.arg = hidx;
-    if ( hidx->is_automatic_reporting() ) {
-        hidx->tx_timer.callback = _tmo_automatic_report;
-        // Start automatic reporting.
-        xtimer_set(&hidx->tx_timer, hidx->ep_in->interval *US_PER_MS);
-    } else
-        hidx->tx_timer.callback = _tmo_tx_timer_expired;
 }
 
-static void _event_handler(usbus_t* usbus, usbus_handler_t* handler,
-                           usbus_event_usb_t event)
+void usbus_hid_device_ext_t::_event_handler(
+    usbus_t*, usbus_handler_t* handler, usbus_event_usb_t event)
 {
-    (void)usbus;
     usbus_hid_device_ext_t* const hidx =
         static_cast<usbus_hid_device_ext_t*>((usbus_hid_device_t*)handler);
 
@@ -152,7 +108,6 @@ static void _event_handler(usbus_t* usbus, usbus_handler_t* handler,
         // The pad goes to the Idle state if the USB module is disabled or if CTRLB.
         // DETACH is written to one. It returns to the Active state when CTRLA.ENABLE is
         // written to one and CTRLB.DETACH is written to zero."
-
         case USBUS_EVENT_USB_SUSPEND:   // USB suspend condition detected
             hidx->on_suspend();
             DEBUG("USB_HID: suspend event\n");
@@ -168,12 +123,10 @@ static void _event_handler(usbus_t* usbus, usbus_handler_t* handler,
     }
 }
 
-static void _transfer_handler(usbus_t* usbus, usbus_handler_t* handler,
-                              usbdev_ep_t* ep, usbus_event_transfer_t event)
+void usbus_hid_device_ext_t::_transfer_handler(
+    usbus_t*, usbus_handler_t* handler, usbdev_ep_t* ep, usbus_event_transfer_t)
 {
-    (void)usbus;
-    (void)event;
-    // DEBUG("USB_HID: transfer_handler\n");  // Would be emitted every printf().
+    // DEBUG("USB_HID: transfer_handler\n");  // Would be emitted every raw print.
 
     usbus_hid_device_ext_t* const hidx =
         static_cast<usbus_hid_device_ext_t*>((usbus_hid_device_t*)handler);
@@ -186,15 +139,12 @@ static void _transfer_handler(usbus_t* usbus, usbus_handler_t* handler,
             // for the next token packet. If an ACK handshake is successfully received
             // EPSTATUS.BK1RDY is cleared and EPINTFLAG.TRCPT1 is set."
 
-            // This code is called when EPINTFLAG.TRCPT1 is set after an ACK handshake
-            // is received from the host. Note that we don't need to execute
-            // _ep_unready(hid->ep_in->ep) here, since it is already done automatically
-            // by the usbus driver.
-
-            if ( !hidx->is_automatic_reporting() )
-                xtimer_remove(&hidx->tx_timer);
-            hidx->occupied = 0;
-            mutex_unlock(&hidx->in_lock);
+            // This code is invoked when EPINTFLAG.TRCPT1 is set after ACK handshake is
+            // received from the host. (we don't need to execute
+            // _ep_unready(hidx->ep_in->ep) here, since it is already done automatically
+            // by the usbus driver.)
+            xtimer_remove(&hidx->tx_timer);
+            hidx->on_transfer_complete();
         }
         else {
             size_t len;
@@ -206,9 +156,9 @@ static void _transfer_handler(usbus_t* usbus, usbus_handler_t* handler,
     }
 }
 
-static int _control_handler(usbus_t* usbus, usbus_handler_t* handler,
-                            usbus_control_request_state_t state,
-                            usb_setup_t* setup)
+int usbus_hid_device_ext_t::_control_handler(
+    usbus_t* usbus, usbus_handler_t* handler,
+    usbus_control_request_state_t state, usb_setup_t* setup)
 {
     usbus_hid_device_ext_t* const hidx =
         static_cast<usbus_hid_device_ext_t*>((usbus_hid_device_t*)handler);
@@ -216,7 +166,7 @@ static int _control_handler(usbus_t* usbus, usbus_handler_t* handler,
     DEBUG("USB_HID: request: %d type: %d value: %d length: %d state: %d\n",
           setup->request, setup->type, setup->value >> 8, setup->length, state);
 
-    /* Requests defined in USB HID 1.11 spec section 7 */
+    // Requests defined in USB HID 1.11 spec section 7
     switch ( setup->request ) {
         case USB_SETUP_REQ_GET_DESCRIPTOR: {
             const uint8_t desc_type = setup->value >> 8;
@@ -264,9 +214,9 @@ static int _control_handler(usbus_t* usbus, usbus_handler_t* handler,
             // We do not check the report id in the lower byte of setup->value, as we
             // only support an indefinite duration for all hid interfaces.
             // Todo: To support idle rate, set/reset a onetime timer with the timeout of
-            //   idle rate (ms) everytime send_keyboard() is invoked or when receiving
-            //   SET_IDLE. Then when the timer is expired send the last report afterwards
-            //   at every hid->ep_in->interval ms.
+            //   idle rate (ms) everytime we send report or when we receive SET_IDLE.
+            //   Then when the timer is expired send the last report afterwards at every
+            //   hidx->ep_in->interval ms.
             if ( (setup->value >> 8) != 0 )  // MSB(wValue)
                 return -1;  // signal stall to indicate unsupported (See _recv_setup())
             break;
@@ -282,128 +232,9 @@ static int _control_handler(usbus_t* usbus, usbus_handler_t* handler,
         }
 
         default:
-            DEBUG("USB_HID: unknown request %d \n", setup->request);
+            DEBUG("USB_HID: unknown request %d\n", setup->request);
             return -1;
     }
 
     return 1;
 }
-
-
-
-usbus_hid_device_ext_t::usbus_hid_device_ext_t(usbus_t* _usbus,
-    const uint8_t* _report_desc, size_t _report_desc_size, usbus_hid_cb_t cb_receive_data)
-{
-    __builtin_memset(
-        dynamic_cast<usbus_hid_device_t*>(this), 0, sizeof(usbus_hid_device_t));
-
-    handler_ctrl.driver = &_hid_driver;
-    report_desc = _report_desc;
-    report_desc_size = _report_desc_size;
-    usbus = _usbus;
-    cb = cb_receive_data;
-    mutex_init(&in_lock);
-
-    DEBUG("hid pre_init: %d %d\n", report_desc_size, report_desc[0]);
-    usbus_register_event_handler(usbus, &handler_ctrl);
-}
-
-void usbus_hid_device_tl<MANUAL_REPORTING>::flush()
-{
-    mutex_lock(&in_lock);  // waits for mutex unlocked.
-    mutex_unlock(&in_lock);
-}
-
-size_t usbus_hid_device_tl<MANUAL_REPORTING>::submit(const uint8_t* buf, size_t len)
-{
-    // If USB is not active we drop the given submit. Otherwise, the usbus driver would
-    // wait forever or freeze.
-    if ( !usbus_is_active() )
-        return 0;
-
-    const size_t maxpacketsize = ep_in->maxpacketsize;
-    assert( maxpacketsize == ep_in->ep->len );
-
-    if ( len > maxpacketsize )
-        len = maxpacketsize;
-
-    // Even if USB is active and our tx is ready, the host may not be able to consume the
-    // data packet (e.g. executing console_printf() without hid_listen running on the
-    // host). So instead of waiting indefinitely for a previous packet to be delivered,
-    // we wait here no longer than this->ep_in->interval ms. See _tmo_tx_timer_expired()
-    // and _transfer_handler().
-    mutex_lock(&in_lock);
-    __builtin_memcpy(in_buf, buf, len);
-    occupied = len;
-    usbus_event_post(usbus, &tx_ready);
-    return len;
-}
-
-
-
-/*
-#if defined(MOUSE_ENABLE) && !defined(MOUSE_SHARED_EP)
-void usbus_hid_mouse_t::init(usbus_t* usbus)
-{
-    iface._class = USB_CLASS_HID;
-    iface.subclass = USB_HID_SUBCLASS_BOOT;
-    iface.protocol = USB_HID_PROTOCOL_MOUSE;
-    iface.descr_gen = &hid_descr;
-    iface.handler = &handler_ctrl;
-
-    // Register the events that the hid will listen to.
-    usbus_handler_set_flag(&handler_ctrl,
-        USBUS_HANDLER_FLAG_RESET
-        | USBUS_HANDLER_FLAG_SUSPEND
-        | USBUS_HANDLER_FLAG_RESUME);
-
-    // IN endpoint to send data to host
-    ep_in = usbus_add_endpoint(usbus, &iface,
-                               USB_EP_TYPE_INTERRUPT,
-                               USB_EP_DIR_IN,
-                               MOUSE_EPSIZE);
-    // interrupt endpoint polling rate in ms
-    ep_in->interval = USB_POLLING_INTERVAL_MS;
-    usbus_enable_endpoint(ep_in);
-
-    usbus_add_interface(usbus, &iface);
-}
-#endif
-
-#ifdef SHARED_EP_ENABLE
-void usbus_hid_shared_t::init(usbus_t* usbus)
-{
-    iface._class = USB_CLASS_HID;
-#ifdef KEYBOARD_SHARED_EP
-    iface.subclass = USB_HID_SUBCLASS_BOOT;
-    iface.protocol = USB_HID_PROTOCOL_KEYBOARD;
-#else
-    // Configure generic HID device interface, choosing NONE for subclass and protocol
-    // in order to represent a generic I/O device
-    iface.subclass = USB_HID_SUBCLASS_NONE;
-    iface.protocol = USB_HID_PROTOCOL_NONE;
-#endif
-    iface.descr_gen = &hid_descr;
-    iface.handler = &handler_ctrl;
-
-#ifdef KEYBOARD_SHARED_EP
-    // Register the events that the hid will listen to.
-    usbus_handler_set_flag(&handler_ctrl,
-        USBUS_HANDLER_FLAG_RESET
-        | USBUS_HANDLER_FLAG_SUSPEND
-        | USBUS_HANDLER_FLAG_RESUME);
-#endif
-
-    // IN endpoint to send data to host
-    ep_in = usbus_add_endpoint(usbus, &iface,
-                               USB_EP_TYPE_INTERRUPT,
-                               USB_EP_DIR_IN,
-                               SHARED_EPSIZE);
-    // interrupt endpoint polling rate in ms
-    ep_in->interval = USB_POLLING_INTERVAL_MS;
-    usbus_enable_endpoint(ep_in);
-
-    usbus_add_interface(usbus, &iface);
-}
-#endif
-*/

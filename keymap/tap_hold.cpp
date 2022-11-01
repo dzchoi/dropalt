@@ -30,7 +30,8 @@ void tap_hold_t::on_release(pmap_t*)
         send_release(m_code_hold);
     } else {
         // These can come in any order, except send_release() should follow send_press().
-        DEBUG("TapHold:\e[1;34m decide tap\e[0m\n");
+        // DEBUG("TapHold:\e[0;34m decide tap\e[0m\n");
+        DEBUG("TapHold: decide tap\n");
         stop_timer();
         stop_observe();
         stop_defer_presses();
@@ -42,7 +43,8 @@ void tap_hold_t::on_release(pmap_t*)
 // Called by on_other_press() and on_timeout().
 void tap_hold_t::help_holding()
 {
-    DEBUG("TapHold:\e[1;34m decide hold\e[0m\n");
+    // DEBUG("TapHold:\e[0;34m decide hold\e[0m\n");
+    DEBUG("TapHold: decide hold\n");
     stop_timer();  // will do no harm to stop the already stopped timer.
     stop_observe();
     stop_defer_presses();
