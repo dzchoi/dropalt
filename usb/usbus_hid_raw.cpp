@@ -89,6 +89,9 @@ int usbus_hid_raw_tl<true>::print(const char* str)
 }
 
 /*
+#include <cstdarg>              // for va_list
+#include <cstdio>               // for vsnprintf
+
 int usb_thread::console_printf(const char* fmt, ...)
 {
 #ifdef CONSOLE_ENABLE

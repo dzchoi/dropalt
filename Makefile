@@ -47,8 +47,7 @@ FEATURES_HPP = features.hpp
 # Subdirectory modules
 EXTERNAL_MODULE_DIRS += $(CURDIR)
 USEMODULE += keymap
-
-# Todo: Separate usb module from the application directory.
+USEMODULE += usb
 
 # RIOT modules
 # USEMODULE += cpp11-compat

@@ -1,6 +1,3 @@
-#include <cstdarg>              // for va_list
-#include <cstdio>               // for vsnprintf
-
 #include "usb_thread.hpp"
 
 
