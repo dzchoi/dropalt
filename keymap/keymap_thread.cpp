@@ -6,7 +6,9 @@
 #include "keymap.hpp"
 #include "keymap_thread.hpp"
 #include "observer.hpp"         // for key::ANY
+#include "pressing_list.hpp"
 #include "timer.hpp"
+#include "usb_descriptor.hpp"   // for SKRO_KEYS_SIZE
 
 
 
@@ -36,9 +38,9 @@ void keymap_thread::signal_timeout(key::pmap_t* ppmap)
 
 keymap_thread::keymap_thread()
 {
-    // It would be rare that more than two (= DEFERRED_PRESSES_SIZE) key presses are made
-    // without releasing them yet, while a preceding key is held down.
-    m_deferred_presses.reserve(DEFERRED_PRESSES_SIZE);
+    // Mostly we would press not more than 6 keys simultaneously, but the pressing list
+    // will be expanded as needed.
+    key::pressing_list::reserve(SKRO_KEYS_SIZE);
 
     m_pid = thread_create(
         m_stack, sizeof(m_stack),
@@ -48,6 +50,24 @@ keymap_thread::keymap_thread()
 
     m_pthread = thread_get(m_pid);
 }
+
+void keymap_thread::start_defer_presses()
+{
+    if ( m_behavior_defer_presses++ == 0 )
+        key::pressing_list::start_defering();
+}
+
+void keymap_thread::stop_defer_presses()
+{
+    if ( m_behavior_defer_presses > 0 )
+        m_behavior_defer_presses--;
+}
+
+static constexpr auto execute_press = [](key::pmap_t* ppmap) {
+    key::ANY.on_press(ppmap);
+    DEBUG("Keymap: complete the deferred press (%p)\n", ppmap);
+    (*ppmap)->on_press(ppmap);
+};
 
 void* keymap_thread::_keymap_thread(void* arg)
 {
@@ -79,6 +99,15 @@ void* keymap_thread::_keymap_thread(void* arg)
                 assert( false );
                 break;
         }
+
+        // In the case m_behavior_defer_presses is disabled from help_handle_*() methods
+        // above we complete all (remaining, if complete_deferred(ppmap) was called
+        // before) deferred presses now.
+        if ( that->m_behavior_defer_presses == 0
+          && key::pressing_list::is_deferring() ) {
+            key::pressing_list::complete_deferred(execute_press);
+            key::pressing_list::stop_defering();
+        }
     }
 
     return nullptr;
@@ -86,8 +115,9 @@ void* keymap_thread::_keymap_thread(void* arg)
 
 void keymap_thread::help_handle_key_press(key::pmap_t* ppmap)
 {
-    if ( m_behavior_defer_presses > 0 ) {
-        m_deferred_presses.push_back(ppmap);
+    key::pressing_list::add(ppmap);
+
+    if ( key::pressing_list::is_deferring() ) {
         DEBUG("Keymap: defer press (%p)\n", ppmap);
     }
     else {
@@ -100,17 +130,13 @@ void keymap_thread::help_handle_key_press(key::pmap_t* ppmap)
 
 void keymap_thread::help_handle_key_release(key::pmap_t* ppmap)
 {
-    if ( m_behavior_defer_presses > 0 && is_press_deferred(ppmap) )
-        flush_deferred_presses(ppmap);
+    if ( key::pressing_list::is_deferring(ppmap) )
+        key::pressing_list::complete_deferred(execute_press, ppmap);
 
     (*ppmap)->on_release(ppmap);
     key::ANY.on_release(ppmap);
 
-    // In the case m_behavior_defer_presses is disabled from flush_deferred_presses()
-    // (i.e. on_other_press()) or on_release() above, we flush all (remaining) deferred
-    // presses now.
-    if ( m_behavior_defer_presses == 0 && !m_deferred_presses.empty() )
-        flush_deferred_presses();
+    key::pressing_list::remove(ppmap);
 }
 
 void keymap_thread::help_handle_timeout(key::pmap_t* ppmap)
@@ -125,46 +151,4 @@ void keymap_thread::help_handle_timeout(key::pmap_t* ppmap)
 
     // Timeout event is not deferred and handled immediately.
     ptimer->on_timeout(ppmap);
-
-    // In the case m_behavior_defer_presses is disabled from on_timeout() above, we flush
-    // all deferred presses now.
-    if ( m_behavior_defer_presses == 0 && !m_deferred_presses.empty() )
-        flush_deferred_presses();
-}
-
-bool keymap_thread::is_press_deferred(key::pmap_t* ppmap) const
-{
-    for ( key::pmap_t* _ppmap: m_deferred_presses )
-        if ( _ppmap == ppmap )
-            return true;
-    return false;
-}
-
-void keymap_thread::flush_deferred_presses()
-{
-    for ( key::pmap_t* ppmap: m_deferred_presses ) {
-        key::ANY.on_press(ppmap);
-        DEBUG("Keymap: complete the deferred press (%p)\n", ppmap);
-        (*ppmap)->on_press(ppmap);
-    }
-
-    m_deferred_presses.clear();
-}
-
-void keymap_thread::flush_deferred_presses(key::pmap_t* ppmap)
-{
-    auto it = m_deferred_presses.begin();
-    while ( it != m_deferred_presses.end() ) {
-        key::pmap_t* const _ppmap = *it;
-        it = m_deferred_presses.erase(it);
-
-        key::ANY.on_press(_ppmap);
-        DEBUG("Keymap: complete the deferred press (%p)\n", _ppmap);
-        (*_ppmap)->on_press(_ppmap);
-        // Note that `it` is never invalidated as on_*_press/release() cannot call
-        // flush_deferred_presses() directly or indirectly.
-
-        if ( _ppmap == ppmap )
-            break;
-    }
 }

@@ -11,18 +11,20 @@
 namespace key {
 
 class pmap_t;
+class pressing_list;
 class timer_t;
 
 
 
-// The keymap base class, which does nothing, neither pressing nor releasing.
+// The keymap base class, which does not register any press or release, but can be only
+// checked for its pressing.
 class map_t {
 public:
     virtual void on_press(pmap_t*) {};
 
     virtual void on_release(pmap_t*) {};
 
-    virtual bool is_pressing() const { return false; };
+    bool is_pressing() const { return m_pressing != nullptr; };
 
     // Child classes that also derive from key::timer_t (e.g. tap_hold_t) return their
     // key::timer_t* through this virtual method.
@@ -41,30 +43,33 @@ protected:
         usb_thread::obj().hid_keyboard.report_release(keycode);
     }
 
+    // Start the deferring of presses. All presses will be gathered and deferred from
+    // now on.
     void start_defer_presses() {
         keymap_thread::obj().start_defer_presses();
     }
 
+    // Stop the deferring of presses. All the deferred presses will be carried out when
+    // the outer event-handling method (on_*()) that was calling stop_defer_presses()
+    // returns.
     void stop_defer_presses() {
         keymap_thread::obj().stop_defer_presses();
     }
 
     void perform_usbhub_switchover() {
-        // Todo:
-        // Windows seems to have a problem. Take a long time to recognize the device.
-        // Only capital letters type in Windows sometimes. CDC ACM is lost when going
-        // back to the original port.
         adc_thread::obj().signal_usbhub_switchover();
     }
 
 private:
-    // Todo: link pointer to pressing keys list. This can help determining whether to
-    //  report to maps[][] or not, also helps debouncing per key.
+    // Todo: The pressing_list can help determining whether to report to maps[][] or not,
+    //  also helps eager debouncing per key.
+    friend class pressing_list;
+    pressing_list* m_pressing = nullptr;
 };
 
 // Keys that do nothing
 inline map_t NO;
-inline map_t& ____ = NO;
+inline map_t& ___ = NO;
 
 
 

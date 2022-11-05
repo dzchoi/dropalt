@@ -20,25 +20,13 @@ uint8_t keymap[MATRIX_ROWS][MATRIX_COLS] = {
 };
 */
 
-tap_hold_t ext_LCTL { ESC, LCTL };
-tap_hold_fast_t ext_SPC { SPC, RSFT };
+map_t FN;
+tap_hold_t xLCTL { ESC, LCTL };
+tap_hold_fast_t xSPC { SPC, RSFT };
 // More ideas:
 //  - SPC + BKSP == DEL
 //  - Left + Left == Ctrl + Left
-
-
-
-class pressing_t: public map_t {
-public:
-    void on_press(pmap_t*) { m_pressing = true; }
-    void on_release(pmap_t*) { m_pressing = false; }
-    bool is_pressing() const { return m_pressing; }
-
-private:
-    bool m_pressing = false;
-};
-
-inline pressing_t FN;
+//  - Left + Left + Left == Ctrl + Left + Left
 
 
 
@@ -51,42 +39,41 @@ public:
     void on_press(pmap_t* ppmap) {
         start_timer(ppmap);
         start_defer_presses();
-        pressing = true;
     }
 
     void on_release(pmap_t*) {
         stop_timer();
         stop_defer_presses();
-        pressing = false;
 
-        if ( FN.is_pressing() && ext_LCTL.is_pressing() )
+        if ( FN.is_pressing() && xLCTL.is_pressing() )
             system_reset();
+
+        // Test key sequence
+        // send_press(KC_SCOLON);
+        // send_press(KC_F);
+        // send_press(KC_A);
+        // send_release(KC_SCOLON);
+        // send_release(KC_F);
+        // send_release(KC_A);
     }
 
     void on_timeout(pmap_t*) {
         if ( FN.is_pressing() ) {
-            if ( ext_LCTL.is_pressing() )
+            if ( xLCTL.is_pressing() )
                 // assert( false );
                 WDT->CLEAR.reg = 0;  // anything other than 0xA5
             else
                 perform_usbhub_switchover();
         }
     }
-
-    bool is_pressing() const { return pressing; }
-
-private:
-    bool pressing = false;
-};
-
-inline test_t TEST;
+} test;
 
 
 
 class ext_lsft_t: public map_t {
 public:
     void on_press(pmap_t*) {
-        m_code = ext_SPC.is_pressing() ? KC_SPACE : KC_LSHIFT;
+        m_code = xSPC.is_pressing() ? KC_SPACE : KC_LSHIFT;
         send_press(m_code);
     }
 
@@ -95,13 +82,9 @@ public:
         m_code = 0;
     }
 
-    bool is_pressing() const { return m_code != 0; }
-
 private:
     uint8_t m_code = 0;
-};
-
-inline ext_lsft_t ext_LSFT;
+} xLSFT;
 
 
 
@@ -111,12 +94,12 @@ pmap_t maps[MATRIX_ROWS][MATRIX_COLS] = {
 
     TAB, Q, W, E, R, T, Y, U, I, O, P, LBRKT, RBRKT, BSLASH, HOME,
 
-    ext_LCTL, A, S, D, F, G, H, J, K, L, COLON, QUOTE, ____, ENT, PGUP,
+    xLCTL, A, S, D, F, G, H, J, K, L, COLON, QUOTE, ___, ENT, PGUP,
 
-    ext_LSFT, ____, Z, X, C, V, B, N, M, COMMA, DOT, SLASH, RSFT, UP, PGDN,
+    xLSFT, ___, Z, X, C, V, B, N, M, COMMA, DOT, SLASH, RSFT, UP, PGDN,
 
-    FN, LGUI, LALT, ____, ____, ____, ext_SPC, ____, ____, ____,
-        RCTL, TEST /*RALT*/, LEFT, DOWN, RIGHT,
+    FN, LGUI, LALT, ___, ___, ___, xSPC, ___, ___, ___,
+        RCTL, test /*RALT*/, LEFT, DOWN, RIGHT,
 };
 
 }  // namespace key

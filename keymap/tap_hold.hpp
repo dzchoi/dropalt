@@ -25,8 +25,6 @@ public:
 
     void on_timeout(pmap_t*) { help_holding(); }
 
-    bool is_pressing() const { return m_holding; }
-
 private:
     const uint8_t m_code_tap;
     const uint8_t m_code_hold;

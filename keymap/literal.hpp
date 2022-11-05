@@ -11,17 +11,14 @@ class literal_t: public map_t {
 public:
     constexpr literal_t(uint8_t keycode): m_code(keycode) {}
 
-    void on_press(pmap_t*) { m_pressing = true; send_press(m_code); }
+    void on_press(pmap_t*) { send_press(m_code); }
 
-    void on_release(pmap_t*) { m_pressing = false; send_release(m_code); }
-
-    bool is_pressing() const { return m_pressing; }
+    void on_release(pmap_t*) { send_release(m_code); }
 
     uint8_t keycode() const { return m_code; }
 
 private:
     const uint8_t m_code;
-    bool m_pressing = false;
 };
 
 
