@@ -61,6 +61,8 @@ private:
         EVENT_KEY_PRESS = 1,
         EVENT_KEY_RELEASE,
         EVENT_TIMEOUT,
+        EVENT_START_DEFER_PRESSES,
+        EVENT_STOP_DEFER_PRESSES,
     };
 
     void help_handle_key_press(key::pmap_t* ppmap);

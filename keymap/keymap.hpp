@@ -43,15 +43,15 @@ protected:
         usb_thread::obj().hid_keyboard.report_release(keycode);
     }
 
-    // Start the deferring of presses. All presses will be gathered and deferred from
-    // now on.
+    // Start deferring key presses. All presses will be deferred from the next press
+    // event.
     void start_defer_presses() {
         keymap_thread::obj().start_defer_presses();
     }
 
-    // Stop the deferring of presses. All the deferred presses will be carried out when
-    // the outer event-handling method (on_*()) that was calling stop_defer_presses()
-    // returns.
+    // Stop deferring key presses. All the deferred presses will be carried out after
+    // handling the current event, i.e. when the current event-handling method (on_*())
+    // that was calling stop_defer_presses() finishes.
     void stop_defer_presses() {
         keymap_thread::obj().stop_defer_presses();
     }

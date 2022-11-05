@@ -31,9 +31,7 @@ void keymap_thread::signal_timeout(key::pmap_t* ppmap)
     msg.content.ptr = ppmap;
     // will miss to send if m_queue is full (as being called from interrupt context.)
     const int ok = msg_send(&msg, m_pid);
-    if ( ok != 1 )
-        DEBUG("Keymap:\e[1;31m msg_send_int() returns %d (queued msgs=%u)\e[0m\n",
-            ok, msg_avail_thread(m_pid));
+    assert( ok == 1 );
 }
 
 keymap_thread::keymap_thread()
@@ -53,14 +51,22 @@ keymap_thread::keymap_thread()
 
 void keymap_thread::start_defer_presses()
 {
-    if ( m_behavior_defer_presses++ == 0 )
-        key::pressing_list::start_defering();
+    if ( m_behavior_defer_presses++ == 0 ) {
+        msg_t msg;
+        msg.type = EVENT_START_DEFER_PRESSES;
+        const int ok = msg_send(&msg, m_pid);
+        assert( ok == 1 );
+    }
 }
 
 void keymap_thread::stop_defer_presses()
 {
-    if ( m_behavior_defer_presses > 0 )
-        m_behavior_defer_presses--;
+    if ( m_behavior_defer_presses > 0 && --m_behavior_defer_presses == 0 ) {
+        msg_t msg;
+        msg.type = EVENT_STOP_DEFER_PRESSES;
+        const int ok = msg_send(&msg, m_pid);
+        assert( ok == 1 );
+    }
 }
 
 static constexpr auto execute_press = [](key::pmap_t* ppmap) {
@@ -94,19 +100,19 @@ void* keymap_thread::_keymap_thread(void* arg)
                 that->help_handle_timeout(ppmap);
                 break;
 
+            case EVENT_START_DEFER_PRESSES:
+                key::pressing_list::start_defering();
+                break;
+
+            case EVENT_STOP_DEFER_PRESSES:
+                key::pressing_list::complete_deferred(execute_press);
+                key::pressing_list::stop_defering();
+                break;
+
             default:
                 DEBUG("Keymap:\e[1;31m unknown message type (%u)\e[0m\n", msg.type);
                 assert( false );
                 break;
-        }
-
-        // In the case m_behavior_defer_presses is disabled from help_handle_*() methods
-        // above we complete all (remaining, if complete_deferred(ppmap) was called
-        // before) deferred presses now.
-        if ( that->m_behavior_defer_presses == 0
-          && key::pressing_list::is_deferring() ) {
-            key::pressing_list::complete_deferred(execute_press);
-            key::pressing_list::stop_defering();
         }
     }
 
