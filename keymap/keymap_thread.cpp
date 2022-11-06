@@ -6,10 +6,10 @@
 #include "adc_thread.hpp"       // for signal_usbhub_switchover()
 #include "keymap.hpp"
 #include "keymap_thread.hpp"
-#include "observer.hpp"         // for key::ANY
 #include "pressing_list.hpp"
 #include "timer.hpp"
 #include "usb_descriptor.hpp"   // for SKRO_KEYS_SIZE
+#include "whole.hpp"            // for key::whole
 
 
 
@@ -71,9 +71,8 @@ void keymap_thread::stop_defer_presses()
 }
 
 static constexpr auto execute_press = [](key::pmap_t* ppmap) {
-    key::ANY.on_press(ppmap);
     DEBUG("Keymap: complete the deferred press (%p)\n", ppmap);
-    (*ppmap)->on_press(ppmap);
+    key::whole.on_press(ppmap);
 };
 
 void* keymap_thread::_keymap_thread(void* arg)
@@ -122,15 +121,10 @@ void keymap_thread::help_handle_key_press(key::pmap_t* ppmap)
 {
     key::pressing_list::add(ppmap);
 
-    if ( key::pressing_list::is_deferring() ) {
+    if ( key::pressing_list::is_deferring() )
         DEBUG("Keymap: defer press (%p)\n", ppmap);
-    }
-    else {
-        // Todo: ANY can be more than an observer. Its on_press(ppmap) can call
-        //  (*ppmap)->on_press(ppmap) inside.
-        key::ANY.on_press(ppmap);
-        (*ppmap)->on_press(ppmap);
-    }
+    else
+        key::whole.on_press(ppmap);
 }
 
 void keymap_thread::help_handle_key_release(key::pmap_t* ppmap)
@@ -138,9 +132,7 @@ void keymap_thread::help_handle_key_release(key::pmap_t* ppmap)
     if ( key::pressing_list::is_deferring(ppmap) )
         key::pressing_list::complete_deferred(execute_press, ppmap);
 
-    (*ppmap)->on_release(ppmap);
-    key::ANY.on_release(ppmap);
-
+    key::whole.on_release(ppmap);
     key::pressing_list::remove(ppmap);
 
     if ( m_switchover_requested && !key::pressing_list::is_any_pressing() ) {
