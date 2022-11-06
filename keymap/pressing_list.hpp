@@ -42,6 +42,9 @@ public:
         m_index_deferred = -1;
     }
 
+    // Indicate if any key is pressing, including the deferred ones.
+    static bool is_any_pressing() { return !m_press_vector.empty(); }
+
     // Indicate if presses are being deferred until their release.
     static bool is_deferring() { return m_index_deferred >= 0; }
 

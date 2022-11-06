@@ -3,6 +3,7 @@
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
 
+#include "adc_thread.hpp"       // for signal_usbhub_switchover()
 #include "keymap.hpp"
 #include "keymap_thread.hpp"
 #include "observer.hpp"         // for key::ANY
@@ -110,9 +111,7 @@ void* keymap_thread::_keymap_thread(void* arg)
                 break;
 
             default:
-                DEBUG("Keymap:\e[1;31m unknown message type (%u)\e[0m\n", msg.type);
                 assert( false );
-                break;
         }
     }
 
@@ -143,6 +142,11 @@ void keymap_thread::help_handle_key_release(key::pmap_t* ppmap)
     key::ANY.on_release(ppmap);
 
     key::pressing_list::remove(ppmap);
+
+    if ( m_switchover_requested && !key::pressing_list::is_any_pressing() ) {
+        adc_thread::obj().signal_usbhub_switchover();
+        m_switchover_requested = false;
+    }
 }
 
 void keymap_thread::help_handle_timeout(key::pmap_t* ppmap)

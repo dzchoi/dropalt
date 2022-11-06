@@ -2,7 +2,6 @@
 
 #include "periph_conf.h"        // for MATRIX_ROWS and MATRIX_COLS
 
-#include "adc_thread.hpp"       // for signal_usbhub_switchover()
 #include "keymap_thread.hpp"    // for start_defer_presses() and stop_defer_presses()
 #include "usb_thread.hpp"       // for report_press/release()
 
@@ -56,8 +55,9 @@ protected:
         keymap_thread::obj().stop_defer_presses();
     }
 
+    // Perform usbhub switchover, once all keys are released.
     void perform_usbhub_switchover() {
-        adc_thread::obj().signal_usbhub_switchover();
+        keymap_thread::obj().signal_usbhub_switchover();
     }
 
 private:

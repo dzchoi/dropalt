@@ -3,6 +3,8 @@
 #include "msg.h"
 #include "thread.h"
 
+#include <atomic>
+
 
 
 namespace key {
@@ -35,6 +37,9 @@ public:
     void start_defer_presses();
     void stop_defer_presses();
 
+    // Switchover will be performed when all keys are released.
+    void signal_usbhub_switchover() { m_switchover_requested = true; }
+
 private:
     kernel_pid_t m_pid;
     thread_t* m_pthread;
@@ -55,6 +60,8 @@ private:
     static void* _keymap_thread(void* arg);
 
     unsigned m_behavior_defer_presses = 0;
+
+    std::atomic<bool> m_switchover_requested = false;
 
     // message types
     enum : uint16_t {
