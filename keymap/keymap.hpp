@@ -9,9 +9,9 @@
 
 namespace key {
 
+class map_timer_t;
 class pmap_t;
 class pressing_list;
-class timer_t;
 
 
 
@@ -25,12 +25,12 @@ public:
 
     bool is_pressing() const { return m_pressing != nullptr; };
 
-    // Child classes that also derive from key::timer_t (e.g. tap_hold_t) return their
-    // key::timer_t* through this virtual method.
+    // Child classes that derive from map_timer_t (e.g. tap_hold_t) will return their
+    // map_timer_t* through this virtual method.
     // (Instead of implementing this explicit method we could make use of
-    // dynamic_cast<timer_t*> along with RTTI embedded to every class, which would
-    // require the binary size increased by several KBs.)
-    virtual timer_t* get_timer() { return nullptr; }
+    // dynamic_cast<map_timer_t*> along with RTTI embedded to every class, which would
+    // increase the binary size by several KBs.)
+    virtual map_timer_t* get_timer() { return nullptr; }
 
 protected:
     // Utility methods that can be used by child classes.

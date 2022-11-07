@@ -1,4 +1,5 @@
 #include "literal.hpp"
+#include "map_timer.hpp"
 #include "tap_hold.hpp"
 
 
@@ -30,11 +31,9 @@ tap_hold_fast_t xSPC { SPC, RSFT };
 
 
 
-class test_t: public map_t, timer_t {
+class test_t: public map_timer_t {
 public:
-    test_t(): timer_t(500 *US_PER_MS) {}
-
-    timer_t* get_timer() { return dynamic_cast<timer_t*>(this); }
+    test_t(): map_timer_t(500 *US_PER_MS) {}
 
     void on_press(pmap_t* ppmap) {
         start_timer(ppmap);

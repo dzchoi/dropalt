@@ -2,17 +2,20 @@
 
 #include "xtimer.h"
 
+#include "keymap.hpp"
 #include "keymap_thread.hpp"    // for signal_timeout()
 
 
 
 namespace key {
 
-class timer_t: xtimer_t {
+class map_timer_t: public map_t, public xtimer_t {
 public:
-    timer_t(uint32_t timeout_us): m_timeout_us(timeout_us) {
+    map_timer_t(uint32_t timeout_us): m_timeout_us(timeout_us) {
         callback = _tmo_key_timer;
     }
+
+    map_timer_t* get_timer() { return this; }
 
     // Will be called when the timer is expired.
     virtual void on_timeout(pmap_t*) =0;
@@ -40,10 +43,10 @@ public:
 
     bool timer_is_running() const { return xtimer_is_set(this); }
 
-    ~timer_t() { stop_timer(); }
+    ~map_timer_t() { stop_timer(); }
 
-    timer_t(const timer_t&) =delete;
-    void operator=(const timer_t&) =delete;
+    map_timer_t(const map_timer_t&) =delete;
+    void operator=(const map_timer_t&) =delete;
 
 private:
     const uint32_t m_timeout_us;

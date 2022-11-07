@@ -1,21 +1,22 @@
 #pragma once
 
-#include "keymap.hpp"
+#include "map_timer.hpp"
 #include "observer.hpp"
-#include "timer.hpp"
 
 
 
 namespace key {
 
+class literal_t;
+
+
+
 // The 'hold-preferred' flavor: the hold behavior is triggered when tapping_term_us has
 // expired or another key is pressed within this period.
-class tap_hold_t: public map_t, public observer_t, public timer_t {
+class tap_hold_t: public map_timer_t, public observer_t {
 public:
     tap_hold_t(const literal_t& key_tap, const literal_t& key_hold,
         uint32_t tapping_term_us =TAPPING_TERM_US);
-
-    timer_t* get_timer() { return dynamic_cast<timer_t*>(this); }
 
     void on_press(pmap_t*);
 

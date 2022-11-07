@@ -6,8 +6,8 @@
 #include "adc_thread.hpp"       // for signal_usbhub_switchover()
 #include "keymap.hpp"
 #include "keymap_thread.hpp"
+#include "map_timer.hpp"
 #include "pressing_list.hpp"
-#include "timer.hpp"
 #include "usb_descriptor.hpp"   // for SKRO_KEYS_SIZE
 #include "whole.hpp"            // for key::whole
 
@@ -143,7 +143,7 @@ void keymap_thread::help_handle_key_release(key::pmap_t* ppmap)
 
 void keymap_thread::help_handle_timeout(key::pmap_t* ppmap)
 {
-    key::timer_t* const ptimer = (*ppmap)->get_timer();
+    key::map_timer_t* const ptimer = (*ppmap)->get_timer();
     assert( ptimer != nullptr );
 
     if ( !ptimer->timeout_expected() ) {

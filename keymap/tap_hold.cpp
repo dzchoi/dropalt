@@ -10,7 +10,7 @@ namespace key {
 
 tap_hold_t::tap_hold_t(const literal_t& key_tap, const literal_t& key_hold,
     uint32_t tapping_term_us)
-: timer_t(tapping_term_us)
+: map_timer_t(tapping_term_us)
 , m_code_tap(key_tap.keycode()), m_code_hold(key_hold.keycode())
 {}
 
