@@ -4,20 +4,18 @@
 #include "debug.h"
 
 #include "adc_thread.hpp"       // for signal_usbhub_switchover()
-#include "keymap.hpp"
+#include "map.hpp"              // for map_t::get_timer()
 #include "keymap_thread.hpp"
 #include "map_timer.hpp"
-#include "pressing_list.hpp"
-#include "usb_descriptor.hpp"   // for SKRO_KEYS_SIZE
 #include "whole.hpp"            // for key::whole
 
 
 
-void keymap_thread::signal_key_event(key::pmap_t* ppmap, bool pressed)
+void keymap_thread::signal_key_event(key::pmap_t* slot, bool pressed)
 {
     msg_t msg;
     msg.type = pressed ? EVENT_KEY_PRESS : EVENT_KEY_RELEASE;
-    msg.content.ptr = ppmap;
+    msg.content.ptr = slot;
     // will block the caller (matrix_thread) until m_queue has a room if it is full.
     const int ok = msg_send(&msg, m_pid);
     if ( ok != 1 )
@@ -25,11 +23,11 @@ void keymap_thread::signal_key_event(key::pmap_t* ppmap, bool pressed)
             ok, msg_avail_thread(m_pid));
 }
 
-void keymap_thread::signal_timeout(key::pmap_t* ppmap)
+void keymap_thread::signal_timeout(key::pmap_t* slot)
 {
     msg_t msg;
     msg.type = EVENT_TIMEOUT;
-    msg.content.ptr = ppmap;
+    msg.content.ptr = slot;
     // will miss to send if m_queue is full (as being called from interrupt context.)
     const int ok = msg_send(&msg, m_pid);
     assert( ok == 1 );
@@ -37,10 +35,6 @@ void keymap_thread::signal_timeout(key::pmap_t* ppmap)
 
 keymap_thread::keymap_thread()
 {
-    // Mostly we would press not more than 6 keys simultaneously, but the pressing list
-    // will be expanded as needed.
-    key::pressing_list::reserve(SKRO_KEYS_SIZE);
-
     m_pid = thread_create(
         m_stack, sizeof(m_stack),
         THREAD_PRIO_KEYMAP,
@@ -70,11 +64,6 @@ void keymap_thread::stop_defer_presses()
     }
 }
 
-static constexpr auto execute_press = [](key::pmap_t* ppmap) {
-    DEBUG("Keymap: complete the deferred press (%p)\n", ppmap);
-    key::whole.on_press(ppmap);
-};
-
 void* keymap_thread::_keymap_thread(void* arg)
 {
     keymap_thread* const that = static_cast<keymap_thread*>(arg);
@@ -85,28 +74,40 @@ void* keymap_thread::_keymap_thread(void* arg)
     msg_t msg;
     while ( true ) {
         msg_receive(&msg);
-        key::pmap_t* const ppmap = static_cast<key::pmap_t*>(msg.content.ptr);
+        key::pmap_t* const slot = static_cast<key::pmap_t*>(msg.content.ptr);
 
         switch ( msg.type ) {
             case EVENT_KEY_PRESS:
-                that->help_handle_key_press(ppmap);
+                key::whole.handle_press(slot);
                 break;
 
             case EVENT_KEY_RELEASE:
-                that->help_handle_key_release(ppmap);
+                key::whole.handle_release(slot);
+
+                if ( that->m_switchover_requested && !key::whole.is_any_pressing() ) {
+                    adc_thread::obj().signal_usbhub_switchover();
+                    that->m_switchover_requested = false;
+                }
                 break;
 
-            case EVENT_TIMEOUT:
-                that->help_handle_timeout(ppmap);
+            case EVENT_TIMEOUT: {
+                key::map_timer_t* const ptimer = (*slot)->get_timer();
+                assert( ptimer != nullptr );
+                if ( ptimer->timeout_expected() )
+                    // Timeout event is not deferred but handled immediately.
+                    ptimer->on_timeout(slot);
+                else
+                    DEBUG("Keymap:\e[0;34m spurious timeout (slot=%p)\e[0m\n", slot);
                 break;
+            }
 
             case EVENT_START_DEFER_PRESSES:
-                key::pressing_list::start_defering();
+                key::whole.start_defering();
                 break;
 
             case EVENT_STOP_DEFER_PRESSES:
-                key::pressing_list::complete_deferred(execute_press);
-                key::pressing_list::stop_defering();
+                key::whole.complete_deferred();
+                key::whole.stop_defering();
                 break;
 
             default:
@@ -115,42 +116,4 @@ void* keymap_thread::_keymap_thread(void* arg)
     }
 
     return nullptr;
-}
-
-void keymap_thread::help_handle_key_press(key::pmap_t* ppmap)
-{
-    key::pressing_list::add(ppmap);
-
-    if ( key::pressing_list::is_deferring() )
-        DEBUG("Keymap: defer press (%p)\n", ppmap);
-    else
-        key::whole.on_press(ppmap);
-}
-
-void keymap_thread::help_handle_key_release(key::pmap_t* ppmap)
-{
-    if ( key::pressing_list::is_deferring(ppmap) )
-        key::pressing_list::complete_deferred(execute_press, ppmap);
-
-    key::whole.on_release(ppmap);
-    key::pressing_list::remove(ppmap);
-
-    if ( m_switchover_requested && !key::pressing_list::is_any_pressing() ) {
-        adc_thread::obj().signal_usbhub_switchover();
-        m_switchover_requested = false;
-    }
-}
-
-void keymap_thread::help_handle_timeout(key::pmap_t* ppmap)
-{
-    key::map_timer_t* const ptimer = (*ppmap)->get_timer();
-    assert( ptimer != nullptr );
-
-    if ( !ptimer->timeout_expected() ) {
-        DEBUG("Keymap:\e[0;34m spurious timeout (ppmap=%p)\e[0m\n", ppmap);
-        return;
-    }
-
-    // Timeout event is not deferred and handled immediately.
-    ptimer->on_timeout(ppmap);
 }

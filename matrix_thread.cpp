@@ -3,9 +3,9 @@
 #define ENABLE_DEBUG 0
 #include "debug.h"
 
-#include "keymap.hpp"
-#include "keymap_thread.hpp"    // for key::maps[][]
-#include "matrix_thread.hpp"    // for signal_key_event()
+#include "keymap_thread.hpp"    // for signal_key_event()
+#include "matrix_thread.hpp"
+#include "pmap.hpp"             // for key::maps[][]
 
 
 

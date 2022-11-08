@@ -7,32 +7,28 @@
 
 namespace key {
 
-class literal_t;
-
-
-
 // The 'hold-preferred' flavor: the hold behavior is triggered when tapping_term_us has
 // expired or another key is pressed within this period.
 class tap_hold_t: public map_timer_t, public observer_t {
 public:
-    tap_hold_t(const literal_t& key_tap, const literal_t& key_hold,
+    tap_hold_t(map_t& key_tap, map_t& key_hold,
         uint32_t tapping_term_us =TAPPING_TERM_US);
 
-    void on_press(pmap_t*);
+    void on_press(pmap_t* slot);
 
-    void on_release(pmap_t*);
+    void on_release(pmap_t* slot);
 
-    void on_other_press(pmap_t*) { help_holding(); }
+    void on_other_press(pmap_t* slot) { help_holding(slot); }
 
-    void on_timeout(pmap_t*) { help_holding(); }
+    void on_timeout(pmap_t* slot) { help_holding(slot); }
 
 private:
-    const uint8_t m_code_tap;
-    const uint8_t m_code_hold;
+    map_t& m_key_tap;
+    map_t& m_key_hold;
 
     bool m_holding = false;
 
-    void help_holding();
+    void help_holding(pmap_t* slot);
 
     virtual void start_defer_presses() {}
     virtual void stop_defer_presses() {}

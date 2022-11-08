@@ -35,8 +35,8 @@ class test_t: public map_timer_t {
 public:
     test_t(): map_timer_t(500 *US_PER_MS) {}
 
-    void on_press(pmap_t* ppmap) {
-        start_timer(ppmap);
+    void on_press(pmap_t* slot) {
+        start_timer(slot);
         start_defer_presses();
     }
 

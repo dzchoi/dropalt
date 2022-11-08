@@ -12,7 +12,8 @@ class pmap_t;
 }
 
 // The keymap_thread receives (physical) key events such as presses/releases from matrix_
-// thread, maps them, and finally reports them to usbus_hid_keyboard (i.e. usb_thread).
+// thread, maps them using keymaps, and finally reports them to usbus_hid_keyboard (i.e.
+// usb_thread).
 
 class keymap_thread {
 public:
@@ -22,18 +23,19 @@ public:
     }
 
     // Handle input:
-    void signal_key_event(key::pmap_t* ppmap, bool pressed);
-    void signal_timeout(key::pmap_t* ppmap);
+    void signal_key_event(key::pmap_t* slot, bool pressed);
+    void signal_timeout(key::pmap_t* slot);
 
     // Handle output:
-    // Output is handled by key::map_t::send_press/release(). See keymap.hpp.
+    // Output is handled by key::map_t::send_press/release(). See map.hpp.
 
-    // In the behavior of defer-presses, every press is deferred and triggered when its
-    // release occurs or until stop_defer_presses() is called. To preserve the order of
-    // presses, however, the release triggers not only its own press but also all other
-    // presses that have occurred and deferred before the press. For example, suppose
-    // A, B, C, D and E are pressed and deferred in that order. When C is released A, B
-    // and C are pressed before C is released. D and E are left still deferred.
+    // In the behavior of defer-presses, every press is deferred and triggered later
+    // when its release occurs or until stop_defer_presses() is called. To preserve the
+    // order of presses, however, the release triggers not only its own press but also
+    // all the other presses that have occurred and deferred before its press. For
+    // example, suppose A, B, C, D and E are pressed and deferred in that order. When C
+    // is released A, B and C are pressed before C is released. D and E are left still
+    // deferred.
     void start_defer_presses();
     void stop_defer_presses();
 
@@ -71,8 +73,4 @@ private:
         EVENT_START_DEFER_PRESSES,
         EVENT_STOP_DEFER_PRESSES,
     };
-
-    void help_handle_key_press(key::pmap_t* ppmap);
-    void help_handle_key_release(key::pmap_t* ppmap);
-    void help_handle_timeout(key::pmap_t* ppmap);
 };

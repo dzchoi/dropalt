@@ -1,6 +1,6 @@
 #pragma once
 
-#include "whole.hpp"
+#include "whole.hpp"            // for enroll/unenroll_observer()
 
 
 

@@ -2,7 +2,7 @@
 
 #include "xtimer.h"
 
-#include "keymap.hpp"
+#include "map.hpp"              // for deriving from map_t
 #include "keymap_thread.hpp"    // for signal_timeout()
 
 
@@ -20,8 +20,8 @@ public:
     // Will be called when the timer is expired.
     virtual void on_timeout(pmap_t*) =0;
 
-    void start_timer(pmap_t* ppmap) {
-        arg = ppmap;
+    void start_timer(pmap_t* slot) {
+        arg = slot;
         xtimer_set(this, m_timeout_us);
         m_timeout_expected = true;
     }

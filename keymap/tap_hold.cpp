@@ -1,33 +1,29 @@
 #define ENABLE_DEBUG 1
 #include "debug.h"
 
-#include "literal.hpp"          // for keycode()
 #include "tap_hold.hpp"
 
 
 
 namespace key {
 
-tap_hold_t::tap_hold_t(const literal_t& key_tap, const literal_t& key_hold,
-    uint32_t tapping_term_us)
-: map_timer_t(tapping_term_us)
-, m_code_tap(key_tap.keycode()), m_code_hold(key_hold.keycode())
+tap_hold_t::tap_hold_t(map_t& key_tap, map_t& key_hold, uint32_t tapping_term_us)
+: map_timer_t(tapping_term_us), m_key_tap(key_tap), m_key_hold(key_hold)
 {}
 
-void tap_hold_t::on_press(pmap_t* ppmap)
+void tap_hold_t::on_press(pmap_t* slot)
 {
-    start_timer(ppmap);
+    assert( !m_holding );
+    start_timer(slot);
     start_observe();
     start_defer_presses();
-    if ( m_holding )
-        DEBUG("TapHold:\e[1;31m spurious holding (0x%x)\e[0m\n", m_code_tap);
 }
 
-void tap_hold_t::on_release(pmap_t*)
+void tap_hold_t::on_release(pmap_t* slot)
 {
     if ( m_holding ) {
         m_holding = false;
-        send_release(m_code_hold);
+        execute_release(&m_key_hold, slot);
     } else {
         // These can come in any order, except send_release() should follow send_press().
         // DEBUG("TapHold:\e[0;34m decide tap\e[0m\n");
@@ -35,13 +31,13 @@ void tap_hold_t::on_release(pmap_t*)
         stop_timer();
         stop_observe();
         stop_defer_presses();
-        send_press(m_code_tap);
-        send_release(m_code_tap);
+        execute_press(&m_key_tap, slot);
+        execute_release(&m_key_tap, slot);
     }
 }
 
 // Called by on_other_press() and on_timeout().
-void tap_hold_t::help_holding()
+void tap_hold_t::help_holding(pmap_t* slot)
 {
     // DEBUG("TapHold:\e[0;34m decide hold\e[0m\n");
     DEBUG("TapHold: decide hold\n");
@@ -49,7 +45,7 @@ void tap_hold_t::help_holding()
     stop_observe();
     stop_defer_presses();
     m_holding = true;
-    send_press(m_code_hold);
+    execute_press(&m_key_hold, slot);
 }
 
 }  // namespace key

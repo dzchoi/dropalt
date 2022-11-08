@@ -1,7 +1,7 @@
 #pragma once
 
 #include "hid_keycodes.hpp"
-#include "keymap.hpp"
+#include "map.hpp"
 
 
 
