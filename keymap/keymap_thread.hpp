@@ -9,6 +9,7 @@
 
 namespace key {
 class pmap_t;
+class timer_t;
 }
 
 // The keymap_thread receives (physical) key events such as presses/releases from matrix_
@@ -24,7 +25,7 @@ public:
 
     // Handle input:
     void signal_key_event(key::pmap_t* slot, bool pressed);
-    void signal_timeout(key::pmap_t* slot);
+    void signal_timeout(key::timer_t* ptimer);
 
     // Handle output:
     // Output is handled by key::map_t::send_press/release(). See map.hpp.

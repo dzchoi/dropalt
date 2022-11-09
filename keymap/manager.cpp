@@ -1,9 +1,9 @@
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
 
+#include "manager.hpp"
 #include "map.hpp"
 #include "observer.hpp"
-#include "manager.hpp"
 
 
 

@@ -1,16 +1,13 @@
 #pragma once
 
-#include "periph_conf.h"        // for MATRIX_ROWS and MATRIX_COLS
-
 #include "keymap_thread.hpp"    // for start_defer_presses() and stop_defer_presses()
-#include "usb_thread.hpp"       // for report_press/release()
 #include "manager.hpp"          // for key::manager.execute_press/release()
+#include "usb_thread.hpp"       // for report_press/release()
 
 
 
 namespace key {
 
-class map_timer_t;
 class pmap_t;
 
 
@@ -32,13 +29,6 @@ public:
 
     // Indicate if the keymap (not the slot) is being pressed.
     bool is_pressing() const { return m_pressing_count != 0; };
-
-    // Child classes that derive from map_timer_t (e.g. tap_hold_t) will return their
-    // map_timer_t* through this virtual method.
-    // (Instead of implementing this explicit method we could make use of
-    // dynamic_cast<map_timer_t*> along with RTTI embedded to every class, which would
-    // increase the binary size by several KBs.)
-    virtual map_timer_t* get_timer() { return nullptr; }
 
 protected:
     // Utility methods that can be used by child classes.

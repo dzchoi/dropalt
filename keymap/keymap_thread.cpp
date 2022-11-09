@@ -4,10 +4,9 @@
 #include "debug.h"
 
 #include "adc_thread.hpp"       // for signal_usbhub_switchover()
-#include "map.hpp"              // for map_t::get_timer()
 #include "keymap_thread.hpp"
-#include "map_timer.hpp"
 #include "manager.hpp"          // for key::manager
+#include "timer.hpp"            // for timer_t::handle_timeout()
 
 
 
@@ -25,11 +24,11 @@ void keymap_thread::signal_key_event(key::pmap_t* slot, bool pressed)
             ok, msg_avail_thread(m_pid));
 }
 
-void keymap_thread::signal_timeout(key::pmap_t* slot)
+void keymap_thread::signal_timeout(key::timer_t* ptimer)
 {
     msg_t msg;
     msg.type = EVENT_TIMEOUT;
-    msg.content.ptr = slot;
+    msg.content.ptr = ptimer;
     // will miss to send if m_queue is full (as being called from interrupt context.)
     const int ok = msg_send(&msg, m_pid);
     assert( ok == 1 );
@@ -76,14 +75,16 @@ void* keymap_thread::_keymap_thread(void* arg)
     msg_t msg;
     while ( true ) {
         msg_receive(&msg);
-        key::pmap_t* const slot = static_cast<key::pmap_t*>(msg.content.ptr);
 
         switch ( msg.type ) {
-            case EVENT_KEY_PRESS:
+            case EVENT_KEY_PRESS: {
+                key::pmap_t* const slot = static_cast<key::pmap_t*>(msg.content.ptr);
                 manager.handle_press(slot);
                 break;
+            }
 
-            case EVENT_KEY_RELEASE:
+            case EVENT_KEY_RELEASE: {
+                key::pmap_t* const slot = static_cast<key::pmap_t*>(msg.content.ptr);
                 manager.handle_release(slot);
 
                 if ( that->m_switchover_requested && !manager.is_any_pressing() ) {
@@ -91,17 +92,11 @@ void* keymap_thread::_keymap_thread(void* arg)
                     that->m_switchover_requested = false;
                 }
                 break;
-
-            case EVENT_TIMEOUT: {
-                key::map_timer_t* const ptimer = (*slot)->get_timer();
-                assert( ptimer != nullptr );
-                if ( ptimer->timeout_expected() )
-                    // Timeout event is not deferred but handled immediately.
-                    ptimer->on_timeout(slot);
-                else
-                    DEBUG("Keymap:\e[0;34m spurious timeout (slot=%p)\e[0m\n", slot);
-                break;
             }
+
+            case EVENT_TIMEOUT:
+                key::timer_t::handle_timeout(msg.content.ptr);
+                break;
 
             case EVENT_START_DEFER_PRESSES:
                 manager.start_defering();

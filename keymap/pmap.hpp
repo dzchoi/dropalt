@@ -1,5 +1,9 @@
 #pragma once
 
+#include "periph_conf.h"        // for MATRIX_ROWS and MATRIX_COLS
+
+
+
 namespace key {
 
 class map_t;
