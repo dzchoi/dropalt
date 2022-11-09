@@ -32,7 +32,7 @@ struct pressing_slot {
     // vector.
     pressing_slot& operator=(pressing_slot&& other) {
         // printf("---\e[0;34m move_slot: index=%d->%d, deferred=%d\e[0m\n",
-        //     whole.index(&other), whole.index(this), m_index_deferred);
+        //     manager.index(&other), manager.index(this), m_index_deferred);
         m_slot = other.m_slot;
         m_slot->m_pressing = this;
         return *this;
@@ -41,11 +41,11 @@ struct pressing_slot {
 
 
 
-// The key::whole_t represents and handles all keys. It executes on_press/release() of
-// each key and also executes on_other_press/release() for observers.
-class whole_t {
+// The key::manager_t drives all keymaps, executing on_press/release() as well as
+// on_other_press/release() appropriately. It also handles the defer-presses behavior.
+class manager_t {
 public:
-    whole_t() {
+    manager_t() {
         // Mostly we would press not more than 6 keys simultaneously, but the pressing
         // vector will be expanded as needed.
         m_pressing_slots.reserve(SKRO_KEYS_SIZE);
@@ -114,9 +114,15 @@ private:
 
     // Indicate if the given slot's press is deferred.
     bool is_deferring(pmap_t* slot) const;
+
+    // Notify all observers of press in the given slot.
+    void notify_of_press(pmap_t* slot);
+
+    // Notify all observers of release in the given slot.
+    void notify_of_release(pmap_t* slot);
 };
 
-// The global key::whole.
-extern whole_t whole;
+// The global key::manager.
+extern manager_t manager;
 
 }  // namespace key

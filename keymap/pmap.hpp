@@ -21,7 +21,7 @@ public:
 
 private:
     // friend class pressing_slot;
-    // friend class whole_t;
+    // friend class manager_t;
     map_t* const m_pmap;
 };
 

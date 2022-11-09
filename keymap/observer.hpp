@@ -1,6 +1,6 @@
 #pragma once
 
-#include "whole.hpp"            // for enroll/unenroll_observer()
+#include "manager.hpp"          // for enroll/unenroll_observer()
 
 
 
@@ -16,13 +16,13 @@ public:
     // Called when any other key gets released (after its on_release() is called.)
     virtual void on_other_release(pmap_t*) {}
 
-    void start_observe() { whole.enroll_observer(this); }
+    void start_observe() { manager.enroll_observer(this); }
 
-    void stop_observe() { whole.unenroll_observer(this); }
+    void stop_observe() { manager.unenroll_observer(this); }
 
 private:
-    friend class whole_t;
-    observer_t* next = nullptr;  // used by key::whole to manage observer list.
+    friend class manager_t;
+    observer_t* next = nullptr;  // used by key::manager to manage observer list.
 };
 
 }  // namespace key

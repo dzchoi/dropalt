@@ -7,9 +7,11 @@
 #include "map.hpp"              // for map_t::get_timer()
 #include "keymap_thread.hpp"
 #include "map_timer.hpp"
-#include "whole.hpp"            // for key::whole
+#include "manager.hpp"          // for key::manager
 
 
+
+using key::manager;
 
 void keymap_thread::signal_key_event(key::pmap_t* slot, bool pressed)
 {
@@ -78,13 +80,13 @@ void* keymap_thread::_keymap_thread(void* arg)
 
         switch ( msg.type ) {
             case EVENT_KEY_PRESS:
-                key::whole.handle_press(slot);
+                manager.handle_press(slot);
                 break;
 
             case EVENT_KEY_RELEASE:
-                key::whole.handle_release(slot);
+                manager.handle_release(slot);
 
-                if ( that->m_switchover_requested && !key::whole.is_any_pressing() ) {
+                if ( that->m_switchover_requested && !manager.is_any_pressing() ) {
                     adc_thread::obj().signal_usbhub_switchover();
                     that->m_switchover_requested = false;
                 }
@@ -102,12 +104,12 @@ void* keymap_thread::_keymap_thread(void* arg)
             }
 
             case EVENT_START_DEFER_PRESSES:
-                key::whole.start_defering();
+                manager.start_defering();
                 break;
 
             case EVENT_STOP_DEFER_PRESSES:
-                key::whole.complete_deferred();
-                key::whole.stop_defering();
+                manager.complete_deferred();
+                manager.stop_defering();
                 break;
 
             default:

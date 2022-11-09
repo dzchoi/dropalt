@@ -23,7 +23,7 @@ void tap_hold_t::on_release(pmap_t* slot)
 {
     if ( m_holding ) {
         m_holding = false;
-        execute_release(&m_key_hold, slot);
+        m_key_hold.release(slot);
     } else {
         // These can come in any order, except send_release() should follow send_press().
         // DEBUG("TapHold:\e[0;34m decide tap\e[0m\n");
@@ -31,8 +31,8 @@ void tap_hold_t::on_release(pmap_t* slot)
         stop_timer();
         stop_observe();
         stop_defer_presses();
-        execute_press(&m_key_tap, slot);
-        execute_release(&m_key_tap, slot);
+        m_key_tap.press(slot);
+        m_key_tap.release(slot);
     }
 }
 
@@ -45,7 +45,7 @@ void tap_hold_t::help_holding(pmap_t* slot)
     stop_observe();
     stop_defer_presses();
     m_holding = true;
-    execute_press(&m_key_hold, slot);
+    m_key_hold.press(slot);
 }
 
 }  // namespace key
