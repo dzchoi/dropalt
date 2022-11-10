@@ -7,10 +7,6 @@
 
 namespace key {
 
-tap_hold_t::tap_hold_t(map_t& key_tap, map_t& key_hold, uint32_t tapping_term_us)
-: timer_t(tapping_term_us), m_key_tap(key_tap), m_key_hold(key_hold)
-{}
-
 void tap_hold_t::on_press(pmap_t* slot)
 {
     assert( !m_holding );

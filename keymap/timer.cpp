@@ -8,11 +8,6 @@
 
 namespace key {
 
-timer_t::timer_t(uint32_t timeout_us): m_timeout_us(timeout_us)
-{
-    callback = _tmo_key_timer;
-}
-
 void timer_t::start_timer(pmap_t* slot)
 {
     m_slot = slot;

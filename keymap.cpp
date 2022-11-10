@@ -34,8 +34,9 @@ tap_hold_fast_t xSPC { SPC, RSFT };
 
 class test_t: public map_t, public timer_t {
 public:
-    test_t(): timer_t(500 *US_PER_MS) {}
+    constexpr test_t(): timer_t(500 *US_PER_MS) {}
 
+private:
     void on_press(pmap_t* slot) {
         start_timer(slot);
         start_defer_presses();
@@ -72,6 +73,9 @@ public:
 
 class ext_lsft_t: public map_t {
 public:
+    constexpr ext_lsft_t() =default;
+
+private:
     void on_press(pmap_t*) {
         m_code = xSPC.is_pressing() ? KC_SPACE : KC_LSHIFT;
         send_press(m_code);
@@ -82,7 +86,6 @@ public:
         m_code = 0;
     }
 
-private:
     uint8_t m_code = 0;
 } xLSFT;
 

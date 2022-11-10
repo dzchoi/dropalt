@@ -19,14 +19,12 @@ public:
 
     operator map_t*() { return m_pmap; }
 
-    // Todo: The pressing slot list can help determining whether to report to maps[][] or
-    // not, also helps eager debouncing per key.
-    pressing_slot* m_pressing = nullptr;
-
 private:
-    // friend class pressing_slot;
-    // friend class manager_t;
+    friend class pressing_slot;
+    friend class manager_t;
+
     map_t* const m_pmap;
+    pressing_slot* m_pressing = nullptr;
 };
 
 

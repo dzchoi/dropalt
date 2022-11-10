@@ -1,8 +1,8 @@
 #pragma once
 
-#include "keymap_thread.hpp"    // for start_defer_presses() and stop_defer_presses()
+#include "keymap_thread.hpp"    // for start/stop_defer_presses()
 #include "manager.hpp"          // for key::manager.execute_press/release()
-#include "usb_thread.hpp"       // for report_press/release()
+#include "usb_thread.hpp"       // for hid_keyboard.report_press/release()
 
 
 
@@ -15,7 +15,9 @@ class pmap_t;
 // The base class of all keymaps, which does not register any press or release, but can
 // be only checked for its pressing.
 class map_t {
-public:
+public: // User-facing methods
+    constexpr map_t() =default;  // could be omitted.
+
     // Execute on_press/release() of the keymap with the slot who triggers the keymap.
     // Beware to not call `pmap->on_press(slot)` directly, which does not take care of
     // simultaneous presses of the same keymap.
@@ -23,16 +25,19 @@ public:
 
     void release(pmap_t* slot) { key::manager.execute_release(this, slot); }
 
+    // Indicate if the keymap (not the slot) is being pressed.
+    bool is_pressing() const { return m_pressing_count != 0; };
+
+private: // Methods to be called by key::manager
+    friend class manager_t;
+
     virtual void on_press(pmap_t*) {};
 
     virtual void on_release(pmap_t*) {};
 
-    // Indicate if the keymap (not the slot) is being pressed.
-    bool is_pressing() const { return m_pressing_count != 0; };
+    uint8_t m_pressing_count = 0;
 
-protected:
-    // Utility methods that can be used by child classes.
-
+protected: // Utility methods that can be used by child classes
     static void send_press(uint8_t keycode) {
         usb_thread::obj().hid_keyboard.report_press(keycode);
     }
@@ -58,10 +63,6 @@ protected:
     static void perform_usbhub_switchover() {
         keymap_thread::obj().signal_usbhub_switchover();
     }
-
-private:
-    friend class manager_t;
-    uint8_t m_pressing_count = 0;
 };
 
 // Keys that do nothing

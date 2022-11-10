@@ -8,16 +8,16 @@
 namespace key {
 
 class literal_t: public map_t {
-public:
+public: // User-facing methods
     constexpr literal_t(uint8_t keycode): m_code(keycode) {}
 
+    uint8_t keycode() const { return m_code; }
+
+private: // Methods to be called by key::manager
     void on_press(pmap_t*) { send_press(m_code); }
 
     void on_release(pmap_t*) { send_release(m_code); }
 
-    uint8_t keycode() const { return m_code; }
-
-private:
     const uint8_t m_code;
 };
 

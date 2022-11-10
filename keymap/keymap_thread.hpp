@@ -23,12 +23,8 @@ public:
         return obj;
     }
 
-    // Handle input:
     void signal_key_event(key::pmap_t* slot, bool pressed);
     void signal_timeout(key::timer_t* ptimer);
-
-    // Handle output:
-    // Output is handled by key::map_t::send_press/release(). See map.hpp.
 
     // In the behavior of defer-presses, every press is deferred and triggered later
     // when its release occurs or until stop_defer_presses() is called. To preserve the
