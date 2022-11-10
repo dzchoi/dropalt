@@ -8,6 +8,7 @@
 
 namespace key {
 
+class map_proxy_t;
 class pmap_t;
 
 
@@ -30,6 +31,10 @@ public: // User-facing methods
 
 private: // Methods to be called by key::manager
     friend class manager_t;
+    friend class map_proxy_t;
+
+    // Proxy keymaps will return their map_proxy_t* through this virtual method.
+    virtual map_proxy_t* get_proxy() { return nullptr; }
 
     virtual void on_press(pmap_t*) {};
 

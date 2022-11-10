@@ -3,6 +3,7 @@
 
 #include "manager.hpp"
 #include "map.hpp"
+#include "map_proxy.hpp"
 #include "observer.hpp"
 
 
@@ -17,8 +18,13 @@ void manager_t::notify_of_press(pmap_t* slot)
 
 void manager_t::execute_press(map_t* pmap, pmap_t* slot)
 {
-    if ( pmap->m_pressing_count++ == 0 )
-        pmap->on_press(slot);
+    if ( pmap->m_pressing_count++ == 0 ) {
+        map_proxy_t* const pproxy = pmap->get_proxy();
+        if ( pproxy == nullptr )
+            pmap->on_press(slot);
+        else
+            pproxy->on_proxy_press(slot);
+    }
 }
 
 void manager_t::handle_press(pmap_t* slot)
@@ -42,8 +48,13 @@ void manager_t::notify_of_release(pmap_t* slot)
 
 void manager_t::execute_release(map_t* pmap, pmap_t* slot)
 {
-    if ( pmap->m_pressing_count > 0 && --pmap->m_pressing_count == 0 )
-        pmap->on_release(slot);
+    if ( pmap->m_pressing_count > 0 && --pmap->m_pressing_count == 0 ) {
+        map_proxy_t* const pproxy = pmap->get_proxy();
+        if ( pproxy == nullptr )
+            pmap->on_release(slot);
+        else
+            pproxy->on_proxy_release(slot);
+    }
 }
 
 void manager_t::handle_release(pmap_t* slot)

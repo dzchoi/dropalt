@@ -1,5 +1,6 @@
 #include "literal.hpp"
 #include "map.hpp"
+#include "modified.hpp"
 #include "tap_hold.hpp"
 #include "timer.hpp"
 
@@ -23,8 +24,31 @@ uint8_t keymap[MATRIX_ROWS][MATRIX_COLS] = {
 */
 
 map_t FN;
-tap_hold_t xLCTL { ESC, LCTL };
-tap_hold_fast_t xSPC { SPC, RSFT };
+tap_hold_t tLCTL { ESC, LCTL };
+tap_hold_fast_t tSPC { SPC, RSFT };
+modified_t mLSFT { LSFT, SPC, tSPC };
+
+// tap_hold_t t1 { _1, F1 };
+modified_t mt1 { _1, F1, FN };  // consumes 100 bytes per each mt?
+// tap_hold_t t2 { _2, F2 };
+modified_t mt2 { _2, F2, FN };
+// tap_hold_t t3 { _3, F3 };
+modified_t mt3 { _3, F3, FN };
+// tap_hold_t t4 { _4, F4 };
+modified_t mt4 { _4, F4, FN };
+// tap_hold_t t5 { _5, F5 };
+modified_t mt5 { _5, F5, FN };
+// tap_hold_t t6 { _6, F6 };
+modified_t mt6 { _6, F6, FN };
+// tap_hold_t t7 { _7, F7 };
+modified_t mt7 { _7, F7, FN };
+// tap_hold_t t8 { _8, F8 };
+modified_t mt8 { _8, F8, FN };
+// tap_hold_t t9 { _9, F9 };
+modified_t mt9 { _9, F9, FN };
+// tap_hold_t t0 { _0, F10 };
+modified_t mt0 { _0, F10, FN };
+
 // More ideas:
 //  - SPC + BKSP == DEL
 //  - Left + Left == Ctrl + Left
@@ -46,7 +70,7 @@ private:
         stop_timer();
         stop_defer_presses();
 
-        if ( FN.is_pressing() && xLCTL.is_pressing() )
+        if ( FN.is_pressing() && tLCTL.is_pressing() )
             system_reset();
 
         // Test key sequence
@@ -60,7 +84,7 @@ private:
 
     void on_timeout(pmap_t*) {
         if ( FN.is_pressing() ) {
-            if ( xLCTL.is_pressing() )
+            if ( tLCTL.is_pressing() )
                 // assert( false );
                 WDT->CLEAR.reg = 0;  // anything other than 0xA5
             else
@@ -71,37 +95,17 @@ private:
 
 
 
-class ext_lsft_t: public map_t {
-public:
-    constexpr ext_lsft_t() =default;
-
-private:
-    void on_press(pmap_t*) {
-        m_code = xSPC.is_pressing() ? KC_SPACE : KC_LSHIFT;
-        send_press(m_code);
-    }
-
-    void on_release(pmap_t*) {
-        send_release(m_code);
-        m_code = 0;
-    }
-
-    uint8_t m_code = 0;
-} xLSFT;
-
-
-
 // Todo: Allocate them in PROGMEM(?).
 pmap_t maps[MATRIX_ROWS][MATRIX_COLS] = {
-    GRV, _1, _2, _3, _4, _5, _6, _7, _8, _9, _0, MINUS, EQL, BKSP, DEL,
+    GRV, mt1, mt2, mt3, mt4, mt5, mt6, mt7, mt8, mt9, mt0, MINUS, EQL, BKSP, DEL,
 
     TAB, Q, W, E, R, T, Y, U, I, O, P, LBRKT, RBRKT, BSLASH, HOME,
 
-    xLCTL, A, S, D, F, G, H, J, K, L, COLON, QUOTE, ___, ENT, PGUP,
+    tLCTL, A, S, D, F, G, H, J, K, L, COLON, QUOTE, ___, ENT, PGUP,
 
-    xLSFT, ___, Z, X, C, V, B, N, M, COMMA, DOT, SLASH, RSFT, UP, PGDN,
+    mLSFT, ___, Z, X, C, V, B, N, M, COMMA, DOT, SLASH, RSFT, UP, PGDN,
 
-    FN, LGUI, LALT, ___, ___, ___, xSPC, ___, ___, ___,
+    FN, LGUI, LALT, ___, ___, ___, tSPC, ___, ___, ___,
         RCTL, test /*RALT*/, LEFT, DOWN, RIGHT,
 };
 
