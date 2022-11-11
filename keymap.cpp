@@ -24,30 +24,39 @@ uint8_t keymap[MATRIX_ROWS][MATRIX_COLS] = {
 */
 
 map_t FN;
-tap_hold_t tLCTL { ESC, LCTL };
-tap_hold_fast_t tSPC { SPC, RSFT };
-modified_t mLSFT { LSFT, SPC, tSPC };
+tap_hold_t<HOLD_PREFERRED> t_LCTL { ESC, LCTL };
+tap_hold_t<BALANCED> t_SPC { SPC, RSFT };
+modified_t m_LSFT { LSFT, SPC, t_SPC };
 
-// tap_hold_t t1 { _1, F1 };
-modified_t mt1 { _1, F1, FN };  // consumes 100 bytes per each mt?
-// tap_hold_t t2 { _2, F2 };
-modified_t mt2 { _2, F2, FN };
-// tap_hold_t t3 { _3, F3 };
-modified_t mt3 { _3, F3, FN };
-// tap_hold_t t4 { _4, F4 };
-modified_t mt4 { _4, F4, FN };
-// tap_hold_t t5 { _5, F5 };
-modified_t mt5 { _5, F5, FN };
-// tap_hold_t t6 { _6, F6 };
-modified_t mt6 { _6, F6, FN };
-// tap_hold_t t7 { _7, F7 };
-modified_t mt7 { _7, F7, FN };
-// tap_hold_t t8 { _8, F8 };
-modified_t mt8 { _8, F8, FN };
-// tap_hold_t t9 { _9, F9 };
-modified_t mt9 { _9, F9, FN };
-// tap_hold_t t0 { _0, F10 };
-modified_t mt0 { _0, F10, FN };
+tap_hold_t<> t_1 { _1, F1 };
+modified_t m_1 { t_1, F1, FN };  // consumes 100 bytes per each mt?
+tap_hold_t<> t_2 { _2, F2 };
+modified_t m_2 { t_2, F2, FN };
+tap_hold_t<> t_3 { _3, F3 };
+modified_t m_3 { t_3, F3, FN };
+tap_hold_t<> t_4 { _4, F4 };
+modified_t m_4 { t_4, F4, FN };
+tap_hold_t<> t_5 { _5, F5 };
+modified_t m_5 { t_5, F5, FN };
+tap_hold_t<> t_6 { _6, F6 };
+modified_t m_6 { t_6, F6, FN };
+tap_hold_t<> t_7 { _7, F7 };
+modified_t m_7 { t_7, F7, FN };
+tap_hold_t<> t_8 { _8, F8 };
+modified_t m_8 { t_8, F8, FN };
+tap_hold_t<> t_9 { _9, F9 };
+modified_t m_9 { t_9, F9, FN };
+tap_hold_t<> t_0 { _0, F10 };
+modified_t m_0 { t_0, F10, FN };
+
+tap_hold_t<> t_MINUS { MINUS, F11 };
+modified_t m_MINUS { t_MINUS, F11, FN };
+tap_hold_t<> t_EQL { EQL, F12 };
+modified_t m_EQL { t_EQL, F12, FN };
+
+modified_t m_GRV { GRV, POWER, FN };
+
+tap_hold_t<> t_HOME { HOME, END };
 
 // More ideas:
 //  - SPC + BKSP == DEL
@@ -70,7 +79,7 @@ private:
         stop_timer();
         stop_defer_presses();
 
-        if ( FN.is_pressing() && tLCTL.is_pressing() )
+        if ( FN.is_pressing() && t_LCTL.is_pressing() )
             system_reset();
 
         // Test key sequence
@@ -84,7 +93,7 @@ private:
 
     void on_timeout(pmap_t*) {
         if ( FN.is_pressing() ) {
-            if ( tLCTL.is_pressing() )
+            if ( t_LCTL.is_pressing() )
                 // assert( false );
                 WDT->CLEAR.reg = 0;  // anything other than 0xA5
             else
@@ -97,15 +106,15 @@ private:
 
 // Todo: Allocate them in PROGMEM(?).
 pmap_t maps[MATRIX_ROWS][MATRIX_COLS] = {
-    GRV, mt1, mt2, mt3, mt4, mt5, mt6, mt7, mt8, mt9, mt0, MINUS, EQL, BKSP, DEL,
+    m_GRV, m_1, m_2, m_3, m_4, m_5, m_6, m_7, m_8, m_9, m_0, m_MINUS, m_EQL, BKSP, DEL,
 
-    TAB, Q, W, E, R, T, Y, U, I, O, P, LBRKT, RBRKT, BSLASH, HOME,
+    TAB, Q, W, E, R, T, Y, U, I, O, P, LBRKT, RBRKT, BSLASH, t_HOME,
 
-    tLCTL, A, S, D, F, G, H, J, K, L, COLON, QUOTE, ___, ENT, PGUP,
+    t_LCTL, A, S, D, F, G, H, J, K, L, COLON, QUOTE, ___, ENT, PGUP,
 
-    mLSFT, ___, Z, X, C, V, B, N, M, COMMA, DOT, SLASH, RSFT, UP, PGDN,
+    m_LSFT, ___, Z, X, C, V, B, N, M, COMMA, DOT, SLASH, RSFT, UP, PGDN,
 
-    FN, LGUI, LALT, ___, ___, ___, tSPC, ___, ___, ___,
+    FN, LGUI, LALT, ___, ___, ___, t_SPC, ___, ___, ___,
         RCTL, test /*RALT*/, LEFT, DOWN, RIGHT,
 };
 
