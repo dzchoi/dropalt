@@ -1,6 +1,9 @@
+#define ENABLE_DEBUG    (1)
+#include "debug.h"
+
 #include "literal.hpp"
 #include "map.hpp"
-#include "modified.hpp"
+#include "mod_morph.hpp"
 #include "tap_hold.hpp"
 #include "timer.hpp"
 
@@ -24,42 +27,49 @@ uint8_t keymap[MATRIX_ROWS][MATRIX_COLS] = {
 */
 
 map_t FN;
+
 tap_hold_t<HOLD_PREFERRED> t_LCTL { ESC, LCTL };
+
+tap_hold_t<HOLD_PREFERRED> t_ENT { ENT, FN };
+
 tap_hold_t<BALANCED> t_SPC { SPC, RSFT };
-modified_t m_LSFT { LSFT, SPC, t_SPC };
 
-tap_hold_t<> t_1 { _1, F1 };
-modified_t m_1 { t_1, F1, FN };  // consumes 100 bytes per each mt?
-tap_hold_t<> t_2 { _2, F2 };
-modified_t m_2 { t_2, F2, FN };
-tap_hold_t<> t_3 { _3, F3 };
-modified_t m_3 { t_3, F3, FN };
-tap_hold_t<> t_4 { _4, F4 };
-modified_t m_4 { t_4, F4, FN };
-tap_hold_t<> t_5 { _5, F5 };
-modified_t m_5 { t_5, F5, FN };
-tap_hold_t<> t_6 { _6, F6 };
-modified_t m_6 { t_6, F6, FN };
-tap_hold_t<> t_7 { _7, F7 };
-modified_t m_7 { t_7, F7, FN };
-tap_hold_t<> t_8 { _8, F8 };
-modified_t m_8 { t_8, F8, FN };
-tap_hold_t<> t_9 { _9, F9 };
-modified_t m_9 { t_9, F9, FN };
-tap_hold_t<> t_0 { _0, F10 };
-modified_t m_0 { t_0, F10, FN };
+mod_morph_t m_LSFT { LSFT, SPC, t_SPC };
 
-tap_hold_t<> t_MINUS { MINUS, F11 };
-modified_t m_MINUS { t_MINUS, F11, FN };
-tap_hold_t<> t_EQL { EQL, F12 };
-modified_t m_EQL { t_EQL, F12, FN };
+// Here m_BKSP has RSFT as its modifier. With t_SPC instead, when m_BKSP is pressed
+// within the tapping term of t_SPC the tap version of t_SPC (i.e. SPC) would be sent
+// immediately after sending DEL.
+mod_morph_t<UNDO_MOD> m_BKSP { BKSP, DEL, RSFT };
 
-modified_t m_GRV { GRV, POWER, FN };
+mod_morph_t m_GRV { GRV, POWER, FN };
 
-tap_hold_t<> t_HOME { HOME, END };
+tap_hold_t t_1 { _1, F1 };        // sizeof = 60
+mod_morph_t m_1 { t_1, F1, FN };  // sizeof = 24
+tap_hold_t t_2 { _2, F2 };
+mod_morph_t m_2 { t_2, F2, FN };
+tap_hold_t t_3 { _3, F3 };
+mod_morph_t m_3 { t_3, F3, FN };
+tap_hold_t t_4 { _4, F4 };
+mod_morph_t m_4 { t_4, F4, FN };
+tap_hold_t t_5 { _5, F5 };
+mod_morph_t m_5 { t_5, F5, FN };
+tap_hold_t t_6 { _6, F6 };
+mod_morph_t m_6 { t_6, F6, FN };
+tap_hold_t t_7 { _7, F7 };
+mod_morph_t m_7 { t_7, F7, FN };
+tap_hold_t t_8 { _8, F8 };
+mod_morph_t m_8 { t_8, F8, FN };
+tap_hold_t t_9 { _9, F9 };
+mod_morph_t m_9 { t_9, F9, FN };
+tap_hold_t t_0 { _0, F10 };
+mod_morph_t m_0 { t_0, F10, FN };
+
+tap_hold_t t_MINUS { MINUS, F11 };
+mod_morph_t m_MINUS { t_MINUS, F11, FN };
+tap_hold_t t_EQL { EQL, F12 };
+mod_morph_t m_EQL { t_EQL, F12, FN };
 
 // More ideas:
-//  - SPC + BKSP == DEL
 //  - Left + Left == Ctrl + Left
 //  - Left + Left + Left == Ctrl + Left + Left
 
@@ -81,6 +91,10 @@ private:
 
         if ( FN.is_pressing() && t_LCTL.is_pressing() )
             system_reset();
+
+        // DEBUG("test: map_t=%d literal_t=%d timer_t=%d tap_hold_t=%d mod_morph_t=%d\n",
+        //     sizeof(map_t), sizeof(literal_t), sizeof(timer_t),
+        //     sizeof(tap_hold_t<HOLD_PREFERRED>), sizeof(mod_morph_t<UNDO_MOD>));
 
         // Test key sequence
         // send_press(KC_SCOLON);
@@ -104,13 +118,12 @@ private:
 
 
 
-// Todo: Allocate them in PROGMEM(?).
 pmap_t maps[MATRIX_ROWS][MATRIX_COLS] = {
-    m_GRV, m_1, m_2, m_3, m_4, m_5, m_6, m_7, m_8, m_9, m_0, m_MINUS, m_EQL, BKSP, DEL,
+    m_GRV, m_1, m_2, m_3, m_4, m_5, m_6, m_7, m_8, m_9, m_0, m_MINUS, m_EQL, m_BKSP, HOME,
 
-    TAB, Q, W, E, R, T, Y, U, I, O, P, LBRKT, RBRKT, BSLASH, t_HOME,
+    TAB, Q, W, E, R, T, Y, U, I, O, P, LBRKT, RBRKT, BSLASH, END,
 
-    t_LCTL, A, S, D, F, G, H, J, K, L, COLON, QUOTE, ___, ENT, PGUP,
+    t_LCTL, A, S, D, F, G, H, J, K, L, COLON, QUOTE, ___, t_ENT, PGUP,
 
     m_LSFT, ___, Z, X, C, V, B, N, M, COMMA, DOT, SLASH, RSFT, UP, PGDN,
 

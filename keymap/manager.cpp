@@ -48,7 +48,7 @@ void manager_t::notify_of_release(pmap_t* slot)
 
 void manager_t::execute_release(map_t* pmap, pmap_t* slot)
 {
-    if ( pmap->m_pressing_count > 0 && --pmap->m_pressing_count == 0 ) {
+    if ( --pmap->m_pressing_count == 0 ) {
         map_proxy_t* const pproxy = pmap->get_proxy();
         if ( pproxy == nullptr )
             pmap->on_release(slot);

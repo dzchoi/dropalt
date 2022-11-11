@@ -27,7 +27,7 @@ public: // User-facing methods
     void release(pmap_t* slot) { key::manager.execute_release(this, slot); }
 
     // Indicate if the keymap (not the slot) is being pressed.
-    bool is_pressing() const { return m_pressing_count != 0; };
+    bool is_pressing() const { return m_pressing_count > 0; };
 
 private: // Methods to be called by key::manager
     friend class manager_t;
@@ -40,7 +40,7 @@ private: // Methods to be called by key::manager
 
     virtual void on_release(pmap_t*) {};
 
-    uint8_t m_pressing_count = 0;
+    int8_t m_pressing_count = 0;
 
 protected: // Utility methods that can be used by child classes
     static void send_press(uint8_t keycode) {

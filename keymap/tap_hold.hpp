@@ -9,13 +9,17 @@
 namespace key {
 
 enum tap_hold_flavor {
-    TAP_PREFERRED = 0,
+    TAP_PREFERRED = 0,  // default
     HOLD_PREFERRED,
     BALANCED,
 };
 
-template <tap_hold_flavor =TAP_PREFERRED>
+template <tap_hold_flavor>
 class tap_hold_t;
+
+// Deduction guides to be able to use bare tap_hold_t as tap_hold_t<TAP_PREFERRED>
+tap_hold_t(map_t&, map_t&) -> tap_hold_t<TAP_PREFERRED>;
+tap_hold_t(map_t&, map_t&, uint32_t) -> tap_hold_t<TAP_PREFERRED>;
 
 
 
@@ -31,10 +35,11 @@ public: // User-facing methods
 
     // Todo: Accept rvalue reference for convenience.
     //  template <class T>
-    //  constexpr tap_hold_t(T&& key_tap, ...)
+    //  tap_hold_t(T&& key_tap, ...)
     //  : m_key_tap(create(std::move(key_tap))), ... {}
     //  where map_t& create(T&& key) { return *new T(std::move(key)); }
-    //  However, we will also need to be able to move timer_t.
+    //  However, then we cannot creat it at compile time (`new` will refuse to be
+    //  constexpr) and we will also need to be able to move timer_t.
 
 private: // Methods to be called by key::manager
     void on_press(pmap_t* slot);
