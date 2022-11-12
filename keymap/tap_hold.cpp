@@ -30,15 +30,19 @@ void tap_hold_t<TAP_PREFERRED>::on_release(pmap_t* slot)
     }
 }
 
-// Called by on_other_press() and on_timeout().
-void tap_hold_t<TAP_PREFERRED>::help_holding(pmap_t* slot)
+void tap_hold_t<TAP_PREFERRED>::on_timeout(pmap_t* slot)
 {
     // DEBUG("TapHold:\e[0;34m decide hold\e[0m\n");
     DEBUG("TapHold: decide hold\n");
-    stop_timer();  // will do no harm to stop the already stopped timer.
     stop_observe();
     m_holding = true;
     m_key_hold.press(slot);
+}
+
+void tap_hold_t<TAP_PREFERRED>::on_other_press(pmap_t* slot)
+{
+    stop_timer();
+    on_timeout(slot);
 }
 
 }  // namespace key

@@ -46,11 +46,9 @@ private: // Methods to be called by key::manager
 
     void on_release(pmap_t* slot);
 
-    void on_other_press(pmap_t* slot) { help_holding(slot); }
+    void on_timeout(pmap_t* slot);
 
-    void on_timeout(pmap_t* slot) { help_holding(slot); }
-
-    void help_holding(pmap_t* slot);
+    void on_other_press(pmap_t* slot);
 
     virtual void start_observe() {}
     virtual void stop_observe() {}

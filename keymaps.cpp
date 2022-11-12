@@ -4,6 +4,7 @@
 #include "literal.hpp"
 #include "map.hpp"
 #include "mod_morph.hpp"
+#include "tap_dance.hpp"
 #include "tap_hold.hpp"
 #include "timer.hpp"
 
@@ -69,9 +70,42 @@ mod_morph_t m_MINUS { t_MINUS, F11, FN };
 tap_hold_t t_EQL { EQL, F12 };
 mod_morph_t m_EQL { t_EQL, F12, FN };
 
+
+
+// It presses the modifier before the second tap.
+class tap_dance_morph_t: public map_dance_t {
+public:
+    constexpr tap_dance_morph_t(
+        map_t& original, map_t& modifier, uint32_t tapping_term_us =TAPPING_TERM_US)
+    : map_dance_t(tapping_term_us), m_original(original), m_modifier(modifier) {}
+
+private:
+    void on_press(pmap_t* slot) {
+        if ( get_step() > 1 ) {
+            m_original.release(slot);
+            if ( get_step() == 2 )
+                m_modifier.press(slot);
+        }
+        m_original.press(slot);
+    }
+
+    void on_release(pmap_t* slot) {
+        m_original.release(slot);
+        if ( get_step() > 1 )
+            m_modifier.release(slot);
+    }
+
+    map_t& m_original;
+    map_t& m_modifier;
+};
+
+tap_dance_morph_t t_LEFT { LEFT, RCTRL };
+tap_dance_morph_t t_RIGHT { RIGHT, RCTRL };
+
 // More ideas:
-//  - Left + Left == Ctrl + Left
-//  - Left + Left + Left == Ctrl + Left + Left
+//  - qq to send TAB
+//  - double shift to send CapsLock
+//  - ;; to send ::
 
 
 
@@ -128,7 +162,7 @@ pmap_t maps[MATRIX_ROWS][MATRIX_COLS] = {
     m_LSFT, ___, Z, X, C, V, B, N, M, COMMA, DOT, SLASH, RSFT, UP, PGDN,
 
     FN, LGUI, LALT, ___, ___, ___, t_SPC, ___, ___, ___,
-        RCTL, test /*RALT*/, LEFT, DOWN, RIGHT,
+        RCTL, test /*RALT*/, t_LEFT, DOWN, t_RIGHT,
 };
 
 }  // namespace key

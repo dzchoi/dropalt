@@ -22,6 +22,8 @@ protected: // Methods to be used by child classes
 
     bool timer_is_running() const { return xtimer_is_set(this); }
 
+    pmap_t* get_slot() const { return m_timeout_expected; }
+
     ~timer_t() { stop_timer(); }
 
     timer_t(const timer_t&) =delete;
@@ -38,7 +40,7 @@ private: // Methods to be called by keymap_thread and key::manager
     // we can still have a "spurious" timeout interrupt before/during the operation. To
     // deal with the problem, after a timeout interrupt occurred, we can check if it is
     // legitimate and expected timeout, discarding it if not.
-    bool timeout_expected();
+    pmap_t* timeout_expected();
 
     // Called by keymap_thread to handle EVENT_TIMEOUT.
     static void handle_timeout(void* arg);
@@ -46,8 +48,7 @@ private: // Methods to be called by keymap_thread and key::manager
     static void _tmo_key_timer(void* arg);
 
     const uint32_t m_timeout_us;
-    pmap_t* m_slot = nullptr;
-    bool m_timeout_expected = false;
+    pmap_t* m_timeout_expected = nullptr;
 };
 
 }  // namespace key
