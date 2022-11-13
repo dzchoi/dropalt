@@ -21,6 +21,7 @@ adc_input::adc_input(uint8_t line): line(line)
     m_event_periodic_measure.arg = this;
 }
 
+// Todo: Make this a method of adc_input_v_5v.
 void adc_input::wait_for_stable_5v()
 {
     constexpr int V_5V_STABILITY_COUNT = 5;
@@ -36,7 +37,7 @@ void adc_input::wait_for_stable_5v()
             repeat = 0;
     }
 
-    DEBUG("ADC: v_5v stabilized in %ld us\n", xtimer_now_usec() - since);
+    DEBUG("ADC: v_5v stabilized in %lu us\n", xtimer_now_usec() - since);
 }
 
 uint8_t adc_input::measure_host_port()

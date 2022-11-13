@@ -65,8 +65,8 @@ protected: // Utility methods that can be used by child classes
     }
 
     // Perform usbhub switchover, once all keys are released.
-    static void perform_usbhub_switchover() {
-        keymap_thread::obj().signal_usbhub_switchover();
+    static void perform_usbport_switchover() {
+        keymap_thread::obj().signal_usbport_switchover();
     }
 };
 

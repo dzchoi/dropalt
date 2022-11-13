@@ -46,6 +46,7 @@ FEATURES_HPP = features.hpp
 
 # Subdirectory modules
 EXTERNAL_MODULE_DIRS += $(CURDIR)
+USEMODULE += adc
 USEMODULE += keymap
 USEMODULE += usb
 

@@ -58,8 +58,9 @@ void* adc_thread::_adc_thread(void* arg)
         // Zzz
         thread_flags_t flags = thread_flags_wait_any(
             FLAG_EVENT
-            | FLAG_USBHUB_ACTIVE
-            | FLAG_USBHUB_SWITCHOVER
+            | FLAG_USB_SUSPEND
+            | FLAG_USB_RESUME
+            | FLAG_USBPORT_SWITCHOVER
             | FLAG_TIMEOUT
             );
 
@@ -74,12 +75,19 @@ void* adc_thread::_adc_thread(void* arg)
                 event->handler(event);
         }
 
-        if ( flags & FLAG_USBHUB_ACTIVE ) {
-            usbport::pstate->process_usbhub_active();
+        if ( flags & FLAG_USB_SUSPEND ) {
+            DEBUG("ADC: process_usb_suspend()\n");
+            usbport::pstate->process_usb_suspend();
         }
 
-        if ( flags & FLAG_USBHUB_SWITCHOVER ) {
-            usbport::pstate->process_usbhub_switchover();
+        if ( flags & FLAG_USB_RESUME ) {
+            DEBUG("ADC: process_usb_resume()\n");
+            usbport::pstate->process_usb_resume();
+        }
+
+        if ( flags & FLAG_USBPORT_SWITCHOVER ) {
+            DEBUG("ADC: process_usbport_switchover()\n");
+            usbport::pstate->process_usbport_switchover();
         }
 
         if ( flags & FLAG_TIMEOUT ) {
@@ -92,16 +100,14 @@ void* adc_thread::_adc_thread(void* arg)
     return nullptr;
 }
 
-void adc_thread::_hdlr_report_host(event_t* event)
+void adc_thread::_hdlr_report_host(event_t*)
 {
-    (void)event;
     // Todo: Try to adjust GCR first before reporting to pstate.
     usbport::pstate->process_v_5v_level();
 }
 
-void adc_thread::_hdlr_report_extra(event_t* event)
+void adc_thread::_hdlr_report_extra(event_t*)
 {
-    (void)event;
     // It is always that usbport::v_extra != nullptr as this method is called only when
     // v_extra->schedule_periodic() is executed.
     if ( usbport::v_extra->is_connected_level() )

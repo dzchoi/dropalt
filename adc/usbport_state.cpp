@@ -37,12 +37,13 @@ void state_determine_host::process_timeout()
 }
 
 void state_determine_host::begin() {
-    // The desired_port will be USB_PORT_UNKNOWN at the first entry since sr_exp_init()
-    // is called in board_init(). Or, it will retain the extra port that was left over
-    // by the last state.
+    // The desired_port will be USB_PORT_UNKNOWN at power-up since sr_exp_init() is
+    // called in board_init(). Otherwise, it will retain the extra port that was left
+    // over by the last state.
     desired_port = usbhub_extra_port();
 
     if ( v_extra != nullptr ) {
+        // Todo: Disable the extra port along with v_extra->schedule_cancel()?
         v_extra->schedule_cancel();
         DEBUG("ADC: switchover to port %d\n", desired_port);  // == v_extra->line
         v_extra = nullptr;
@@ -50,6 +51,9 @@ void state_determine_host::begin() {
 
     // Set up periodic retry on every FLAG_TIMEOUT.
     retry_timer.start(true);  // true == expire it now.
+#if ENABLE_DEBUG
+    since = xtimer_now_usec();
+#endif
 }
 
 void state_determine_host::end() {
@@ -60,7 +64,8 @@ void state_determine_host::end() {
     v_extra->schedule_periodic();
 
     LED0_OFF;  // Turn off the blinking LED0.
-    DEBUG("ADC: determined host @port %d\n", usbhub_host_port());
+    DEBUG("ADC: determined host @port %d in %lu us\n",
+        usbhub_host_port(), xtimer_now_usec() - since);
 }
 
 void state_extra_disabled::process_extra_connected() {
@@ -72,7 +77,7 @@ void state_extra_disabled::process_extra_connected() {
 void state_extra_disabled::process_extra_enable_manually() {
     usbhub_enable_extra_port(v_extra->line, true);
     DEBUG("ADC: extra port is enabled manually @port %d\n", v_extra->line);
-    transition_to<state_extra_enabled>(&usbport::process_extra_enable_manually);
+    transition_to<state_extra_enabled>().process_extra_enable_manually();
 }
 
 void state_extra_enabled::process_extra_unconnected() {

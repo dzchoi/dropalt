@@ -3,7 +3,7 @@
 #pragma once
 
 #include <stdint.h>             // for uint8_t
-#include "time_units.h"         // for US_PER_MS
+#include "time_units.h"         // for US_PER_*
 
 
 
@@ -31,8 +31,8 @@ constexpr bool VIRTSER_ENABLE = true;
 // Note that the data packet size for every endpoint is defined as *_REPORT_SIZE in
 // usb_descriptor.hpp.
 
-// Undefine this to not blink debug LED while USB suspend.
-#define LED_BLINK_TIMER_DURING_SUSPEND  (1 *1000000U)   // 1 sec
+// Todo: Undefine this to not blink debug LED while USB suspends.
+constexpr uint32_t LED_BLINK_PERIOD_DURING_SUSPEND = 1 *US_PER_SEC;  // 1 second
 
 // Define this to run rgb_matrix_task() in a separate thread and make smooth updating
 // of RGB LEDs. Effective only when RGB_MATRIX_ENABLE.

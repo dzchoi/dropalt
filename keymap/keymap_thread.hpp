@@ -37,7 +37,7 @@ public:
     void stop_defer_presses();
 
     // Switchover will be performed when all keys are released.
-    void signal_usbhub_switchover() { m_switchover_requested = true; }
+    void signal_usbport_switchover() { m_switchover_requested = true; }
 
 private:
     kernel_pid_t m_pid;

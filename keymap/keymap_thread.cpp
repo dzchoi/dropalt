@@ -3,7 +3,7 @@
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
 
-#include "adc_thread.hpp"       // for signal_usbhub_switchover()
+#include "adc_thread.hpp"       // for signal_usbport_switchover()
 #include "keymap_thread.hpp"
 #include "manager.hpp"          // for key::manager
 #include "timer.hpp"            // for timer_t::handle_timeout()
@@ -88,7 +88,7 @@ void* keymap_thread::_keymap_thread(void* arg)
                 manager.handle_release(slot);
 
                 if ( that->m_switchover_requested && !manager.is_any_pressing() ) {
-                    adc_thread::obj().signal_usbhub_switchover();
+                    adc_thread::obj().signal_usbport_switchover();
                     that->m_switchover_requested = false;
                 }
                 break;

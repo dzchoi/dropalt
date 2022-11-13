@@ -3,8 +3,9 @@
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
 
-#include "adc_thread.hpp"       // for signal_usbhub_active()
+#include "adc_thread.hpp"       // for signal_usb_resume()
 #include "main_thread.hpp"      // for signal_usb_suspend() and signal_usb_resume()
+#include "usb_thread.hpp"       // for send_remote_wake_up()
 #include "usbus_hid_keyboard.hpp"
 
 
@@ -51,12 +52,13 @@ void usbus_hid_keyboard_t::on_reset()
 
 void usbus_hid_keyboard_t::on_suspend()
 {
+    adc_thread::obj().signal_usb_suspend();
     main_thread::obj().signal_usb_suspend();
 }
 
 void usbus_hid_keyboard_t::on_resume()
 {
-    adc_thread::obj().signal_usbhub_active();
+    adc_thread::obj().signal_usb_resume();
     main_thread::obj().signal_usb_resume();
 }
 
@@ -82,21 +84,28 @@ void usbus_hid_keyboard_t::on_resume()
 void usbus_hid_keyboard_t::report_press(uint8_t keycode)
 {
     mutex_lock(&in_lock);
-    // If USB is not active we keep the report up to date but do not submit to the host.
-    if ( report_key(keycode, true) && usbus_is_active() ) {
-        if ( ++m_report_updated > 1 ) {
-            m_press_yet_to_submit = keycode;
-            DEBUG("Keyboard: defer press (0x%x)\n", keycode);
-            return;
-        }
+    if ( report_key(keycode, true) ) {
+        if ( usbus_is_active() ) {
+            if ( ++m_report_updated > 1 ) {
+                m_press_yet_to_submit = keycode;
+                DEBUG("Keyboard: defer press (0x%x)\n", keycode);
+                return;
+            }
 
-        // In the case m_report_updated == 1,
-        if ( keycode >= KC_A && keycode <= KC_Z )
-            DEBUG("Keyboard: register press (0x%x '%c')\n",
-                keycode, 'a' - KC_A + keycode);
-        else
-            DEBUG("Keyboard: register press (0x%x)\n", keycode);
-        submit();
+            // In the case m_report_updated == 1,
+            if ( keycode >= KC_A && keycode <= KC_Z )
+                DEBUG("Keyboard: register press (0x%x '%c')\n",
+                    keycode, 'a' - KC_A + keycode);
+            else
+                DEBUG("Keyboard: register press (0x%x)\n", keycode);
+            submit();
+        }
+        else {
+            // If USB is not active we still keep the report up to date but do not submit
+            // to the host.
+            DEBUG("Keyboard: send remote wakeup request on press (0x%x)\n", keycode);
+            usb_thread::obj().send_remote_wake_up();
+        }
     }
     mutex_unlock(&in_lock);
 }

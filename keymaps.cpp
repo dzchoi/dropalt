@@ -145,7 +145,7 @@ private:
                 // assert( false );
                 WDT->CLEAR.reg = 0;  // anything other than 0xA5
             else
-                perform_usbhub_switchover();
+                perform_usbport_switchover();
         }
     }
 } test;
