@@ -18,6 +18,12 @@ public:
         return obj;
     }
 
+    // Note that sending remote wake-up to a suspended but disconnected host would most
+    // likely not work (due to limitation of the host OS), but it is not prohibited just
+    // in case (see usbus_hid_keyboard_t::report_press). Note also that remote wake-up
+    // can be sent to a non-existent host (e.g. to an unconnected port), and in that case
+    // USB driver (the HW module) suspends immediately after, which will then trigger
+    // automatic switchover (see usbport::help_process_usb_suspend).
     void send_remote_wake_up();
 
     bool is_state_configured() { return m_usbus.state == USBUS_STATE_CONFIGURED; }

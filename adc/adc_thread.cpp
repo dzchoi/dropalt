@@ -7,7 +7,7 @@
 
 #include "adc_input.hpp"
 #include "adc_thread.hpp"
-#include "usbport_state.hpp"
+#include "usbport_states.hpp"
 
 
 
@@ -23,10 +23,6 @@ adc_thread::adc_thread()
     // Todo: Why can't this move following "m_pthread = ..." below?
     // Initialize USB2422.
     usbhub_init();
-
-    // Initialize events.
-    m_event_report_host.handler = &_hdlr_report_host;
-    m_event_report_extra.handler = &_hdlr_report_extra;
 
     const kernel_pid_t pid = thread_create(
         m_stack, sizeof(m_stack),
@@ -45,14 +41,14 @@ void* adc_thread::_adc_thread(void* arg)
     event_queue_init(&that->m_queue);
 
     // Not to be called from the constructor to avoid mutual recursion with adc_input().
-    adc_input::wait_for_stable_5v();
+    adc_input::v_5v.wait_for_stable_5v();
 
-    // Keep measuring v_5v always.
+    // Keep measuring v_5v at all times.
     adc_input::v_5v.schedule_periodic();
 
+    // Set up the initial state.
     // Not to be called from the constructor to avoid mutual recursion with adc_input().
-    // Run the initial state, which can start a timer for FLAG_TIMEOUT.
-    usbport::init_state();
+    usbport::setup_state();
 
     while ( true ) {
         // Zzz
@@ -61,12 +57,10 @@ void* adc_thread::_adc_thread(void* arg)
             | FLAG_USB_SUSPEND
             | FLAG_USB_RESUME
             | FLAG_USBPORT_SWITCHOVER
+            | FLAG_REPORT_5V
+            | FLAG_REPORT_EXTRA
             | FLAG_TIMEOUT
             );
-
-        // Note that most event signals (e.g. measure/report events) are repetitive but
-        // others are not. If a signal is not processed by the current state it is lost
-        // and not passed over to the next state.
 
         if ( flags & FLAG_EVENT ) {
             event_t* event;
@@ -76,18 +70,29 @@ void* adc_thread::_adc_thread(void* arg)
         }
 
         if ( flags & FLAG_USB_SUSPEND ) {
-            DEBUG("ADC: process_usb_suspend()\n");
             usbport::pstate->process_usb_suspend();
         }
 
         if ( flags & FLAG_USB_RESUME ) {
-            DEBUG("ADC: process_usb_resume()\n");
             usbport::pstate->process_usb_resume();
         }
 
         if ( flags & FLAG_USBPORT_SWITCHOVER ) {
-            DEBUG("ADC: process_usbport_switchover()\n");
             usbport::pstate->process_usbport_switchover();
+        }
+
+        if ( flags & FLAG_REPORT_5V ) {
+            // Todo: Try to adjust GCR first before reporting to pstate.
+            usbport::pstate->process_v_5v_level();
+        }
+
+        if ( flags & FLAG_REPORT_EXTRA ) {
+            // It is always that v_extra != nullptr as this event occurs only when
+            // v_extra->schedule_periodic() is executed.
+            if ( usbport::v_extra->is_device_connected() )
+                usbport::pstate->process_extra_connected();
+            else
+                usbport::pstate->process_extra_unconnected();
         }
 
         if ( flags & FLAG_TIMEOUT ) {
@@ -98,20 +103,4 @@ void* adc_thread::_adc_thread(void* arg)
     // Should never reach this point.
     adc_input::v_5v.schedule_cancel();
     return nullptr;
-}
-
-void adc_thread::_hdlr_report_host(event_t*)
-{
-    // Todo: Try to adjust GCR first before reporting to pstate.
-    usbport::pstate->process_v_5v_level();
-}
-
-void adc_thread::_hdlr_report_extra(event_t*)
-{
-    // It is always that usbport::v_extra != nullptr as this method is called only when
-    // v_extra->schedule_periodic() is executed.
-    if ( usbport::v_extra->is_connected_level() )
-        usbport::pstate->process_extra_connected();
-    else
-        usbport::pstate->process_extra_unconnected();
 }

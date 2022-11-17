@@ -99,10 +99,10 @@ private:
     map_t& m_modifier;
 };
 
-tap_dance_morph_t t_LEFT { LEFT, RCTRL };
-tap_dance_morph_t t_RIGHT { RIGHT, RCTRL };
+// tap_dance_morph_t t_LEFT { LEFT, RCTRL };
+// tap_dance_morph_t t_RIGHT { RIGHT, RCTRL };
 
-// More ideas:
+// More keymap ideas:
 //  - qq to send TAB
 //  - double shift to send CapsLock
 //  - ;; to send ::
@@ -116,12 +116,12 @@ public:
 private:
     void on_press(pmap_t* slot) {
         start_timer(slot);
-        start_defer_presses();
+        // start_defer_presses();
     }
 
     void on_release(pmap_t*) {
         stop_timer();
-        stop_defer_presses();
+        // stop_defer_presses();
 
         if ( FN.is_pressing() && t_LCTL.is_pressing() )
             system_reset();
@@ -162,7 +162,7 @@ pmap_t maps[MATRIX_ROWS][MATRIX_COLS] = {
     m_LSFT, ___, Z, X, C, V, B, N, M, COMMA, DOT, SLASH, RSFT, UP, PGDN,
 
     FN, LGUI, LALT, ___, ___, ___, t_SPC, ___, ___, ___,
-        RCTL, test /*RALT*/, t_LEFT, DOWN, t_RIGHT,
+        RCTL, test /*RALT*/, LEFT, DOWN, RIGHT,
 };
 
 }  // namespace key

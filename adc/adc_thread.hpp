@@ -19,10 +19,9 @@ public:
     // However, Riot's gpio_init_int() seems assigning the same _exti (i.e. EXTINTx) to
     // the gpio pin as with row_pins[2] (= GPIO_PIN(PA, 2)), causing one of them not
     // working. The signal_usb_resume() is instead triggered by usb_thread (on
-    // USBUS_EVENT_USB_RESET). See usbus_hid_keyboard_t::on_resume().
+    // USBUS_EVENT_USB_RESUME). See usbus_hid_keyboard_t::on_resume().
     void signal_usb_resume() { thread_flags_set(m_pthread, FLAG_USB_RESUME); }
 
-    // Todo: Figure out the trigger to switchover automatically?
     void signal_usbport_switchover() {
         thread_flags_set(m_pthread, FLAG_USBPORT_SWITCHOVER);
     }
@@ -30,11 +29,11 @@ public:
     // Signal a (generic) event to adc_thread.
     void signal_event(event_t* event) { event_post(&m_queue, event); }
 
-    // Signal that host report is ready.
-    void signal_report_host() { event_post(&m_queue, &m_event_report_host); }
+    // Signal that 5v report is ready.
+    void signal_report_5v() { thread_flags_set(m_pthread, FLAG_REPORT_5V); }
 
-    // Signal that extra report is ready.
-    void signal_report_extra() { event_post(&m_queue, &m_event_report_extra); }
+    // Signal that extra-port report is ready.
+    void signal_report_extra() { thread_flags_set(m_pthread, FLAG_REPORT_EXTRA); }
 
     adc_thread(const adc_thread&) =delete;
     void operator=(const adc_thread&) =delete;
@@ -52,17 +51,13 @@ private:
     // thread body
     static void* _adc_thread(void* arg);
 
-    event_t m_event_report_host;
-    static void _hdlr_report_host(event_t* event);
-
-    event_t m_event_report_extra;
-    static void _hdlr_report_extra(event_t* event);
-
-    enum {
+    enum : uint16_t {
         FLAG_EVENT              = 0x0001,  // == THREAD_FLAG_EVENT from event.h
         FLAG_USB_SUSPEND        = 0x0002,
         FLAG_USB_RESUME         = 0x0004,
         FLAG_USBPORT_SWITCHOVER = 0x0008,
+        FLAG_REPORT_5V          = 0x0010,
+        FLAG_REPORT_EXTRA       = 0x0020,
         FLAG_TIMEOUT            = THREAD_FLAG_TIMEOUT  // (1u << 14)
     };
 };

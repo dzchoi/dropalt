@@ -4,6 +4,8 @@
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
 
+#include "xtimer.h"             // for xtimer_now_usec()
+
 
 
 static size_t _gen_hid_descriptor(usbus_t* usbus, void* arg)
@@ -110,12 +112,12 @@ void usbus_hid_device_ext_t::_event_handler(
         // written to one and CTRLB.DETACH is written to zero."
         case USBUS_EVENT_USB_SUSPEND:   // USB suspend condition detected
             hidx->on_suspend();
-            DEBUG("USB_HID: suspend event\n");
+            DEBUG("USB_HID: suspend event @%lu\n", xtimer_now_usec());
             break;
 
         case USBUS_EVENT_USB_RESUME:    // USB resume condition detected
             hidx->on_resume();
-            DEBUG("USB_HID: resume event\n");
+            DEBUG("USB_HID: resume event @%lu\n", xtimer_now_usec());
             break;
 
         default:

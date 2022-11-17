@@ -33,12 +33,22 @@ static inline uint8_t usbhub_host_port(void) {
         (sr_exp_data.bit.S_UP ? USB_PORT_2 : USB_PORT_1);
 }
 
+// Read the extra port from the value from the last call of sr_exp_writedata(), even if
+// it is not connected to an ectual device. (In that regard, we read from S_UP instead of
+// S_DN1, which is available only after usbhub_enable_extra_port().)
 static inline uint8_t usbhub_extra_port(void) {
     return sr_exp_data.bit.E_UP_N ? USB_PORT_UNKNOWN :
         (sr_exp_data.bit.S_UP ? USB_PORT_1 : USB_PORT_2);
 }
 
-// VBUS gets connected/cut off to the specified extra USB port when enabled/disabled.
+// Check if the port's CC is configured toward a host rather than a device.
+static inline bool usbhub_is_configured_for_host_port(uint8_t port) {
+    if ( port == USB_PORT_UNKNOWN )
+        return false;
+    return port == USB_PORT_1 ? sr_exp_data.bit.SRC_1 : sr_exp_data.bit.SRC_2;
+}
+
+// VBUS gets enabled or disabled to the specified extra port.
 void usbhub_enable_extra_port(uint8_t port, bool yes_no);
 
 #ifdef __cplusplus

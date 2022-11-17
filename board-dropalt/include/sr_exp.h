@@ -11,7 +11,7 @@ typedef union {
         uint16_t HUB_CONNECT: 1;  /*!< bit: 0  SIGNAL VBUS CONNECT TO USB HUB WHEN 1 */
         uint16_t HUB_RESET_N: 1;  /*!< bit: 1  RESET USB HUB WHEN 0, RUN WHEN 1 */
         uint16_t S_UP: 1;         /*!< bit: 2  SELECT UP PATH 0:USBC-1, 1:USBC-2 */
-        uint16_t E_UP_N: 1;       /*!< bit: 3  ENABLE SUP 1:2 MUX WHEN 0 */
+        uint16_t E_UP_N: 1;       /*!< bit: 3  ENABLE UP 1:2 MUX WHEN 0 */
         uint16_t S_DN1: 1;        /*!< bit: 4  SELECT DN1 PATH 0:USBC-1, 1:USBC-2 */
         uint16_t E_DN1_N: 1;      /*!< bit: 5  ENABLE DN1 1:2 MUX WHEN 0 */
         uint16_t E_VBUS_1: 1;     /*!< bit: 6  ENABLE 5V OUT TO USBC-1 WHEN 1 */

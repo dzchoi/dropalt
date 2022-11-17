@@ -146,22 +146,27 @@ extern uint32_t _erom;
 // 5V panic level (Host USB port potential to shut down)
 #define ADC_5V_PANIC                    2200
 
-// Nominal level on "extra" port with no devices.
-//   - +200 indicates a producer (e.g. another laptop) is connected???
-//   - -200 indicates a consumer (power-consuming device) is connected.
-// Todo: Adjust these values when LED is enabled.
-#define ADC_CON1_NOMINAL                1915
-#define ADC_CON2_NOMINAL                1200
-/** @} */
+// Nominal level of the extra port with no device attached.
+// Todo: Adjust these values when LEDs are enabled.
+#define ADC_CON1_NOMINAL                1840
+#define ADC_CON2_NOMINAL                1170
 
+// Threshold on the nominal level delta that indicates connection state change.
+//  - +250 indicates that another host is connected.
+//  - -250 indicates that (a cable to) another device is connected.
+#define ADC_CON_NOMINAL_CHANGE_THR      250
+
+// Minimum level to decide if host is connected (the port should be measured with
+// SR_CTRL_SRC_x enabled.)
+#define ADC_CON_HOST_CONNECTED          100
+/** @} */
 
 
 /**
  * @brief   System reset using Application Interrupt and Reset Control Register (AIRCR).
  * @note    Restarts the firmware without jumping to bootloader.
  */
-// inline void system_reset(void) { __NVIC_SystemReset(); }
-#define system_reset()      __NVIC_SystemReset()
+static inline void system_reset(void) { __NVIC_SystemReset(); }
 
 
 /**

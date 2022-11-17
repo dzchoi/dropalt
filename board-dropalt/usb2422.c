@@ -161,9 +161,7 @@ void usbhub_disable_all_ports(void)
         | SR_CTRL_SRC_2             // USBC-2 available for test
         | SR_CTRL_E_UP_N            // HOST disable
         | SR_CTRL_E_DN1_N           // EXTRA disable
-        ,
-        SR_CTRL_E_VBUS_1            // USBC-1 disable full power I/O
-        | SR_CTRL_E_VBUS_2          // USBC-2 disable full power I/O
+        , 0
     );
     xtimer_usleep(10);
 }
@@ -177,23 +175,19 @@ void usbhub_enable_host_port(uint8_t port)
         sr_exp_writedata(
             SR_CTRL_S_DN1           // EXTRA to USBC-2
             | SR_CTRL_SRC_1         // HOST on USBC-1
-            | SR_CTRL_E_VBUS_1      // USBC-1 enable full power I/O
             ,
-            SR_CTRL_S_UP            // HOST to USBC-1
+            SR_CTRL_E_UP_N          // HOST enable
+            | SR_CTRL_S_UP          // HOST to USBC-1
             | SR_CTRL_SRC_2         // EXTRA available on USBC-2
-            | SR_CTRL_E_VBUS_2      // USBC-2 disable full power I/O
-            | SR_CTRL_E_UP_N        // HOST enable
         );
     else
         sr_exp_writedata(
             SR_CTRL_S_UP            // HOST to USBC-2
             | SR_CTRL_SRC_2         // HOST on USBC-2
-            | SR_CTRL_E_VBUS_2      // USBC-2 enable full power I/O
             ,
-            SR_CTRL_S_DN1           // EXTRA to USBC-1
+            SR_CTRL_E_UP_N          // HOST enable
+            | SR_CTRL_S_DN1         // EXTRA to USBC-1
             | SR_CTRL_SRC_1         // EXTRA available on USBC-1
-            | SR_CTRL_E_VBUS_1      // USBC-1 disable full power I/O
-            | SR_CTRL_E_UP_N        // HOST enable
         );
     xtimer_usleep(10);
 }

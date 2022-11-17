@@ -31,6 +31,11 @@ constexpr bool VIRTSER_ENABLE = true;
 // Note that the data packet size for every endpoint is defined as *_REPORT_SIZE in
 // usb_descriptor.hpp.
 
+// When we power cycle keyboard (through reset or downloading a firmware) with two hosts
+// connected we try the port 1 to connect to the host, if this flag is true. Otherwise,
+// we try the port 2 first.
+constexpr bool POWER_UP_CHECK_PORT1_FIRST = true;
+
 // Todo: Undefine this to not blink debug LED while USB suspends.
 constexpr uint32_t LED_BLINK_PERIOD_DURING_SUSPEND = 1 *US_PER_SEC;  // 1 second
 
