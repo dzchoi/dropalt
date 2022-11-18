@@ -27,22 +27,29 @@ adc_input::adc_input(uint8_t line): line(line)
 void adc_input::async_measure()
 {
     mutex_lock(&m_mutex);
-    adc_get(line, _isr_get_result, this);
+    adc_get(line,
+        [](void* arg, uint16_t result) {
+            adc_input* const that = static_cast<adc_input*>(arg);
+            that->m_result = result;
+            mutex_unlock(&that->m_mutex);
+            that->_isr_signal_report();
+        },
+        this);
 }
 
 void adc_input::sync_measure()
 {
-    async_measure();
+    mutex_lock(&m_mutex);
+    adc_get(line,
+        [](void* arg, uint16_t result) {
+            adc_input* const that = static_cast<adc_input*>(arg);
+            that->m_result = result;
+            mutex_unlock(&that->m_mutex);
+        },
+        this);
+
     mutex_lock(&m_mutex);  // Wait for the result to arrive.
     mutex_unlock(&m_mutex);
-}
-
-void adc_input::_isr_get_result(void* arg, uint16_t result)
-{
-    adc_input* const that = static_cast<adc_input*>(arg);
-    that->m_result = result;
-    mutex_unlock(&that->m_mutex);
-    that->_isr_signal_report();
 }
 
 void adc_input_v_5v::_isr_signal_report() const

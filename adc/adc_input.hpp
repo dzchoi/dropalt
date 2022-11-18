@@ -38,11 +38,15 @@ protected:
     // To be used only for creating v_5v, v_con1 and v_con2.
     adc_input(uint8_t line);
 
-    // Start measuring the input (non-blocking).
+    // Start measuring the input (non-blocking). The result will be reported later to
+    // adc_thread, calling signal_report_5v() or signal_report_extra().
     void async_measure();
 
     // Measure the input (blocking). Though blocking the caller it is not spinning but
     // waiting for the result using mutex. It can be intermixed with async_measure().
+    // The result can be read immediately after using read(). It does not report the
+    // result to adc_thread. So it can be called without having adc_thread initialized
+    // (e.g. from the constructor of adc_thread).
     void sync_measure();
 
 private:
@@ -50,8 +54,6 @@ private:
 
     // Declared atomic, as this can be updated from isr without notice.
     std::atomic<uint16_t> m_result = 0u;
-
-    static void _isr_get_result(void* arg, uint16_t result);
 
     // Signal to adc_thread that result is ready.
     virtual void _isr_signal_report() const =0;

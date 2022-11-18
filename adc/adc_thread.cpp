@@ -20,9 +20,7 @@ adc_thread::adc_thread()
     adc_init(ADC_LINE_CON2);
     adc_configure(ADC0, ADC_RES_12BIT);
 
-    // Todo: Why can't this move following "m_pthread = ..." below?
-    // Initialize USB2422.
-    usbhub_init();
+    adc_input::v_5v.wait_for_stable_5v();
 
     const kernel_pid_t pid = thread_create(
         m_stack, sizeof(m_stack),
@@ -40,14 +38,13 @@ void* adc_thread::_adc_thread(void* arg)
     // The event_queue_init() should be called from the queue-owning thread.
     event_queue_init(&that->m_queue);
 
-    // Not to be called from the constructor to avoid mutual recursion with adc_input().
-    adc_input::v_5v.wait_for_stable_5v();
+    // Initialize USB2422.
+    usbhub_init();
 
     // Keep measuring v_5v at all times.
     adc_input::v_5v.schedule_periodic();
 
     // Set up the initial state.
-    // Not to be called from the constructor to avoid mutual recursion with adc_input().
     usbport::setup_state();
 
     while ( true ) {

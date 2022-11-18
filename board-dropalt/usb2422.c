@@ -1,21 +1,12 @@
-#include <stdbool.h>
 #include "periph/i2c.h"
-#include "xtimer.h"
-
-#include "_usb2422_t.h"             // Usb2422 type
+#include "xtimer.h"                 // for xtimer_usleep()
+#include "_usb2422_t.h"             // for struct Usb2422
 #include "usb2422.h"
 
 // This usb2422.c is for initializing USB2422 hub and for enabling and disabling the
 // extra USB port based on the voltage measurements from adc_thread.
 
 
-
-volatile uint8_t usb_extra_port;
-
-#ifndef MD_BOOTLOADER
-volatile int8_t usb_extra_state;
-volatile uint8_t usb_extra_manual;
-#endif
 
 // periph_conf.h defines _sfixed, _erom, and BOOTLOADER_SERIAL_MAX_SIZE.
 
@@ -132,21 +123,17 @@ void usbhub_init(void)
     // I2C clk must be high at USB2422 reset release time to signal SMB configuration.
     // i2c0_init();
 
-    // connect signal, reset high
-    sr_exp_writedata(SR_CTRL_HUB_CONNECT | SR_CTRL_HUB_RESET_N, 0);
-
-    // xtimer_usleep(100);  // Is it needed?
+    // connect signal
+    sr_exp_writedata(SR_CTRL_HUB_CONNECT, 0);
 
     // Prepare the HUB configuration data
     retrieve_factory_serial();
 
     // When the keyboard is powered up by manually plugging in to a host port instead of
     // powering up the host with the keyboard already connected, usbhub_configure() can
-    // fail sometimes. HUB does not respond to the configuration data sent over I2C
-    // (until the voltage or clock is stable?).
-    // Todo: Seamlessly configure without setting SR_CTRL_HUB_RESET_N again.
+    // fail sometimes. HUB seems unresponsive to the configuration data sent over I2C.
     while ( !usbhub_configure() )
-        xtimer_msleep(100);
+        xtimer_msleep(1);
 }
 
 // Note:
@@ -192,7 +179,6 @@ void usbhub_enable_host_port(uint8_t port)
     xtimer_usleep(10);
 }
 
-#ifndef MD_BOOTLOADER
 void usbhub_enable_extra_port(uint8_t port, bool yes_no)
 {
     if ( port == USB_PORT_UNKNOWN )
@@ -203,7 +189,6 @@ void usbhub_enable_extra_port(uint8_t port, bool yes_no)
 
     if ( yes_no )
         sr_exp_writedata(vbus, SR_CTRL_E_DN1_N);
-    else  // state == USB_EXTRA_STATE_DISABLED or USB_EXTRA_STATE_FORCED_DISABLED
+    else
         sr_exp_writedata(SR_CTRL_E_DN1_N, vbus);
 }
-#endif
