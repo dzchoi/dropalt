@@ -9,7 +9,6 @@ class adc_input_v_con;
 class state_usb_suspended;
 class state_extra_disabled;
 class state_extra_enabled;
-class state_extra_panic_disabled;
 
 
 
@@ -107,13 +106,22 @@ public:
         return obj;
     }
 
+    // Once the extra port is disabled due to panic it remains disabled until the extra
+    // device is plugged out, the USB is suspended, or the extra port is enabled manually
+    // (though it may result in the panic disabling again).
+    void set_panic_disabled() { m_panic_disabled = true; }
+
     void process_usb_suspend() { help_process_usb_suspend(); }
     void process_usbport_switchover() { help_process_usbport_switchover(); }
     void process_extra_connected();
+    void process_extra_unconnected();
     void process_extra_enable_manually();
 
 private:
     void begin();
+    void end() { m_panic_disabled = false; }
+
+    bool m_panic_disabled = false;
 };
 
 
@@ -126,7 +134,7 @@ public:
     }
 
     void process_usb_suspend() { help_process_usb_suspend(); }
-    // Handle switchover but it will be rejected by help_process_usbport_switchover().
+    // Switchover is allowed but will be rejected by help_process_usbport_switchover().
     void process_usbport_switchover() { help_process_usbport_switchover(); }
     void process_extra_unconnected();
     void process_extra_enable_manually();
@@ -138,25 +146,8 @@ private:
     void begin();
     void end();
 
-    bool enabled_manually = false;
+    bool m_enabled_manually = false;
 
     static constexpr uint32_t GRACE_TIME_TO_CUT_EXTRA_US = 1000 *US_PER_MS;
     xtimer_onetime_signal_t extra_cutting_timer { GRACE_TIME_TO_CUT_EXTRA_US };
-};
-
-
-
-class state_extra_panic_disabled: public usbport {
-public:
-    static state_extra_panic_disabled& obj() {
-        static state_extra_panic_disabled obj;
-        return obj;
-    }
-
-    void process_usb_suspend() { help_process_usb_suspend(); }
-    void process_usbport_switchover() { help_process_usbport_switchover(); }
-    void process_extra_unconnected();
-
-private:
-    void begin();
 };

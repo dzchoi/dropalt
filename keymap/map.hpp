@@ -1,5 +1,6 @@
 #pragma once
 
+#include "adc_thread.hpp"       // for signal_extra_enable_manually()
 #include "keymap_thread.hpp"    // for start/stop_defer_presses()
 #include "manager.hpp"          // for key::manager.execute_press/release()
 #include "usb_thread.hpp"       // for hid_keyboard.report_press/release()
@@ -67,6 +68,14 @@ protected: // Utility methods that can be used by child classes
     // Perform usbhub switchover, once all keys are released.
     static void perform_usbport_switchover() {
         keymap_thread::obj().signal_usbport_switchover();
+    }
+
+    static void enable_extra_usbport_manually() {
+        adc_thread::obj().signal_extra_enable_manually();
+    }
+
+    static void set_extra_usbport_back_to_automatic() {
+        adc_thread::obj().signal_extra_back_to_automatic();
     }
 };
 

@@ -123,8 +123,14 @@ private:
         stop_timer();
         // stop_defer_presses();
 
-        if ( FN.is_pressing() && t_LCTL.is_pressing() )
-            system_reset();
+        if ( FN.is_pressing() ) {
+            if ( t_LCTL.is_pressing() )
+                system_reset();
+            // else if ( LSFT.is_pressing() )
+            //     set_extra_usbport_back_to_automatic();
+            // else
+            //     enable_extra_usbport_manually();
+        }
 
         // DEBUG("test: map_t=%d literal_t=%d timer_t=%d tap_hold_t=%d mod_morph_t=%d\n",
         //     sizeof(map_t), sizeof(literal_t), sizeof(timer_t),

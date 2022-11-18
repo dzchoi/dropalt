@@ -59,6 +59,8 @@ void* adc_thread::_adc_thread(void* arg)
             | FLAG_USBPORT_SWITCHOVER
             | FLAG_REPORT_5V
             | FLAG_REPORT_EXTRA
+            | FLAG_EXTRA_MANUAL
+            | FLAG_EXTRA_AUTOMATIC
             | FLAG_TIMEOUT
             );
 
@@ -93,6 +95,14 @@ void* adc_thread::_adc_thread(void* arg)
                 usbport::pstate->process_extra_connected();
             else
                 usbport::pstate->process_extra_unconnected();
+        }
+
+        if ( flags & FLAG_EXTRA_MANUAL ) {
+            usbport::pstate->process_extra_enable_manually();
+        }
+
+        if ( flags & FLAG_EXTRA_AUTOMATIC ) {
+            usbport::pstate->process_extra_back_to_automatic();
         }
 
         if ( flags & FLAG_TIMEOUT ) {

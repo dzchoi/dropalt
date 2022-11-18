@@ -39,6 +39,9 @@ constexpr bool POWER_UP_CHECK_PORT1_FIRST = true;
 // Todo: Undefine this to not blink debug LED while USB suspends.
 constexpr uint32_t LED_BLINK_PERIOD_DURING_SUSPEND = 1 *US_PER_SEC;  // 1 second
 
+// If false, the power will be cut off to the extra port while USB suspends.
+constexpr bool KEEP_CHARGING_EXTRA_DEVICE_DURING_SUSPEND = true;
+
 // Define this to run rgb_matrix_task() in a separate thread and make smooth updating
 // of RGB LEDs. Effective only when RGB_MATRIX_ENABLE.
 #define RGB_TASK_IN_SEPARATE_THREAD

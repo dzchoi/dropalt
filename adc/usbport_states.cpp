@@ -55,6 +55,8 @@ void state_usb_suspended::determine_host()
     // host, and once disconnected the remote wake-up will likely no longer work when
     // we switch back to it. After the disconnection FLAG_USB_SUSPEND (thus
     // process_usb_suspend()) will follow immediately but it is ignored in this state.
+    // It also disconnects the data line (SR_CTRL_E_DN1_N) of the extra port but the
+    // power line (SR_CTRL_E_VBUS_x) is intact.
     usbhub_disable_all_ports();
 
     uint8_t desired_port = USB_PORT_UNKNOWN;
@@ -103,7 +105,6 @@ void state_usb_suspended::determine_host()
 
 void state_usb_suspended::begin()
 {
-    // Todo: Cut off extra device while suspended?
     DEBUG("ADC:\e[0;34m state_usb_suspended\e[0m\n");
     blink_timer.start(true);  // true == expire it now.
 }
@@ -114,48 +115,61 @@ void state_usb_suspended::end()
     LED0_OFF;
 }
 
-void state_extra_disabled::process_extra_connected() {
-    usbhub_enable_extra_port(v_extra->line, true);
-    DEBUG("ADC: extra device is connected @port %d\n", v_extra->line);
-    transit_to<state_extra_enabled>();
+void state_extra_disabled::process_extra_connected()
+{
+    if ( !m_panic_disabled ) {
+        DEBUG("ADC: extra device is connected @port %d\n", v_extra->line);
+        transit_to<state_extra_enabled>();
+    }
 }
 
-void state_extra_disabled::process_extra_enable_manually() {
-    usbhub_enable_extra_port(v_extra->line, true);
-    DEBUG("ADC: extra port is enabled manually @port %d\n", v_extra->line);
+void state_extra_disabled::process_extra_unconnected()
+{
+    if ( m_panic_disabled ) {
+        m_panic_disabled = false;
+        DEBUG("ADC: extra device is disconnected from port %d\n", v_extra->line);
+    }
+}
+
+void state_extra_disabled::process_extra_enable_manually()
+{
     transit_to<state_extra_enabled>().process_extra_enable_manually();
 }
 
 void state_extra_disabled::begin()
 {
-    // Todo: usbhub_enable_extra_port(v_extra->line, false)?
+    usbhub_enable_extra_port(v_extra->line, false);
     DEBUG("ADC:\e[0;34m state_extra_disabled\e[0m\n");
 }
 
-void state_extra_enabled::process_extra_unconnected() {
-    if ( !enabled_manually ) {
-        usbhub_enable_extra_port(v_extra->line, false);
+void state_extra_enabled::process_extra_unconnected()
+{
+    if ( !m_enabled_manually ) {
         DEBUG("ADC: extra device is disconnected from port %d\n", v_extra->line);
         transit_to<state_extra_disabled>();
     }
 }
 
-void state_extra_enabled::process_extra_enable_manually() {
-    if ( !enabled_manually ) {
-        enabled_manually = true;
-        DEBUG("ADC: extra port is enabled manually @port %d\n", v_extra->line);
+void state_extra_enabled::process_extra_enable_manually()
+{
+    if ( !m_enabled_manually ) {
+        m_enabled_manually = true;
+        DEBUG("ADC: extra port is enabled manually\n");
     }
 }
 
-void state_extra_enabled::process_extra_back_to_automatic() {
-    if ( enabled_manually ) {
-        enabled_manually = false;
-        DEBUG("ADC: extra port is back to automatic control @port %d\n", v_extra->line);
-        // Todo: Check v_extra->is_device_connected() and ...
+void state_extra_enabled::process_extra_back_to_automatic()
+{
+    if ( m_enabled_manually ) {
+        m_enabled_manually = false;
+        DEBUG("ADC: extra port is back to automatic\n");
+        if ( !v_extra->is_device_connected() )
+            transit_to<state_extra_disabled>();
     }
 }
 
-void state_extra_enabled::process_v_5v_level() {
+void state_extra_enabled::process_v_5v_level()
+{
     // Todo: GCR adjusting should do its best while running the timer.
     if ( adc_input::v_5v.level() < adc_input_v_5v::V_5V_STABLE ) {
         if ( !extra_cutting_timer.is_running() )
@@ -165,30 +179,22 @@ void state_extra_enabled::process_v_5v_level() {
     }
 }
 
-void state_extra_enabled::process_timeout() {
-    usbhub_enable_extra_port(v_extra->line, false);
-    DEBUG("ADC: extra port is panic disabled @port %d\n", v_extra->line);
-    transit_to<state_extra_panic_disabled>();
+void state_extra_enabled::process_timeout()
+{
+    DEBUG("ADC:\e[0;31m extra port is panic disabled\e[0m\n");
+    transit_to<state_extra_disabled>().set_panic_disabled();
 }
 
 void state_extra_enabled::begin()
 {
+    usbhub_enable_extra_port(v_extra->line, true);
     DEBUG("ADC:\e[0;34m state_extra_enabled\e[0m\n");
 }
 
-void state_extra_enabled::end() {
-    extra_cutting_timer.stop();
-    // Set it back to automatic before transitioning out.
-    enabled_manually = false;
-}
-
-void state_extra_panic_disabled::process_extra_unconnected() {
-    // Todo: Also ensure that v_5v level is back to V_5V_STABLE.
-    DEBUG("ADC: extra device is disconnected from port %d\n", v_extra->line);
-    transit_to<state_extra_disabled>();
-}
-
-void state_extra_panic_disabled::begin()
+void state_extra_enabled::end()
 {
-    DEBUG("ADC:\e[0;34m state_extra_panic_disabled\e[0m\n");
+    extra_cutting_timer.stop();
+    m_enabled_manually = false;
+    if constexpr ( !KEEP_CHARGING_EXTRA_DEVICE_DURING_SUSPEND )
+        usbhub_enable_extra_port(v_extra->line, false);
 }

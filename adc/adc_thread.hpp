@@ -35,6 +35,14 @@ public:
     // Signal that extra-port report is ready.
     void signal_report_extra() { thread_flags_set(m_pthread, FLAG_REPORT_EXTRA); }
 
+    void signal_extra_enable_manually() {
+        thread_flags_set(m_pthread, FLAG_EXTRA_MANUAL);
+    }
+
+    void signal_extra_back_to_automatic() {
+        thread_flags_set(m_pthread, FLAG_EXTRA_AUTOMATIC);
+    }
+
     adc_thread(const adc_thread&) =delete;
     void operator=(const adc_thread&) =delete;
 
@@ -58,6 +66,8 @@ private:
         FLAG_USBPORT_SWITCHOVER = 0x0008,
         FLAG_REPORT_5V          = 0x0010,
         FLAG_REPORT_EXTRA       = 0x0020,
+        FLAG_EXTRA_MANUAL       = 0x0040,
+        FLAG_EXTRA_AUTOMATIC    = 0x0080,
         FLAG_TIMEOUT            = THREAD_FLAG_TIMEOUT  // (1u << 14)
     };
 };
