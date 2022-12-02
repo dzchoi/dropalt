@@ -39,7 +39,7 @@ extern "C" {
 /** @} */
 
 /**
- * @name   LED pin definitions and handlers
+ * @name    Debug LED pin definitions
  * @{
  */
 #define LED0_PIN            GPIO_PIN(PA, 27)
@@ -50,7 +50,7 @@ extern "C" {
 
 #if 0
 /**
- * @name SW0 (Button) pin definitions
+ * @name    SW0 (Button) pin definitions
  * @{
  */
 #define BTN0_PORT           PORT->Group[PA]
@@ -92,8 +92,10 @@ extern "C" {
 #define CONFIG_USB_PRODUCT_STR         PRODUCT      // iProduct
 #define CONFIG_USB_SERIAL_STR          SAME_SERIAL  // iSerialNumber
 
-// Factory-programmed serial number could be read from bootloader as following, but it
-// is in utf-16 format, which cannot be given to RIOT's usbus module at compile-time.
+#define BOOTLOADER_SERIAL_MAX_SIZE      20  // DO NOT MODIFY!
+
+// Factory-programmed serial number could be read from bootloader as follows, but it is
+// in utf-16 format, which cannot be given to RIOT's usbus module at compile-time.
 // extern uint32_t _sfixed;
 // #define CONFIG_USB_SERIAL_STR (const uint16_t*)*(uint32_t*)((uint32_t)&_sfixed - 4)
 
@@ -110,20 +112,24 @@ extern "C" {
 // long, we jump to the bootloader.
 #define WDT_TIMEOUT                     (4 *1000U)      // 4 sec
 
-#define THREAD_PRIO_USB                 2
-#define THREAD_PRIO_MATRIX              3
-#define THREAD_PRIO_ADC                 4
+// The smaller the higher the priority is.
+#define THREAD_PRIO_USB                 1
+#define THREAD_PRIO_MATRIX              2
+#define THREAD_PRIO_ADC                 3
+#define THREAD_PRIO_RGB                 4
 #define THREAD_PRIO_KEYMAP              5
 #if THREAD_PRIORITY_MAIN != 7
 #   error THREAD_PRIORITY_MAIN != 7
 #endif
 
+// Todo: Where to define this?
+// #define THREAD_STACKSIZE_MAIN           THREAD_STACKSIZE_SMALL
+
+// Constants from linker script
 //extern uint32_t _srom;
 extern uint32_t _sfixed;
 extern uint32_t _lrom;
 extern uint32_t _erom;
-
-#define BOOTLOADER_SERIAL_MAX_SIZE      20  // DO NOT MODIFY!
 
 /**
  * @name    ADC threshold parameters
@@ -159,6 +165,21 @@ extern uint32_t _erom;
 // Minimum level to decide if host is connected (the port should be measured with
 // SR_CTRL_SRC_x enabled.)
 #define ADC_CON_HOST_CONNECTED          100
+/** @} */
+
+
+/**
+ * @name    IS31FL3733 RGB LED parameters
+ * @{
+ */
+
+// Number of ISSI3733 drivers in use (1...16)
+#define DRIVER_COUNT                    2
+
+// Hardware address of each driver (refer to ISSI3733 pdf "Table 1 Slave Address" and
+// keyboard schematic)
+static const uint8_t DRIVER_ADDR[DRIVER_COUNT] = { 0x50, 0x5F };
+
 /** @} */
 
 

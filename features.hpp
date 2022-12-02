@@ -4,6 +4,7 @@
 
 #include <stdint.h>             // for uint8_t
 #include "time_units.h"         // for US_PER_*
+// Todo: Rename US_PER_MS -> MS_TO_US
 
 
 
@@ -42,14 +43,20 @@ constexpr uint32_t LED_BLINK_PERIOD_DURING_SUSPEND = 1 *US_PER_SEC;  // 1 second
 // If false, the power will be cut off to the extra port while USB suspends.
 constexpr bool KEEP_CHARGING_EXTRA_DEVICE_DURING_SUSPEND = true;
 
-// Define this to run rgb_matrix_task() in a separate thread and make smooth updating
-// of RGB LEDs. Effective only when RGB_MATRIX_ENABLE.
-#define RGB_TASK_IN_SEPARATE_THREAD
+constexpr bool RGB_LED_ENABLE = true;
 
-// Turn off all LEDs when suspending.
-// No need to call rgb_matrix_set_suspend_state() from suspend_wakeup_init_kb() and
-// suspend_power_down_kb() in addtion to defining it, since they are already handled so.
-#define RGB_DISABLE_WHEN_USB_SUSPENDED  true
+// Rate for updating RGB leds to show effects. 17 ms corresponds to ~60 fps.
+constexpr uint32_t RGB_UPDATE_PERIOD_MS = 17;
+
+// Turn off all LEDs while suspending.
+constexpr bool RGB_DISABLE_WHEN_USB_SUSPENDS = true;
+
+// Max Global Current Control Register (GCR) value (0-255) will limit the brightness of
+// all RGB leds to reduce the power consumption.
+constexpr uint8_t RGB_LED_GCR_MAX = 255;  // 165;
+
+// GCR changes slowly and gracefully, changing 1 GCR per this period.
+constexpr uint32_t RGB_GCR_CHANGE_PERIOD = 16;
 
 // Keyboard matrix scan rate (while operating in timer-based scan mode)
 constexpr uint32_t MATRIX_SCAN_PERIOD_US = 887u;

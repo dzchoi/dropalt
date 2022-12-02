@@ -1,0 +1,5 @@
+USEMODULE_INCLUDES_rgb := $(LAST_MAKEFILEDIR)
+USEMODULE_INCLUDES += $(USEMODULE_INCLUDES_rgb)
+
+INCLUDES += -I$(CURDIR)  # $(CURDIR) means the application directory.
+# LINKFLAGS += ...

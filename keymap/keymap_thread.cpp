@@ -31,7 +31,7 @@ void keymap_thread::signal_timeout(key::timer_t* ptimer)
     msg.content.ptr = ptimer;
     // will miss to send if m_queue is full (as being called from interrupt context.)
     const int ok = msg_send(&msg, m_pid);
-    assert( ok == 1 );
+    assert( ok == 1 ); (void)ok;
 }
 
 keymap_thread::keymap_thread()
@@ -51,7 +51,7 @@ void keymap_thread::start_defer_presses()
         msg_t msg;
         msg.type = EVENT_START_DEFER_PRESSES;
         const int ok = msg_send(&msg, m_pid);
-        assert( ok == 1 );
+        assert( ok == 1 ); (void)ok;
     }
 }
 
@@ -61,7 +61,7 @@ void keymap_thread::stop_defer_presses()
         msg_t msg;
         msg.type = EVENT_STOP_DEFER_PRESSES;
         const int ok = msg_send(&msg, m_pid);
-        assert( ok == 1 );
+        assert( ok == 1 ); (void)ok;
     }
 }
 

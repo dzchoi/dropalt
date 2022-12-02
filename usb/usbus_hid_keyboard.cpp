@@ -3,8 +3,9 @@
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
 
-#include "adc_thread.hpp"       // for signal_usb_resume()
+#include "adc_thread.hpp"       // for signal_usb_suspend() and signal_usb_resume()
 #include "main_thread.hpp"      // for signal_usb_suspend() and signal_usb_resume()
+#include "rgb_thread.hpp"       // for signal_usb_suspend() and signal_usb_resume()
 #include "usb_thread.hpp"       // for send_remote_wake_up()
 #include "usbus_hid_keyboard.hpp"
 
@@ -52,12 +53,17 @@ void usbus_hid_keyboard_t::on_reset()
 
 void usbus_hid_keyboard_t::on_suspend()
 {
+    // These threads should be created before usb_thread is.
+    if constexpr ( RGB_DISABLE_WHEN_USB_SUSPENDS )
+        rgb_thread::obj().signal_usb_suspend();
     adc_thread::obj().signal_usb_suspend();
     main_thread::obj().signal_usb_suspend();
 }
 
 void usbus_hid_keyboard_t::on_resume()
 {
+    if constexpr ( RGB_DISABLE_WHEN_USB_SUSPENDS )
+        rgb_thread::obj().signal_usb_resume();
     adc_thread::obj().signal_usb_resume();
     main_thread::obj().signal_usb_resume();
 }

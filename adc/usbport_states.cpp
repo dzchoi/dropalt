@@ -138,7 +138,7 @@ void state_extra_disabled::process_extra_enable_manually()
 
 void state_extra_disabled::begin()
 {
-    usbhub_enable_extra_port(v_extra->line, false);
+    usbhub_switch_enable_extra_port(v_extra->line, false);
     DEBUG("ADC:\e[0;34m state_extra_disabled\e[0m\n");
 }
 
@@ -187,7 +187,7 @@ void state_extra_enabled::process_timeout()
 
 void state_extra_enabled::begin()
 {
-    usbhub_enable_extra_port(v_extra->line, true);
+    usbhub_switch_enable_extra_port(v_extra->line, true);
     DEBUG("ADC:\e[0;34m state_extra_enabled\e[0m\n");
 }
 
@@ -196,5 +196,5 @@ void state_extra_enabled::end()
     extra_cutting_timer.stop();
     m_enabled_manually = false;
     if constexpr ( !KEEP_CHARGING_EXTRA_DEVICE_DURING_SUSPEND )
-        usbhub_enable_extra_port(v_extra->line, false);
+        usbhub_switch_enable_extra_port(v_extra->line, false);
 }

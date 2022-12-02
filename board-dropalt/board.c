@@ -110,8 +110,8 @@ static void _dfll_usbcrm_init(void)
 
 void board_init(void)
 {
-    // initialize the on-board LED
-    gpio_init(LED0_PIN, GPIO_OUT);  // or, DBG_LED_ENA
+    // initialize the Debug LED
+    gpio_init(LED0_PIN, GPIO_OUT);
     LED0_OFF;
 
 #if 0

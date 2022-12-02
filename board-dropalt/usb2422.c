@@ -179,7 +179,7 @@ void usbhub_enable_host_port(uint8_t port)
     xtimer_usleep(10);
 }
 
-void usbhub_enable_extra_port(uint8_t port, bool yes_no)
+void usbhub_switch_enable_extra_port(uint8_t port, bool yes_no)
 {
     if ( port == USB_PORT_UNKNOWN )
         return;

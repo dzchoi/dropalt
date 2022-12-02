@@ -14,13 +14,15 @@ BINDIRBASE ?= $(CURDIR)/.build
 
 # See https://github.com/cortexm/baremetal/blob/master/CMakeLists.txt
 # for compiler options for building embedded system.
-CXXEXFLAGS += -std=c++17    # for inline (const) variables
+CXXEXFLAGS += -std=c++17    # for C++ features such as inline (const) variables
 CXXEXFLAGS += -fno-exceptions
 CXXEXFLAGS += -fno-ms-extensions
 CXXEXFLAGS += -fno-rtti     # We don't need RTTI as no ambiguous base classes are used.
 CXXEXFLAGS += -fno-threadsafe-statics
 CXXEXFLAGS += -fno-use-cxa-atexit
 # INCLUDES += -I...
+
+FEATURES_HPP = features.hpp
 
 # Peripherals and features to be used from the board.
 FEATURES_REQUIRED += cpp  # Todo: "cpp libstdcpp" ???
@@ -42,13 +44,10 @@ FEATURES_REQUIRED += periph_dma     # will #define MODULE_PERIPH_DMA
 # */
 # FEATURES_OPTIONAL += PERIPH_GPIO_FAST_READ
 
-FEATURES_HPP = features.hpp
-
-# Subdirectory modules
-EXTERNAL_MODULE_DIRS += $(CURDIR)
-USEMODULE += adc
-USEMODULE += keymap
-USEMODULE += usb
+$(shell grep -q 'RGB_LED_ENABLE = true' $(FEATURES_HPP))
+ifeq ($(.SHELLSTATUS),0)
+    FEATURES_REQUIRED += is31fl3733
+endif
 
 # RIOT modules
 # USEMODULE += cpp11-compat
@@ -61,7 +60,15 @@ ifeq ($(.SHELLSTATUS),0)
 else
     USEMODULE += stdio_null         # Or, avoid using stdio and UART at all.
 endif
-USEMODULE += xtimer
+USEMODULE += xtimer  # Todo: Replace xtimer with ztimer.
+USEMODULE += ztimer_msec
+
+# Subdirectory modules
+EXTERNAL_MODULE_DIRS += $(CURDIR)
+USEMODULE += adc
+USEMODULE += keymap
+USEMODULE += rgb
+USEMODULE += usb
 
 # Configure linker script
 ROM_START_ADDR  = 0x00000000

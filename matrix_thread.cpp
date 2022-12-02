@@ -6,6 +6,7 @@
 #include "keymap_thread.hpp"    // for signal_key_event()
 #include "matrix_thread.hpp"
 #include "pmap.hpp"             // for key::maps[][]
+#include "rgb_thread.hpp"       // for signal_key_event()
 
 
 
@@ -86,7 +87,9 @@ bool matrix_thread::commit_change()
                 const matrix_row_t mask = matrix_row_t(1) << col;
                 const bool is_pressed = ((raw_matrix[row] & mask) != 0);
                 DEBUG("Matrix: report %s\n", is_pressed ? "press" : "release");
-                keymap_thread::obj().signal_key_event(&key::maps[row][col], is_pressed);
+                key::pmap_t& pmap = key::maps[row][col];
+                rgb_thread::obj().signal_key_event(pmap.led_id(), is_pressed);
+                keymap_thread::obj().signal_key_event(&pmap, is_pressed);
                 _xor &= ~mask;
             } while ( _xor != 0 );
             matrix[row] = raw_matrix[row];
