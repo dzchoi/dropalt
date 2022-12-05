@@ -15,12 +15,14 @@ extern "C" {
 #define PWM_REGISTER_COUNT          (CS_LINE_COUNT * SW_LINE_COUNT)
 #define LED_CONTROL_REGISTER_COUNT  (PWM_REGISTER_COUNT / 8)
 
-typedef struct __attribute__((packed)) {
+typedef struct {
     uint8_t driver;
     uint8_t g;
     uint8_t r;
     uint8_t b;
 } is31_led_t;
+
+extern char __STATIC_ASSERT__[1/( sizeof(is31_led_t) == 4 )];
 
 // Initialize IS31FL3733 and release the Hardware Shutdown. Be aware that we further need
 // to release SSD, set GCR, and turn on individual leds, to be able to see leds light.

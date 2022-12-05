@@ -54,7 +54,7 @@ void glimmer::update_done()
 finger_trace::finger_trace(hsv_t hsv, uint32_t restoring_ms)
 : m_hsv(hsv), m_restoring_ms(restoring_ms)
 {
-    m_touched_leds.reserve(32);
+    // m_touched_leds.reserve(32);
 }
 
 hsv_t finger_trace::initial_update(uint8_t)
@@ -125,7 +125,9 @@ ohsv_t finger_trace::update(uint8_t led_id, uint32_t time)
 ripple::ripple(hsv_t hsv, uint32_t period_ms, uint32_t wavelength)
 : m_hsv(hsv), m_period_ms(period_ms), m_wavelength(wavelength)
 {
-    m_touched_leds.reserve(16);
+    // Todo: Wanted to use .reserve() but it failed stress test because .insert() caused
+    //  a corrupted writing from the third element. Weird!
+    // m_touched_leds.reserve(16);
 }
 
 hsv_t ripple::initial_update(uint8_t)
@@ -136,10 +138,10 @@ hsv_t ripple::initial_update(uint8_t)
 ohsv_t ripple::process_key_event(uint8_t led_id, uint32_t time, bool pressed)
 {
     if ( pressed ) {
-        DEBUG("effect: create touched_led (%d), count=%d\n",
-            led_id, m_touched_leds.size() + 1);
         m_touched_leds.insert(m_touched_leds.begin(),
             touched_t{ 0, led_id, touched_t::PRESSED });
+        DEBUG("effect: create touched_led (%d), count=%d\n",
+            led_id, m_touched_leds.size());
 
         return hsv_t{ m_hsv.h, m_hsv.s, 0 };  // Turn it off.
     }

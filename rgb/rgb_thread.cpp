@@ -24,7 +24,7 @@ rgb_thread_tl<true>::rgb_thread_tl()
         THREAD_CREATE_STACKTEST,
         _rgb_thread, this, "rgb_thread");
 
-    m_pthread = thread_get(m_pid);
+    m_pthread = thread_get_unchecked(m_pid);
 }
 
 void* rgb_thread_tl<true>::_rgb_thread(void* arg)
@@ -128,7 +128,7 @@ void rgb_thread_tl<true>::signal_key_event(uint8_t led_id, bool pressed)
         msg_t msg;
         msg.type = pressed;
         msg.content.value = led_id;
-        // will block sending if m_queue if full.
+        // will block the caller (matrix_thread) if m_queue if full.
         msg_send(&msg, m_pid);
     }
 }

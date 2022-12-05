@@ -4,7 +4,7 @@
 
 
 
-struct __attribute__((packed)) hsv_t {
+struct hsv_t {
     // Hue is in [0, 0x600) rather than [0, 360°), so the high byte (0-5) selects the
     // sextant (RYGCBP) and the low byte (0-255) represents a color in each sextant.
     uint16_t h;
@@ -17,7 +17,7 @@ struct __attribute__((packed)) hsv_t {
 
 
 
-struct __attribute__((packed)) rgb_t {
+struct rgb_t {
     uint8_t r;
     uint8_t g;
     uint8_t b;

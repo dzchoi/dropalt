@@ -37,8 +37,7 @@ uint8_t g_led_on_off_registers[DRIVER_COUNT][LED_CONTROL_REGISTER_COUNT];
 uint8_t g_pwm_registers[DRIVER_COUNT][PWM_REGISTER_COUNT];
 uint8_t g_pwm_registers_need_update[DRIVER_COUNT][PWM_REGISTER_COUNT / 8];
 
-// Assert that PWM_REGISTER_COUNT % 8 == 0.
-extern char __CHECK__[1/!( PWM_REGISTER_COUNT % 8 )];
+extern char __STATIC_ASSERT__[1/( PWM_REGISTER_COUNT % 8 == 0 )];
 
 
 
