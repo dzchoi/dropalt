@@ -1,4 +1,8 @@
 #include "board.h"              // for THREAD_PRIO_KEYMAP
+#include "event.h"              // for event_queue_init(), event_get(), ...
+#include "msg.h"                // for msg_send(), msg_try_receive(), 
+#include "thread.h"             // for thread_create(), thread_get_unchecked(), ...
+#include "thread_flags.h"       // for thread_flags_set(), thread_flags_wait_any(),
 
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
@@ -6,7 +10,6 @@
 #include "adc_thread.hpp"       // for signal_usbport_switchover()
 #include "keymap_thread.hpp"
 #include "manager.hpp"          // for key::manager
-#include "timer.hpp"            // for timer_t::handle_timeout()
 
 
 
@@ -15,23 +18,22 @@ using key::manager;
 void keymap_thread::signal_key_event(key::pmap_t* slot, bool pressed)
 {
     msg_t msg;
-    msg.type = pressed ? EVENT_KEY_PRESS : EVENT_KEY_RELEASE;
+    msg.type = pressed;
     msg.content.ptr = slot;
-    // will block the caller (matrix_thread) until m_queue has a room if it is full.
-    const int ok = msg_send(&msg, m_pid);
-    if ( ok != 1 )
-        DEBUG("Keymap:\e[1;31m msg_send() returns %d (queued msgs=%u)\e[0m\n",
-            ok, msg_avail_thread(m_pid));
+    // will block the caller (matrix_thread) until m_msg_queue has a room if it is full.
+    msg_send(&msg, m_pid);  // will always return 1.
 }
 
-void keymap_thread::signal_timeout(key::timer_t* ptimer)
+void keymap_thread::start_defer_presses()
 {
-    msg_t msg;
-    msg.type = EVENT_TIMEOUT;
-    msg.content.ptr = ptimer;
-    // will miss to send if m_queue is full (as being called from interrupt context.)
-    const int ok = msg_send(&msg, m_pid);
-    assert( ok == 1 ); (void)ok;
+    if ( m_behavior_defer_presses++ == 0 )
+        thread_flags_set(m_pthread, FLAG_START_DEFER);
+}
+
+void keymap_thread::stop_defer_presses()
+{
+    if ( m_behavior_defer_presses > 0 && --m_behavior_defer_presses == 0 )
+        thread_flags_set(m_pthread, FLAG_STOP_DEFER);
 }
 
 keymap_thread::keymap_thread()
@@ -42,75 +44,84 @@ keymap_thread::keymap_thread()
         THREAD_CREATE_STACKTEST,
         _keymap_thread, this, "keymap_thread");
 
-    m_pthread = thread_get(m_pid);
-}
-
-void keymap_thread::start_defer_presses()
-{
-    if ( m_behavior_defer_presses++ == 0 ) {
-        msg_t msg;
-        msg.type = EVENT_START_DEFER_PRESSES;
-        const int ok = msg_send(&msg, m_pid);
-        assert( ok == 1 ); (void)ok;
-    }
-}
-
-void keymap_thread::stop_defer_presses()
-{
-    if ( m_behavior_defer_presses > 0 && --m_behavior_defer_presses == 0 ) {
-        msg_t msg;
-        msg.type = EVENT_STOP_DEFER_PRESSES;
-        const int ok = msg_send(&msg, m_pid);
-        assert( ok == 1 ); (void)ok;
-    }
+    m_pthread = thread_get_unchecked(m_pid);
 }
 
 void* keymap_thread::_keymap_thread(void* arg)
 {
     keymap_thread* const that = static_cast<keymap_thread*>(arg);
 
+    // The event_queue_init() should be called from the queue-owning thread.
+    event_queue_init(&that->m_event_queue);
+
     // The msg_init_queue() should be called from the queue-owning thread.
-    msg_init_queue(that->m_queue, KEY_EVENT_QUEUE_SIZE);
+    msg_init_queue(that->m_msg_queue, KEY_EVENT_QUEUE_SIZE);
 
     msg_t msg;
     while ( true ) {
-        msg_receive(&msg);
+        // Zzz
+        thread_flags_t flags = thread_flags_wait_any(
+            FLAG_EVENT
+            | FLAG_START_DEFER
+            | FLAG_STOP_DEFER
+            | FLAG_MSG_WAITING );
 
-        switch ( msg.type ) {
-            case EVENT_KEY_PRESS: {
+        // Timeout event is handled through Event queue, rather than using m_msg_queue
+        // which is used for buffering key inputs. See the note below.
+        if ( flags & FLAG_EVENT ) {
+            event_t* event;
+            while ( (event = event_get(&that->m_event_queue)) != nullptr )
+                event->handler(event);
+        }
+
+        if ( flags & FLAG_START_DEFER )
+            manager.start_defering();
+
+        if ( flags & FLAG_STOP_DEFER ) {
+            manager.complete_deferred();
+            manager.stop_defering();
+        }
+
+        if ( flags & FLAG_MSG_WAITING ) {
+            if ( msg_try_receive(&msg) == 1 ) {
                 key::pmap_t* const slot = static_cast<key::pmap_t*>(msg.content.ptr);
-                manager.handle_press(slot);
-                break;
-            }
 
-            case EVENT_KEY_RELEASE: {
-                key::pmap_t* const slot = static_cast<key::pmap_t*>(msg.content.ptr);
-                manager.handle_release(slot);
+                if ( msg.type )  // msg.type == 1 for press
+                    manager.handle_press(slot);
 
-                if ( that->m_switchover_requested && !manager.is_any_pressing() ) {
-                    adc_thread::obj().signal_usbport_switchover();
-                    that->m_switchover_requested = false;
+                else {  // msg.type == 0 for release
+                    manager.handle_release(slot);
+
+                    // Execute switchover.
+                    if ( that->m_switchover_requested && !manager.is_any_pressing() ) {
+                        adc_thread::obj().signal_usbport_switchover();
+                        that->m_switchover_requested = false;
+                    }
                 }
-                break;
             }
 
-            case EVENT_TIMEOUT:
-                key::timer_t::handle_timeout(msg.content.ptr);
-                break;
-
-            case EVENT_START_DEFER_PRESSES:
-                manager.start_defering();
-                break;
-
-            case EVENT_STOP_DEFER_PRESSES:
-                manager.complete_deferred();
-                manager.stop_defering();
-                break;
-
-            default:
-                assert( false );
+            // Key events are processed one at a time, to process internal events with
+            // higher priority than key events.
+            if ( msg_avail() > 0 )
+                thread_flags_set(that->m_pthread, FLAG_MSG_WAITING);
         }
     }
 
     return nullptr;
 }
+
+// Note about Msg queue vs Event queue.
+//  - Msg queue can be full but event queue cannot.
+//  - When Msg queue is full msg_send() blocks. However, if msg_send() is called from
+//    the context of the thread that owns the Msg queue (in this case msg_send_to_self()
+//    is called), or if msg_send() is called from an interrupt context (msg_send_int() is
+//    called), it does not block but returns an error (0). In those cases msg_send() is
+//    the same as msg_try_send().
+//  - So, Msg queue is mostly for interfacing to other threads and can make them wait
+//    until the queue is available.
+//  - Avoid mixing external events (where queue full is acceptable) with internal events
+//    (queue full is not acceptable).
+//  - Event is just like a thread signal but can be accompanied by argument(s). There
+//    is no reason to use event with no argument over a thread signal. However, beware of
+//    using the same Event struct with different arguments. Previous event will be
+//    overwritten when a new event only with different argument is pushed.

@@ -2,6 +2,8 @@
 
 #include "xtimer.h"
 
+#include "event_ext.hpp"        // for event_ext_t
+
 
 
 namespace key {
@@ -42,8 +44,9 @@ private: // Methods to be called by keymap_thread and key::manager
     // legitimate and expected timeout, discarding it if not.
     pmap_t* timeout_expected();
 
-    // Called by keymap_thread to handle EVENT_TIMEOUT.
-    static void handle_timeout(void* arg);
+    event_ext_t<timer_t*> m_event_timeout = { nullptr, _hdlr_timeout, this };
+    // _hdlr_timeout() is executed in the context of keymap_thread.
+    static void _hdlr_timeout(event_t* event);
 
     static void _tmo_key_timer(void* arg);
 

@@ -1,7 +1,7 @@
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
 
-#include "keymap_thread.hpp"    // for signal_timeout()
+#include "keymap_thread.hpp"    // for signal_event()
 #include "timer.hpp"
 
 
@@ -28,9 +28,9 @@ pmap_t* timer_t::timeout_expected()
     return slot;
 }
 
-void timer_t::handle_timeout(void* arg)
+void timer_t::_hdlr_timeout(event_t* event)
 {
-    timer_t* const that = static_cast<timer_t*>(arg);
+    timer_t* const that = static_cast<event_ext_t<timer_t*>*>(event)->arg;
     pmap_t* const slot = that->timeout_expected();
 
     if ( slot )
@@ -44,7 +44,8 @@ void timer_t::handle_timeout(void* arg)
 
 void timer_t::_tmo_key_timer(void* arg)
 {
-    keymap_thread::obj().signal_timeout(static_cast<timer_t*>(arg));
+    timer_t* const that = static_cast<timer_t*>(arg);
+    keymap_thread::obj().signal_event(&that->m_event_timeout);
 }
 
 }  // namespace key

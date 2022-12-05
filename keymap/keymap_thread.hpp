@@ -1,7 +1,9 @@
 #pragma once
 
-#include "msg.h"
-#include "thread.h"
+#include "event.h"              // for event_t, event_queue_t, event_post(), ...
+#include "msg.h"                // for msg_t
+#include "thread.h"             // for thread_t
+#include "thread_flags.h"       // for THREAD_FLAG_*
 
 #include <atomic>
 
@@ -9,10 +11,9 @@
 
 namespace key {
 class pmap_t;
-class timer_t;
 }
 
-// The keymap_thread receives (physical) key events such as presses/releases from matrix_
+// The keymap_thread receives (physical) key events (presses/releases) from matrix_
 // thread, maps them using keymaps, and finally reports them to usbus_hid_keyboard (i.e.
 // usb_thread).
 
@@ -24,7 +25,9 @@ public:
     }
 
     void signal_key_event(key::pmap_t* slot, bool pressed);
-    void signal_timeout(key::timer_t* ptimer);
+
+    // Signal a (generic) event to keymap_thread.
+    void signal_event(event_t* event) { event_post(&m_event_queue, event); }
 
     // In the behavior of defer-presses, every press is deferred and triggered later
     // when its release occurs or until stop_defer_presses() is called. To preserve the
@@ -44,14 +47,17 @@ private:
     thread_t* m_pthread;
 
 #ifdef DEVELHELP
-    char m_stack[THREAD_STACKSIZE_MEDIUM];
+    char m_stack[THREAD_STACKSIZE_SMALL + THREAD_EXTRA_STACKSIZE_PRINTF];
 #else
     char m_stack[THREAD_STACKSIZE_SMALL];
 #endif
 
-    // message queue for buffering input key events
+    // event queue for processing internal events
+    event_queue_t m_event_queue;  // event queue
+
+    // message queue for buffering external key input events
     static constexpr size_t KEY_EVENT_QUEUE_SIZE = 16;  // must be a power of two.
-    msg_t m_queue[KEY_EVENT_QUEUE_SIZE];
+    msg_t m_msg_queue[KEY_EVENT_QUEUE_SIZE];
 
     keymap_thread();  // Can be called only by obj().
 
@@ -62,12 +68,10 @@ private:
 
     std::atomic<bool> m_switchover_requested = false;
 
-    // message types
     enum : uint16_t {
-        EVENT_KEY_PRESS = 1,
-        EVENT_KEY_RELEASE,
-        EVENT_TIMEOUT,
-        EVENT_START_DEFER_PRESSES,
-        EVENT_STOP_DEFER_PRESSES,
+        FLAG_EVENT          = THREAD_FLAG_EVENT,       // 0x1
+        FLAG_START_DEFER    = 0x2,
+        FLAG_STOP_DEFER     = 0x4,
+        FLAG_MSG_WAITING    = THREAD_FLAG_MSG_WAITING  // (1u << 15)
     };
 };
