@@ -2,10 +2,10 @@
 
 #include "ztimer.h"             // for ztimer_t, ztimer_set_timeout_flag()
 
+#include <array>                // for std::array<>
 #include <optional>             // for std::optional<>
-#include <vector>               // for std::vector<>
 #include "color.hpp"            // for hsv_t
-#include "features.hpp"         // for RGB_UPDATE_PERIOD_MS
+#include "features.hpp"         // for RGB_UPDATE_PERIOD_MS, EFFECT_RIPPLE_MAX_WAVES, ...
 
 
 
@@ -72,6 +72,43 @@ private:
 
 
 
+enum state_t: uint8_t {
+    DONE = 0,
+    RELEASED,
+    UPDATING,  // used only for ripple where states are moved down automatically.
+    PRESSED
+};
+
+// Similar to std::vector<value_t>, but it has a fixed size and does not move elements
+// when erasing middle elements. Instead it marks the erased elements as DONE to reuse
+// them later. It also traces past to the last non-erased element as customized end().
+template <size_t N>
+class touched_leds_t {
+public:
+    struct __attribute__((packed)) value_t {
+        uint32_t when_released_ms;
+        uint8_t led_id;
+        state_t state;
+    };
+
+    using array_t = std::array<value_t, N>;
+    using iterator = typename array_t::iterator;
+
+    iterator begin() { return m_array.begin(); }
+    iterator end() { return m_actual_end; }
+
+    bool empty() const { return m_actual_end == m_array.begin(); }
+    iterator find(uint8_t led_id, bool pressed_only);
+    iterator create(uint8_t led_id);
+    void collect_garbage(bool handle_updating);
+
+private:
+    array_t m_array = {};  // initialize with all 0's.
+    iterator m_actual_end = m_array.begin();
+};
+
+
+
 class finger_trace: public effect_t {
 public:
     finger_trace(hsv_t hsv, uint32_t restoring_ms);
@@ -89,12 +126,7 @@ private:
     const uint32_t m_restoring_ms;
     ztimer_t m_timer;
 
-    struct __attribute__((packed)) touched_t {
-        uint32_t when_released_ms;
-        uint8_t led_id;
-        enum : uint8_t { FINISHED = 0, RELEASED, PRESSED } state;
-    };
-    std::vector<touched_t> m_touched_leds;
+    touched_leds_t<EFFECT_FINGER_TRACE_MAX_TRACERS> m_touched_leds;
 };
 
 
@@ -120,10 +152,5 @@ private:
     const uint32_t m_wavelength;
     ztimer_t m_timer;
 
-    struct __attribute__((packed)) touched_t {
-        uint32_t when_released_ms;
-        uint8_t led_id;
-        enum : uint8_t { FINISHED = 0, RELEASED, PRESSED } state;
-    };
-    std::vector<touched_t> m_touched_leds;
+    touched_leds_t<EFFECT_RIPPLE_MAX_WAVES> m_touched_leds;
 };

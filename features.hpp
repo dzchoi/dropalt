@@ -37,11 +37,21 @@ constexpr bool VIRTSER_ENABLE = true;
 // we try the port 2 first.
 constexpr bool POWER_UP_CHECK_PORT1_FIRST = true;
 
-// Todo: Undefine this to not blink debug LED while USB suspends.
-constexpr uint32_t LED_BLINK_PERIOD_DURING_SUSPEND = 1 *US_PER_SEC;  // 1 second
-
 // If false, the power will be cut off to the extra port while USB suspends.
 constexpr bool KEEP_CHARGING_EXTRA_DEVICE_DURING_SUSPEND = true;
+
+// Keyboard matrix scan rate (while operating in timer-based scan mode)
+constexpr uint32_t MATRIX_SCAN_PERIOD_US = 887u;
+
+// Keys are registered only after this time period of no bounces.
+// If too short, it may double a register, but too long period may miss.
+constexpr uint32_t DEBOUNCE_TIME_US = 3 *US_PER_MS;
+
+// TAPPING_TERM_US is the maximum time from press to release to be counted as a tap.
+constexpr uint32_t TAPPING_TERM_US = 200 *US_PER_MS;
+
+// Todo: Undefine this to not blink debug LED while USB suspends.
+constexpr uint32_t LED_BLINK_PERIOD_DURING_SUSPEND = 1 *US_PER_SEC;  // 1 second
 
 constexpr bool RGB_LED_ENABLE = true;
 
@@ -58,12 +68,8 @@ constexpr uint8_t RGB_LED_GCR_MAX = 255;  // 165;
 // GCR changes slowly and gracefully, changing 1 GCR per this period.
 constexpr uint32_t RGB_GCR_CHANGE_PERIOD = 16;
 
-// Keyboard matrix scan rate (while operating in timer-based scan mode)
-constexpr uint32_t MATRIX_SCAN_PERIOD_US = 887u;
+// Max number of tracers for Finger-Trace Effect.
+constexpr unsigned EFFECT_FINGER_TRACE_MAX_TRACERS = 16;
 
-// Keys are registered only after this time period of no bounces.
-// If too short, it may double a register, but too long period may miss.
-constexpr uint32_t DEBOUNCE_TIME_US = 3 *US_PER_MS;
-
-// TAPPING_TERM_US is the maximum time from press to release to be counted as a tap.
-constexpr uint32_t TAPPING_TERM_US = 200 *US_PER_MS;
+// Max number of waves for Ripple Effect.
+constexpr unsigned EFFECT_RIPPLE_MAX_WAVES = 8;
