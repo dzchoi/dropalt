@@ -1,10 +1,11 @@
 #pragma once
 
+#include "board.h"              // for ADC_LINE_*
 #include "mutex.h"
+#include "ztimer.h"             // for ztimer_t, ztimer_set() and ztimer_remove()
 
 #include <atomic>               // for std::atomic<>
 #include "event_ext.hpp"        // for event_ext_t
-#include "xtimer_wrapper.hpp"   // for xtimer_periodic_callback_t
 
 
 
@@ -26,10 +27,14 @@ public:
     uint16_t read() const { return m_result; }
 
     // Schedule periodic measurements, which will be performed on adc_thread context.
-    void schedule_periodic() { m_schedule_timer.start(); }
+    void schedule_periodic() {
+        ztimer_set(ZTIMER_MSEC, &m_schedule_timer, MEASURE_PERIOD_MS);
+    }
 
     // Cancel the schedule.
-    void schedule_cancel() { m_schedule_timer.stop(); }
+    void schedule_cancel() {
+        ztimer_remove(ZTIMER_MSEC, &m_schedule_timer);
+    }
 
     adc_input(const adc_input&) =delete;
     adc_input& operator=(const adc_input&) =delete;
@@ -58,15 +63,18 @@ private:
     // Signal to adc_thread that result is ready.
     virtual void _isr_signal_report() const =0;
 
-    const uint32_t MEASURE_PERIOD_US = _MEASURE_PERIODS[line];
+    const uint32_t MEASURE_PERIOD_MS = _MEASURE_PERIODS[line];
     static constexpr uint32_t _MEASURE_PERIODS[] = {
-        11000,      // measure v_5v at every 11 ms
-        5000, 5000  // measure v_con1/con2 at every 5 ms
+        11,   // measure v_5v at every 11 ms
+        5, 5  // measure v_con1/con2 at every 5 ms
     };
 
-    xtimer_periodic_callback_t<adc_input*> m_schedule_timer {
-        MEASURE_PERIOD_US, &_tmo_periodic_measure, this };
-    static void _tmo_periodic_measure(adc_input* that);
+    ztimer_t m_schedule_timer = {
+        .base = {},
+        .callback = &_tmo_periodic_measure,
+        .arg = this
+    };
+    static void _tmo_periodic_measure(void* arg);
 
     // Define a separate event for measuring each adc_input, because sharing a single
     // event struct with different port numbers as argument would lose early events that

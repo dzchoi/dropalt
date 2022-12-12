@@ -1,7 +1,8 @@
+#include "board.h"                  // for HUB_*, _sfixed, ...
 #include "periph/i2c.h"
-#include "xtimer.h"                 // for xtimer_usleep()
 #include "_usb2422_t.h"             // for struct Usb2422
 #include "usb2422.h"
+#include "ztimer.h"                 // for ztimer_sleep()
 
 // This usb2422.c is for initializing USB2422 hub and for enabling and disabling the
 // extra USB port based on the voltage measurements from adc_thread.
@@ -81,7 +82,7 @@ static inline void _usbhub_reset(void)
 {
     // Pulse reset for at least 1 usec.
     sr_exp_writedata(0, SR_CTRL_HUB_RESET_N);  // reset low
-    xtimer_usleep(2);  // t1 for a minimum of 1 us (from table 4-2, USB2422 datasheet)
+    ztimer_sleep(ZTIMER_USEC, 2);  // t1 for a minimum of 1 us (from table 4-2, USB2422 datasheet)
 
     sr_exp_writedata(SR_CTRL_HUB_RESET_N, 0);  // reset high to run
 }
@@ -91,7 +92,7 @@ static inline void _usbhub_reset(void)
 bool usbhub_configure(void)
 {
     _usbhub_reset();
-    xtimer_usleep(10);
+    ztimer_sleep(ZTIMER_USEC, 10);
 
     bool status = true;
     const size_t data_size = sizeof(Usb2422);
@@ -133,7 +134,7 @@ void usbhub_init(void)
     // powering up the host with the keyboard already connected, usbhub_configure() can
     // fail sometimes. HUB seems unresponsive to the configuration data sent over I2C.
     while ( !usbhub_configure() )
-        xtimer_msleep(1);
+        ztimer_sleep(ZTIMER_MSEC, 1);
 }
 
 // Note:
@@ -150,7 +151,7 @@ void usbhub_disable_all_ports(void)
         | SR_CTRL_E_DN1_N           // EXTRA disable
         , 0
     );
-    xtimer_usleep(10);
+    ztimer_sleep(ZTIMER_USEC, 10);
 }
 
 void usbhub_enable_host_port(uint8_t port)
@@ -176,7 +177,7 @@ void usbhub_enable_host_port(uint8_t port)
             | SR_CTRL_S_DN1         // EXTRA to USBC-1
             | SR_CTRL_SRC_1         // EXTRA available on USBC-1
         );
-    xtimer_usleep(10);
+    ztimer_sleep(ZTIMER_USEC, 10);
 }
 
 void usbhub_switch_enable_extra_port(uint8_t port, bool yes_no)

@@ -87,8 +87,8 @@ private:
 
         // Todo: m_gcr_limit to limit the max gcr value, changing as reading v_5v.
 
-        static constexpr uint32_t m_period = RGB_GCR_CHANGE_PERIOD;
-        ztimer_t m_timer = { { .next = nullptr, .offset = 0 },
+        ztimer_t m_timer = {
+            .base = {},
             .callback = [](void*){
                 thread_flags_set(obj().m_pthread, FLAG_CHANGE_GCR);
             },

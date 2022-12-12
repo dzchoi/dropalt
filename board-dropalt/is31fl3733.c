@@ -1,7 +1,8 @@
+#include "board.h"              // for DRIVER_COUNT, DRIVER_ADDR, ...
 #include "is31fl3733.h"
 #include "periph/i2c.h"         // for i2c_write_bytes() and i2c_read_bytes()
 #include "sr_exp.h"             // for sr_exp_writedata()
-#include "xtimer.h"             // for xtimer_usleep()
+#include "ztimer.h"             // for ztimer_sleep()
 
 
 
@@ -149,7 +150,7 @@ void is31_init(void)
 {
     // Turn off all LEDs and set PWM on all LEDs to 0
     sr_exp_writedata(0, SR_CTRL_IRST);
-    xtimer_usleep(10);
+    ztimer_sleep(ZTIMER_USEC, 10);
 
     i2c_acquire(I2C);
     for ( size_t driver = 0 ; driver < DRIVER_COUNT ; driver++ ) {
@@ -163,10 +164,10 @@ void is31_init(void)
     // turned off at this point, since all the Control registers (and the Global Current
     // Control register (GCR) as well) are reset to 0 above.
     sr_exp_writedata(SR_CTRL_SDB_N, 0);
-    xtimer_usleep(10);
+    ztimer_sleep(ZTIMER_USEC, 10);
 
     // Wait 1 ms to ensure the device has woken up.
-    // xtimer_msleep(1);
+    // ztimer_sleep(ZTIMER_MSEC, 1);
 }
 
 void is31_switch_unlock_ssd(bool yes_no)

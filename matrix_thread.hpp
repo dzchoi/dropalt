@@ -2,9 +2,9 @@
 
 #include "matrix.h"
 #include "thread.h"
-#include "xtimer.h"
+#include "ztimer.h"             // for ztimer_t and ztimer_now()
 
-#include "features.hpp"         // for DEBOUNCE_TIME_US
+#include "features.hpp"         // for DEBOUNCE_TIME_MS
 
 
 
@@ -44,12 +44,12 @@ private:
 
     static void _isr_detect_any_key_down(void* arg);
 
-    xtimer_t scan_timer;
+    ztimer_t scan_timer = {};
     uint32_t debounce_started;  // no need to initialize.
 
     bool is_debounce_done() const {
         return debounce_started
-            && int32_t(xtimer_now_usec() - debounce_started) >= int32_t(DEBOUNCE_TIME_US);
+            && (ztimer_now(ZTIMER_MSEC) - debounce_started) >= DEBOUNCE_TIME_MS;
     }
 
     enum {

@@ -1,10 +1,10 @@
 #include "usbus_hid_device.hpp" // Patch hid.h which is included by control.h below.
 
 #include "usb/usbus/control.h"  // for usbus_control_* definitions
+#include "ztimer.h"             // for ztimer_set(), ztimer_now() and ztimer_remove()
+
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
-
-#include "xtimer.h"             // for xtimer_now_usec()
 
 
 
@@ -46,8 +46,6 @@ usbus_hid_device_ext_t::usbus_hid_device_ext_t(usbus_t* _usbus,
     usbus = _usbus;
     cb = cb_receive_data;
     tx_ready.handler = _hdlr_tx_ready;
-    tx_timer.callback = _tmo_transfer_timeout;
-    tx_timer.arg = this;
     mutex_init(&in_lock);
 
     DEBUG("hid pre_init: %d %d\n", report_desc_size, report_desc[0]);
@@ -63,9 +61,7 @@ void usbus_hid_device_ext_t::_hdlr_tx_ready(event_t* event)
     // The host will read IN packets once in every hidx->ep_in->interval ms at least,
     // unless they are lost. When we send packets we also start tx_timer so that we can
     // check if the host is unresponsive (e.g. due to cable break while sending).
-    xtimer_set(
-        &hidx->tx_timer,
-        (hidx->ep_in->interval + 1) *US_PER_MS);  // +1 ms for margin
+    ztimer_set(ZTIMER_MSEC, &hidx->tx_timer, hidx->ep_in->interval + 1);  // +1 ms for margin
 }
 
 void usbus_hid_device_ext_t::_tmo_transfer_timeout(void* arg)
@@ -112,12 +108,12 @@ void usbus_hid_device_ext_t::_event_handler(
         // written to one and CTRLB.DETACH is written to zero."
         case USBUS_EVENT_USB_SUSPEND:   // USB suspend condition detected
             hidx->on_suspend();
-            DEBUG("USB_HID: suspend event @%lu\n", xtimer_now_usec());
+            DEBUG("USB_HID: suspend event @%lu\n", ztimer_now(ZTIMER_MSEC));
             break;
 
         case USBUS_EVENT_USB_RESUME:    // USB resume condition detected
             hidx->on_resume();
-            DEBUG("USB_HID: resume event @%lu\n", xtimer_now_usec());
+            DEBUG("USB_HID: resume event @%lu\n", ztimer_now(ZTIMER_MSEC));
             break;
 
         default:
@@ -145,7 +141,7 @@ void usbus_hid_device_ext_t::_transfer_handler(
             // received from the host. (we don't need to execute
             // _ep_unready(hidx->ep_in->ep) here, since it is already done automatically
             // by the usbus driver.)
-            xtimer_remove(&hidx->tx_timer);
+            ztimer_remove(ZTIMER_MSEC, &hidx->tx_timer);
             hidx->on_transfer_complete();
         }
         else {

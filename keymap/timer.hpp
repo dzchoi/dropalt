@@ -1,6 +1,6 @@
 #pragma once
 
-#include "xtimer.h"
+#include "ztimer.h"
 
 #include "event_ext.hpp"        // for event_ext_t
 
@@ -12,9 +12,9 @@ class pmap_t;
 
 
 
-class timer_t: public xtimer_t {
+class timer_t: public ztimer_t {
 protected: // Methods to be used by child classes
-    constexpr timer_t(uint32_t timeout_us): m_timeout_us(timeout_us) {
+    constexpr timer_t(uint32_t timeout_ms): ztimer_t(), m_timeout_ms(timeout_ms) {
         callback = _tmo_key_timer;
     }
 
@@ -22,7 +22,7 @@ protected: // Methods to be used by child classes
 
     void stop_timer();
 
-    bool timer_is_running() const { return xtimer_is_set(this); }
+    bool timer_is_running() const { return ztimer_is_set(ZTIMER_MSEC, this); }
 
     pmap_t* get_slot() const { return m_timeout_expected; }
 
@@ -50,7 +50,7 @@ private: // Methods to be called by keymap_thread and key::manager
 
     static void _tmo_key_timer(void* arg);
 
-    const uint32_t m_timeout_us;
+    const uint32_t m_timeout_ms;
     pmap_t* m_timeout_expected = nullptr;
 };
 

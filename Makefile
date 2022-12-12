@@ -29,6 +29,7 @@ FEATURES_REQUIRED += cpp  # Todo: "cpp libstdcpp" ???
 FEATURES_REQUIRED += periph_adc_get
 FEATURES_REQUIRED += periph_gpio_irq
 FEATURES_REQUIRED += periph_matrix
+FEATURES_REQUIRED += periph_rtt     # For ZTIMER_MSEC
 FEATURES_REQUIRED += periph_sr_595
 FEATURES_REQUIRED += periph_usb2422
 FEATURES_REQUIRED += periph_wdt
@@ -60,8 +61,9 @@ ifeq ($(.SHELLSTATUS),0)
 else
     USEMODULE += stdio_null         # Or, avoid using stdio and UART at all.
 endif
-USEMODULE += xtimer  # Todo: Replace xtimer with ztimer.
+USEMODULE += ztimer
 USEMODULE += ztimer_msec
+USEMODULE += ztimer_usec            # Will use ztimer_periph_timer (timer_config[0])
 
 # Subdirectory modules
 EXTERNAL_MODULE_DIRS += $(CURDIR)

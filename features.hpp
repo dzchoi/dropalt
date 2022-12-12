@@ -3,8 +3,7 @@
 #pragma once
 
 #include <stdint.h>             // for uint8_t
-#include "time_units.h"         // for US_PER_*
-// Todo: Rename US_PER_MS -> MS_TO_US
+#include "time_units.h"         // for MS_PER_SEC
 
 
 
@@ -41,17 +40,17 @@ constexpr bool POWER_UP_CHECK_PORT1_FIRST = true;
 constexpr bool KEEP_CHARGING_EXTRA_DEVICE_DURING_SUSPEND = true;
 
 // Keyboard matrix scan rate (while operating in timer-based scan mode)
-constexpr uint32_t MATRIX_SCAN_PERIOD_US = 887u;
+constexpr uint32_t MATRIX_SCAN_PERIOD_MS = 1;  // or less than 1 ms (e.g. 887 us)?
 
 // Keys are registered only after this time period of no bounces.
 // If too short, it may double a register, but too long period may miss.
-constexpr uint32_t DEBOUNCE_TIME_US = 3 *US_PER_MS;
+constexpr uint32_t DEBOUNCE_TIME_MS = 3;
 
-// TAPPING_TERM_US is the maximum time from press to release to be counted as a tap.
-constexpr uint32_t TAPPING_TERM_US = 200 *US_PER_MS;
+// TAPPING_TERM_MS is the maximum time from press to release to be counted as a tap.
+constexpr uint32_t TAPPING_TERM_MS = 200;
 
 // Todo: Undefine this to not blink debug LED while USB suspends.
-constexpr uint32_t LED_BLINK_PERIOD_DURING_SUSPEND = 1 *US_PER_SEC;  // 1 second
+constexpr uint32_t DEBUG_LED_BLINK_PERIOD_MS = 1 *MS_PER_SEC;  // 1 second
 
 constexpr bool RGB_LED_ENABLE = true;
 
@@ -63,10 +62,10 @@ constexpr bool RGB_DISABLE_WHEN_USB_SUSPENDS = true;
 
 // Max Global Current Control Register (GCR) value (0-255) will limit the brightness of
 // all RGB leds to reduce the power consumption.
-constexpr uint8_t RGB_LED_GCR_MAX = 255;  // 165;
+constexpr uint8_t RGB_LED_GCR_MAX = 255;  // or 165;
 
-// GCR changes slowly and gracefully, changing 1 GCR per this period.
-constexpr uint32_t RGB_GCR_CHANGE_PERIOD = 16;
+// GCR changes slowly and gracefully, changing 1 GCR per this time period.
+constexpr uint32_t RGB_GCR_CHANGE_PERIOD_MS = 16;
 
 // Max number of tracers for Finger-Trace Effect.
 constexpr unsigned EFFECT_FINGER_TRACE_MAX_TRACERS = 16;

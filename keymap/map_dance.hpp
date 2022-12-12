@@ -11,8 +11,8 @@ namespace key {
 // Similar to QMK's ACTION_TAP_DANCE_FN_ADVANCED(), only function names differ.
 //  - on_press() gets called every time you tap the tap dance key.
 //  - on_finish() gets called when the tap dance has finished (when either a timespan
-//    longer than tapping_term_us has elapsed, or a key other than the tap dance key was
-//    pressed within the tapping_term_us.)
+//    longer than tapping_term_ms has elapsed, or a key other than the tap dance key was
+//    pressed within the tapping_term_ms.)
 //  - on_release() gets called when the tap dance key is released (if the tap dance has
 //    finished before), or when the tap dance is finished after the key is released.
 //  - the tap count can be referenced in on_press/finish/release() using .get_step(),
@@ -23,7 +23,7 @@ namespace key {
 //  - So, the call sequence is on_press(), on_press(), ..., [on_finish()], on_release().
 class map_dance_t: public map_proxy_t, public timer_t, public observer_t {
 protected: // Methods to be used by child classes
-    constexpr map_dance_t(uint32_t tapping_term_us): timer_t(tapping_term_us) {}
+    constexpr map_dance_t(uint32_t tapping_term_ms): timer_t(tapping_term_ms) {}
 
     void finish();
 

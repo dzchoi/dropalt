@@ -6,7 +6,7 @@
 #include "usb/usbus.h"          // Patch hid.h below.
 #undef class
 #include "usb/usbus/hid.h"      // for usbus_hid_device_t, usbus_hid_cb_t
-#include "xtimer.h"             // for xtimer_t
+#include "ztimer.h"             // for ztimer_t and ztimer_remove()
 
 
 
@@ -49,10 +49,10 @@ protected:
         const uint8_t* report_desc, size_t report_desc_size, usbus_hid_cb_t cb_receive_data);
 
     // Will be never used.
-    virtual ~usbus_hid_device_ext_t() { xtimer_remove(&tx_timer); }
+    virtual ~usbus_hid_device_ext_t() { ztimer_remove(ZTIMER_MSEC, &tx_timer); }
 
 private:
-    xtimer_t tx_timer;
+    ztimer_t tx_timer = { .base = {}, .callback = &_tmo_transfer_timeout, .arg = this };
 
     static void _hdlr_tx_ready(event_t* event);
     static void _tmo_transfer_timeout(void* arg);

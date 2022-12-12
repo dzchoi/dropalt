@@ -1,6 +1,7 @@
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
 
+#include "features.hpp"         // for TAPPING_TERM_MS
 #include "literal.hpp"
 #include "map.hpp"
 #include "mod_morph.hpp"
@@ -76,8 +77,8 @@ mod_morph_t m_EQL { t_EQL, F12, FN };
 class tap_dance_morph_t: public map_dance_t {
 public:
     constexpr tap_dance_morph_t(
-        map_t& original, map_t& modifier, uint32_t tapping_term_us =TAPPING_TERM_US)
-    : map_dance_t(tapping_term_us), m_original(original), m_modifier(modifier) {}
+        map_t& original, map_t& modifier, uint32_t tapping_term_ms =TAPPING_TERM_MS)
+    : map_dance_t(tapping_term_ms), m_original(original), m_modifier(modifier) {}
 
 private:
     void on_press(pmap_t* slot) {
@@ -111,7 +112,7 @@ private:
 
 class test_t: public map_t, public timer_t {
 public:
-    constexpr test_t(): timer_t(500 *US_PER_MS) {}
+    constexpr test_t(): timer_t(500) {}
 
 private:
     void on_press(pmap_t* slot) {

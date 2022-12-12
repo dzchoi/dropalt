@@ -1,10 +1,11 @@
 #include "usb2422.h"
+#include "ztimer.h"             // for ztimer_sleep(), ztimer_set_timeout_flag(), ...
 
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
 
 #include "adc_input.hpp"        // for v_5v, v_con1 and v_con2
-#include "xtimer.h"             // for xtimer_msleep()
+#include "features.hpp"         // for DEBUG_LED_BLINK_PERIOD_MS
 #include "usbport_states.hpp"
 
 
@@ -82,7 +83,7 @@ void state_usb_suspended::determine_host()
 
             if ( desired_port != USB_PORT_UNKNOWN )
                 break;
-            xtimer_msleep(10);  // So, each iteration will take 12 ms.
+            ztimer_sleep(ZTIMER_MSEC, 10);  // So, each iteration will take 12 ms.
         }
 
         DEBUG("ADC: v_con1=%d v_con2=%d\n",
@@ -103,15 +104,21 @@ void state_usb_suspended::determine_host()
     v_extra->schedule_periodic();
 }
 
+void state_usb_suspended::process_timeout()
+{
+    LED0_TOGGLE;
+    ztimer_set_timeout_flag(ZTIMER_MSEC, &blink_timer, DEBUG_LED_BLINK_PERIOD_MS);
+}
+
 void state_usb_suspended::begin()
 {
     DEBUG("ADC:\e[0;34m state_usb_suspended\e[0m\n");
-    blink_timer.start(true);  // true == expire it now.
+    process_timeout();  // Expire blink_timer now!
 }
 
 void state_usb_suspended::end()
 {
-    blink_timer.stop();
+    ztimer_remove(ZTIMER_MSEC, &blink_timer);
     LED0_OFF;
 }
 
@@ -172,11 +179,12 @@ void state_extra_enabled::process_v_5v_level()
 {
     // Todo: GCR adjusting should do its best while running the timer.
     if ( adc_input::v_5v.level() < adc_input_v_5v::V_5V_STABLE ) {
-        if ( !extra_cutting_timer.is_running() )
-            extra_cutting_timer.start();
-    } else {
-        extra_cutting_timer.stop();
+        if ( !ztimer_is_set(ZTIMER_MSEC, &extra_cutting_timer) )
+            ztimer_set_timeout_flag(ZTIMER_MSEC,
+                &extra_cutting_timer, GRACE_TIME_TO_CUT_EXTRA_MS);
     }
+    else
+        ztimer_remove(ZTIMER_MSEC, &extra_cutting_timer);
 }
 
 void state_extra_enabled::process_timeout()
@@ -193,7 +201,7 @@ void state_extra_enabled::begin()
 
 void state_extra_enabled::end()
 {
-    extra_cutting_timer.stop();
+    ztimer_remove(ZTIMER_MSEC, &extra_cutting_timer);
     m_enabled_manually = false;
     if constexpr ( !KEEP_CHARGING_EXTRA_DEVICE_DURING_SUSPEND )
         usbhub_switch_enable_extra_port(v_extra->line, false);

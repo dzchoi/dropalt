@@ -1,7 +1,6 @@
 #pragma once
 
-#include "features.hpp"         // for LED_BLINK_PERIOD_DURING_SUSPEND
-#include "xtimer_wrapper.hpp"   // for xtimer_periodic/onetime_signal_t
+#include "ztimer.h"             // for ztimer_t
 
 
 
@@ -84,17 +83,13 @@ public:
 
     void process_usb_resume() { help_process_usb_resume(); }
     void process_usbport_switchover() { help_process_usbport_switchover(); }
-    void process_timeout() { LED0_TOGGLE; }
+    void process_timeout();
 
 private:
     void begin();
     void end();
 
-    xtimer_periodic_signal_t blink_timer { LED_BLINK_PERIOD_DURING_SUSPEND };
-    // Todo: Update xtimer_periodic_callback_t<>.
-    // xtimer_periodic_callback_t<void> blink_timer { LED_BLINK_PERIOD_DURING_SUSPEND,
-    //     []() { LED0_TOGGLE; }
-    // };
+    ztimer_t blink_timer = {};
 };
 
 
@@ -148,6 +143,6 @@ private:
 
     bool m_enabled_manually = false;
 
-    static constexpr uint32_t GRACE_TIME_TO_CUT_EXTRA_US = 1000 *US_PER_MS;
-    xtimer_onetime_signal_t extra_cutting_timer { GRACE_TIME_TO_CUT_EXTRA_US };
+    static constexpr uint32_t GRACE_TIME_TO_CUT_EXTRA_MS = 1000;
+    ztimer_t extra_cutting_timer = {};
 };

@@ -1,8 +1,10 @@
 #include "board.h"              // for THREAD_PRIO_MATRIX
+#include "ztimer.h"             // for ztimer_now() and ztimer_set_timeout_flag()
 
 #define ENABLE_DEBUG 0
 #include "debug.h"
 
+#include "features.hpp"         // for MATRIX_SCAN_PERIOD_MS
 #include "keymap_thread.hpp"    // for signal_key_event()
 #include "matrix_thread.hpp"
 #include "pmap.hpp"             // for key::maps[][]
@@ -57,10 +59,11 @@ void matrix_thread::detect_change(bool first_scan)
     bool continue_scan = true;
 
     if ( is_changed ) {
-        // Very rare but it is possible to have debounce_started = 0 even though we meant
-        // to start debounce. Even so, it is not a problem at all, being regarded as
-        // missing one true change, which happens quite often during scans.
-        debounce_started = xtimer_now_usec();
+        // Very rare but it is possible to have debounce_started = 0 from ztimer_now()
+        // even though we meant to start debounce. Even so, it is not a problem at all,
+        // being regarded as missing one true change, which happens quite often during
+        // scans.
+        debounce_started = ztimer_now(ZTIMER_MSEC);
         DEBUG("Matrix: changed\t\t%x %x %x %x %x\n",
             raw_matrix[0], raw_matrix[1], raw_matrix[2], raw_matrix[3], raw_matrix[4]);
     }
@@ -71,7 +74,7 @@ void matrix_thread::detect_change(bool first_scan)
     }
 
     if ( continue_scan )
-        xtimer_set_timeout_flag(&scan_timer, MATRIX_SCAN_PERIOD_US);
+        ztimer_set_timeout_flag(ZTIMER_MSEC, &scan_timer, MATRIX_SCAN_PERIOD_MS);
 }
 
 bool matrix_thread::commit_change()

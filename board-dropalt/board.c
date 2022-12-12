@@ -100,9 +100,9 @@ static void _dfll_usbcrm_init(void)
 // reset_handler_default()
 //     --> cpu_init() --> periph_init()
 //     --> board_init()
-//     --> kernel_init() --> auto_init() --> xtimer_init()
+//     --> kernel_init() --> auto_init() --> ztimer_init()
 //                       --> main()
-// Beware: xtimer_usleep() and timer_read() are not avaiable until xtimer_init() is
+// Beware: ztimer_sleep() and ztimer_now() are not avaiable until ztimer_init() is
 //   called. Use clk_busy_wait_us() above instead.
 //
 // The cpu_init() that is called before board_init() initializes GCLK0_MAIN and
@@ -119,7 +119,7 @@ void board_init(void)
     gpio_init(BTN0_PIN, BTN0_MODE);
 #endif
 
-    wdt_setup_reboot(0u, WDT_TIMEOUT);
+    wdt_setup_reboot(0u, WDT_TIMEOUT_MS);
     wdt_start();
 
     // initialize Shift Register

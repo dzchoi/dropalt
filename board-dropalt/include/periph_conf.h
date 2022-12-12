@@ -73,12 +73,12 @@ extern "C" {
 
 // GCKL2 (SAM0_GCLK_TIMER) clock frequency
 #define USE_DFLL_FOR_GCLK_TIMER     // Otherwise will use DPLL0.
-#define GCLK_TIMER_HZ       MHZ(8)  // For TC0, it will be prescaled down to XTIMER_HZ.
+#define GCLK_TIMER_HZ       MHZ(8)  // For TC0, it will be prescaled down to 1 MHz.
 
 // GCLK frequencies
 //   - SAM0_GCLK_MAIN:   120 MHz main clock
 //   - SAM0_GCLK_32KHZ:  32 kHz clock
-//   - SAM0_GCLK_TIMER:  8 MHz clock for xTimer (prescaled to 1 MHz)
+//   - SAM0_GCLK_TIMER:  8 MHz clock for ZTIMER_USEC (prescaled to 1 MHz)
 //   - SAM0_GCLK_PERIPH: 48 MHz (DFLL) clock
 
 
@@ -88,7 +88,7 @@ extern "C" {
  * @{
  */
 static const tc32_conf_t timer_config[] = {
-    {   /* Timer 0 - System Clock, channel used for xtimer. */
+    {   /* Timer 0 - System Clock, channel used for ZTIMER_USEC. */
         .dev            = TC0,
         .irq            = TC0_IRQn,
         .mclk           = &MCLK->APBAMASK.reg,
@@ -209,13 +209,13 @@ static const i2c_conf_t i2c_config[] = {
         .gclk_src = SAM0_GCLK_PERIPH,
         .flags    = I2C_FLAG_RUN_STANDBY,
 #ifdef MODULE_PERIPH_DMA
-        // Do not use .tx_trigger = SERCOM0_DMAC_ID_TX for DMA transfer. The current
-        // i2c_write_bytes() implemented under MODULE_PERIPH_DMA feature cannot handle
-        // transmit errors and likely freezes the device. When keyboard is plugged into
-        // the host's USB port there seems to be a short period that 5V voltage is on
-        // but the i2c transmit to HUB fails because HUB does not respond with either
-        // ACK or NAK (due to unstable voltage?)
-        .tx_trigger = DMA_TRIGGER_DISABLED,
+        // Todo???: Use of .tx_trigger = SERCOM0_DMAC_ID_TX for I2C DMA transfer may
+        //  cause a crash since the current implementation of i2c_write_bytes() for
+        //  MODULE_PERIPH_DMA does not handle transmit errors. When keyboard is powered
+        //  up by plugging into the host USB port there seems to be a short period that
+        //  5V is on but the i2c transmission to HUB fails because HUB does not respond
+        //  (due to unstable voltage?).
+        .tx_trigger = SERCOM0_DMAC_ID_TX,
         .rx_trigger = DMA_TRIGGER_DISABLED,
 #endif
     },
@@ -271,6 +271,13 @@ static const sam0_common_usb_config_t sam_usbdev_config[] = {
 #ifndef RTT_FREQUENCY
 #define RTT_FREQUENCY       (32768U)    /* in Hz. For changes see `rtt.c` */
 #endif
+// The minimum time (in ticks) that can be waited by RTT, which is used for ZTIMER_MSEC.
+// See the comment in _ztimer_periph_rtt_set() in riot/sys/ztimer/periph_rtt.c.
+// Beware that smaller values would cause a ztimer (and all other ztimers afterwards)
+// being missed to expire. Even if ztimer is not explicitly set for this small period
+// (e.g. using 0 to trigger it immediately), this can be still used when ztimer updating
+// its timer list internally.
+#define RTT_MIN_OFFSET      (10U)  // ~0.305 ms
 /** @} */
 
 #if 0

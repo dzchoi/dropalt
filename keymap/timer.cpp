@@ -12,12 +12,12 @@ void timer_t::start_timer(pmap_t* slot)
 {
     m_timeout_expected = slot;
     arg = this;
-    xtimer_set(this, m_timeout_us);
+    ztimer_set(ZTIMER_MSEC, this, m_timeout_ms);
 }
 
 void timer_t::stop_timer()
 {
-    xtimer_remove(this);
+    ztimer_remove(ZTIMER_MSEC, this);
     m_timeout_expected = nullptr;
 }
 

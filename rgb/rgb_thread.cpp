@@ -2,7 +2,7 @@
 #include "is31fl3733.h"
 #include "led_conf.hpp"         // for is31_leds[]
 #include "msg.h"                // for msg_init_queue(), msg_try_receive(), msg_send()
-#include "ztimer.h"             // for ztimer_now(), ztimer_set()
+#include "ztimer.h"             // for ztimer_set() and ztimer_now()
 
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
@@ -101,7 +101,7 @@ void rgb_thread_tl<true>::gcr_t::change()
             is31_switch_unlock_ssd(false);
 
         if ( m_current_gcr != m_desired_gcr )
-            ztimer_set(ZTIMER_MSEC, &m_timer, m_period);
+            ztimer_set(ZTIMER_MSEC, &m_timer, RGB_GCR_CHANGE_PERIOD_MS);
     }
 }
 

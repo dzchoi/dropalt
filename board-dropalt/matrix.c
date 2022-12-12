@@ -1,6 +1,6 @@
 #include "matrix.h"
 #include "periph/gpio.h"
-#include "xtimer.h"             // for xtimer_spin()
+#include "ztimer.h"             // for ztimer_spin()
 
 
 
@@ -8,7 +8,7 @@ static inline void select_col(unsigned col) { gpio_set(col_pins[col]); }
 
 static inline void unselect_col(unsigned col) { gpio_clear(col_pins[col]); }
 
-static inline void matrix_output_select_delay(void) { xtimer_spin(1); }
+static inline void matrix_output_select_delay(void) { ztimer_spin(ZTIMER_USEC, 1); }
 
 
 // Note that the gpio pins for matrix are assumed to be output for Col and input for Row,

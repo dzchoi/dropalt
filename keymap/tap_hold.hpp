@@ -1,5 +1,6 @@
 #pragma once
 
+#include "features.hpp"         // for TAPPING_TERM_MS
 #include "map.hpp"
 #include "observer.hpp"
 #include "timer.hpp"
@@ -24,14 +25,14 @@ tap_hold_t(map_t&, map_t&, uint32_t) -> tap_hold_t<TAP_PREFERRED>;
 
 
 // The 'tap-preferred' flavor (or "default" mode): the hold behavior is triggered when
-// when the tapping_term_us has expired. Pressing another key within tapping_term_us does
+// when the tapping_term_ms has expired. Pressing another key within tapping_term_ms does
 // not affect the decision.
 template <>
 class tap_hold_t<TAP_PREFERRED>: public map_t, public timer_t, public observer_t {
 public: // User-facing methods
     constexpr tap_hold_t(map_t& key_tap, map_t& key_hold,
-        uint32_t tapping_term_us =TAPPING_TERM_US)
-    : timer_t(tapping_term_us), m_key_tap(key_tap), m_key_hold(key_hold) {}
+        uint32_t tapping_term_ms =TAPPING_TERM_MS)
+    : timer_t(tapping_term_ms), m_key_tap(key_tap), m_key_hold(key_hold) {}
 
     // Todo: Accept rvalue reference for convenience.
     //  template <class T>
@@ -62,7 +63,7 @@ private: // Methods to be called by key::manager
 
 
 // The 'hold-preferred' flavor (or "hold on other key press" mode): the hold behavior is
-// triggered when tapping_term_us has expired or another key is pressed within this
+// triggered when tapping_term_ms has expired or another key is pressed within this
 // period.
 template <>
 class tap_hold_t<HOLD_PREFERRED>: public tap_hold_t<TAP_PREFERRED> {
@@ -77,7 +78,7 @@ private:
 
 
 // The 'balanced' flavor (or "permissive hold" mode): the hold behavior is triggered when
-// the tapping_term_us has expired or another key is pressed and RELEASED within this
+// the tapping_term_ms has expired or another key is pressed and RELEASED within this
 // period. The decision to either tap or hold is made actually slower than tap_hold_t but
 // is more suitable for fast typists in general.
 template <>

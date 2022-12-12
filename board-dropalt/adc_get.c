@@ -3,7 +3,7 @@
 #include "periph/gpio.h"
 #include "periph_conf.h"
 #include "mutex.h"
-#include "xtimer.h"
+#include "ztimer.h"
 
 #define ENABLE_DEBUG 0
 #include "debug.h"
@@ -274,10 +274,10 @@ int adc_configure(Adc* dev, adc_res_t res)
     dev->CTRLA.reg |= ADC_CTRLA_ENABLE;
     _wait_syncbusy(dev);
 
-    // It seems like needs additional delay even after SYNCBUSY.ENABLE gets cleared.
-    // Maybe (?), Table 54-32. Analog Comparator Characteristics
+    // It seems that it needs additional delay even after SYNCBUSY.ENABLE gets cleared.
+    // See Table 54-32. Analog Comparator Characteristics
     //   Tstart (Startup time): 4.7 - 7.5 us.
-    xtimer_usleep(5);
+    ztimer_sleep(ZTIMER_USEC, 5);
 
     return 0;
 }

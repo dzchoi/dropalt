@@ -66,7 +66,7 @@ public:
 private:
     const hsv_t m_hsv;
     const uint32_t m_period_ms;
-    ztimer_t m_timer;
+    ztimer_t m_timer = {};
     uint8_t m_v;  // Only hsv.v will vary over time.
 };
 
@@ -124,7 +124,7 @@ public:
 private:
     const hsv_t m_hsv;
     const uint32_t m_restoring_ms;
-    ztimer_t m_timer;
+    ztimer_t m_timer = {};
 
     touched_leds_t<EFFECT_FINGER_TRACE_MAX_TRACERS> m_touched_leds;
 };
@@ -150,7 +150,7 @@ private:
     const hsv_t m_hsv;
     const uint32_t m_period_ms;
     const uint32_t m_wavelength;
-    ztimer_t m_timer;
+    ztimer_t m_timer = {};
 
     touched_leds_t<EFFECT_RIPPLE_MAX_WAVES> m_touched_leds;
 };

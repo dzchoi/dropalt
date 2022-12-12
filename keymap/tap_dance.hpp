@@ -1,5 +1,6 @@
 #pragma once
 
+#include "features.hpp"         // for TAPPING_TERM_MS
 #include "map_dance.hpp"
 
 
@@ -12,8 +13,8 @@ namespace key {
 class tap_dance_double_t: public map_dance_t {
 public:
     constexpr tap_dance_double_t(
-        map_t& once, map_t& twice, uint32_t tapping_term_us =TAPPING_TERM_US)
-    : map_dance_t(tapping_term_us), m_once(once), m_twice(twice) {}
+        map_t& once, map_t& twice, uint32_t tapping_term_ms =TAPPING_TERM_MS)
+    : map_dance_t(tapping_term_ms), m_once(once), m_twice(twice) {}
 
 private:
     void on_press(pmap_t* slot) {

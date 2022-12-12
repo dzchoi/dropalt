@@ -1,6 +1,6 @@
 #include "adc_get.h"            // for adc_get()
 #include "usb2422.h"            // for usbhub_is_configured_for_host_port()
-#include "xtimer.h"             // for xtimer_now_usec()
+#include "ztimer.h"             // for ztimer_now()
 
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
@@ -62,8 +62,10 @@ void adc_input_v_con::_isr_signal_report() const
     adc_thread::obj().signal_report_extra();
 }
 
-void adc_input::_tmo_periodic_measure(adc_input* that)
+void adc_input::_tmo_periodic_measure(void* arg)
 {
+    adc_input* const that = static_cast<adc_input*>(arg);
+    that->schedule_periodic();
     // As executed in interrupt context, we cannot call async_measure() directly but
     // instead we delegate the actual (start of) measurement to adc_thread.
     adc_thread::obj().signal_event(&that->m_event_periodic_measure);
@@ -91,7 +93,7 @@ void adc_input_v_5v::wait_for_stable_5v()
     constexpr int V_5V_STABILITY_COUNT = 5;
 
 #if ENABLE_DEBUG
-    const uint32_t since = xtimer_now_usec();
+    const uint32_t since = ztimer_now(ZTIMER_MSEC);
 #endif
 
     int repeat = 0;
@@ -99,7 +101,7 @@ void adc_input_v_5v::wait_for_stable_5v()
         if ( sync_measure().level() < V_5V_STABLE )
             repeat = 0;
 
-    DEBUG("ADC: v_5v stabilized in %lu us\n", xtimer_now_usec() - since);
+    DEBUG("ADC: v_5v stabilized in %lu ms\n", ztimer_now(ZTIMER_MSEC) - since);
 }
 
 bool adc_input_v_con::is_device_connected() const

@@ -1,5 +1,5 @@
 #include "periph/wdt.h"
-#include "xtimer.h"
+#include "ztimer.h"             // for ztimer_sleep()
 
 #define ENABLE_DEBUG    0
 #include "debug.h"
@@ -43,7 +43,7 @@ int main()
 
     while ( true ) {
         wdt_kick();
-        xtimer_sleep(1);
+        ztimer_sleep(ZTIMER_MSEC, 1000);
 
         // char buffer[32];
         // sprintf(buffer, "%lu\n", info);
