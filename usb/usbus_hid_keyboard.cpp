@@ -72,14 +72,16 @@ void usbus_hid_keyboard_t::on_resume()
 //  - If it is the first key press/release in the current frame, update the report and
 //    immediately submit it to the host.
 //  - For any subsequent presses/releases in the current frame, update the report but do
-//    not send it to the host. However, before updating the report the in_lock mutex
-//    blocks the caller (keymap_thread) for:
-//     = any 2nd press during this update-but-not-submit reporting [1], and
-//     = the release whose press was updated during this update-but-not-submit reporting.
-//  - When the submit (for the first key press/release) is acknowledged by the host,
-//     = if report was updated further since the submission, submit it now all at once.
-//     = unlock the in_lock mutex to allow any pending presses/releases.
-//  - Note that in_lock is used here to wait until the next frame (host polling) as
+//    not submit it to the host, except the following subsequent events which shall delay
+//    the updating until in the next frame:
+//     = any 2nd press in this frame [1],
+//     = any modifier release, and
+//     = the release whose press was updated in this frame.
+//  - At the start of next frame, i.e. when the submission (for the first key press/
+//    release) is acknowledged by the host,
+//     = if report has been updated further since the last submission submit it all now,
+//     = and resume the updating if it has been delayed.
+//  - Note that in_lock mutex is used to wait until the next frame (host polling) as
 //    opposed to protecting in_buf from simultaneous accesses, for which m_report_updated
 //    is used instead (See submit() below).
 //
@@ -118,7 +120,8 @@ void usbus_hid_keyboard_t::report_press(uint8_t keycode)
 
 void usbus_hid_keyboard_t::report_release(uint8_t keycode)
 {
-    if ( m_press_yet_to_submit == keycode ) {
+    if ( m_press_yet_to_submit != KC_NO
+      && ( keycode == m_press_yet_to_submit || keycode >= KC_LCTRL ) ) {
         // Block until the deferred press is completed.
         mutex_lock(&in_lock);
         mutex_unlock(&in_lock);

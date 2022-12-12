@@ -9,7 +9,7 @@ void map_dance_t::on_proxy_press(pmap_t* slot)
     if ( m_step++ == 0 ) {
         assert( m_is_finished );
         m_is_finished = false;  // Start the dance.
-        start_observe();
+        start_observe(slot);
     }
 
     start_timer(slot);  // (Re)start the timer.
@@ -37,12 +37,8 @@ void map_dance_t::on_timeout(pmap_t* slot)
 
 void map_dance_t::on_other_press(pmap_t* slot)
 {
-    // This can be called on its own press as we do not execute stop_observe() on (each)
-    // on_proxy_release().
-    if ( slot != get_slot() ) {
-        stop_timer();
-        on_timeout(slot);
-    }
+    stop_timer();
+    on_timeout(slot);
 }
 
 void map_dance_t::finish()

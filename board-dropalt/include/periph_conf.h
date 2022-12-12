@@ -215,7 +215,7 @@ static const i2c_conf_t i2c_config[] = {
         //  up by plugging into the host USB port there seems to be a short period that
         //  5V is on but the i2c transmission to HUB fails because HUB does not respond
         //  (due to unstable voltage?).
-        .tx_trigger = SERCOM0_DMAC_ID_TX,
+        .tx_trigger = DMA_TRIGGER_DISABLED,
         .rx_trigger = DMA_TRIGGER_DISABLED,
 #endif
     },

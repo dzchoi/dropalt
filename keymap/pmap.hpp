@@ -41,7 +41,7 @@ private:
     friend class manager_t;
 
     map_t* const m_pmap;
-    pressing_slot* m_pressing = nullptr;
+    pressing_slot* m_pressing_slot = nullptr;
 };
 
 }  // namespace key

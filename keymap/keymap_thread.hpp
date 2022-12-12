@@ -29,16 +29,6 @@ public:
     // Signal a (generic) event to keymap_thread.
     void signal_event(event_t* event) { event_post(&m_event_queue, event); }
 
-    // In the behavior of defer-presses, every press is deferred and triggered later
-    // when its release occurs or until stop_defer_presses() is called. To preserve the
-    // order of presses, however, the release triggers not only its own press but also
-    // all the other presses that have occurred and deferred before its press. For
-    // example, suppose A, B, C, D and E are pressed and deferred in that order. When C
-    // is released A, B and C are pressed before C is released. D and E are left still
-    // deferred.
-    void start_defer_presses();
-    void stop_defer_presses();
-
     // Switchover will be performed when all keys are released.
     void signal_usbport_switchover() { m_switchover_requested = true; }
 
@@ -64,14 +54,10 @@ private:
     // thread body
     static void* _keymap_thread(void* arg);
 
-    unsigned m_behavior_defer_presses = 0;
-
     std::atomic<bool> m_switchover_requested = false;
 
     enum : uint16_t {
         FLAG_EVENT          = THREAD_FLAG_EVENT,       // 0x1
-        FLAG_START_DEFER    = 0x2,
-        FLAG_STOP_DEFER     = 0x4,
         FLAG_MSG_WAITING    = THREAD_FLAG_MSG_WAITING  // (1u << 15)
     };
 };

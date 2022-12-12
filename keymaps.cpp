@@ -45,6 +45,7 @@ mod_morph_t<UNDO_MOD> m_BKSP { BKSP, DEL, RSFT };
 
 mod_morph_t m_GRV { GRV, POWER, FN };
 
+// Todo: Block repeated presses of Function keys.
 tap_hold_t t_1 { _1, F1 };        // sizeof = 60
 mod_morph_t m_1 { t_1, F1, FN };  // sizeof = 24
 tap_hold_t t_2 { _2, F2 };

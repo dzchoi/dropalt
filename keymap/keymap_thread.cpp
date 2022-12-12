@@ -24,18 +24,6 @@ void keymap_thread::signal_key_event(key::pmap_t* slot, bool pressed)
     msg_send(&msg, m_pid);  // will always return 1.
 }
 
-void keymap_thread::start_defer_presses()
-{
-    if ( m_behavior_defer_presses++ == 0 )
-        thread_flags_set(m_pthread, FLAG_START_DEFER);
-}
-
-void keymap_thread::stop_defer_presses()
-{
-    if ( m_behavior_defer_presses > 0 && --m_behavior_defer_presses == 0 )
-        thread_flags_set(m_pthread, FLAG_STOP_DEFER);
-}
-
 keymap_thread::keymap_thread()
 {
     m_pid = thread_create(
@@ -62,8 +50,6 @@ void* keymap_thread::_keymap_thread(void* arg)
         // Zzz
         thread_flags_t flags = thread_flags_wait_any(
             FLAG_EVENT
-            | FLAG_START_DEFER
-            | FLAG_STOP_DEFER
             | FLAG_MSG_WAITING );
 
         // Timeout event is handled through Event queue, rather than using m_msg_queue
@@ -72,14 +58,6 @@ void* keymap_thread::_keymap_thread(void* arg)
             event_t* event;
             while ( (event = event_get(&that->m_event_queue)) != nullptr )
                 event->handler(event);
-        }
-
-        if ( flags & FLAG_START_DEFER )
-            manager.start_defering();
-
-        if ( flags & FLAG_STOP_DEFER ) {
-            manager.complete_deferred();
-            manager.stop_defering();
         }
 
         if ( flags & FLAG_MSG_WAITING ) {
@@ -100,11 +78,15 @@ void* keymap_thread::_keymap_thread(void* arg)
                 }
             }
 
-            // Key events are processed one at a time, to process internal events with
-            // higher priority than key events.
+            // Key events are processed one at a time in order to process internal events
+            // with higher priority.
             if ( msg_avail() > 0 )
                 thread_flags_set(that->m_pthread, FLAG_MSG_WAITING);
         }
+
+        // Complete any deferred key presses if we are no longer deferring. Note that in
+        // the meanwhile presses can be deferred again.
+        manager.complete_if_not_deferring();
     }
 
     return nullptr;

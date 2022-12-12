@@ -44,7 +44,7 @@ constexpr uint32_t MATRIX_SCAN_PERIOD_MS = 1;  // or less than 1 ms (e.g. 887 us
 
 // Keys are registered only after this time period of no bounces.
 // If too short, it may double a register, but too long period may miss.
-constexpr uint32_t DEBOUNCE_TIME_MS = 3;
+constexpr uint32_t DEBOUNCE_TIME_MS = 4;
 
 // TAPPING_TERM_MS is the maximum time from press to release to be counted as a tap.
 constexpr uint32_t TAPPING_TERM_MS = 200;

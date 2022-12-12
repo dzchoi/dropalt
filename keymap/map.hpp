@@ -1,8 +1,8 @@
 #pragma once
 
-#include "adc_thread.hpp"       // for signal_extra_enable_manually()
-#include "keymap_thread.hpp"    // for start/stop_defer_presses()
-#include "manager.hpp"          // for key::manager.execute_press/release()
+#include "adc_thread.hpp"       // for signal_extra_enable_manually(), ...
+#include "keymap_thread.hpp"    // for signal_usbport_switchover()
+#include "manager.hpp"          // for key::manager
 #include "usb_thread.hpp"       // for hid_keyboard.report_press/release()
 
 
@@ -52,17 +52,15 @@ protected: // Utility methods that can be used by child classes
         usb_thread::obj().hid_keyboard.report_release(keycode);
     }
 
-    // Start deferring key presses. All presses will be deferred from the next press
-    // event.
+    // Start deferring key presses. All presses will be deferred from the next event.
     static void start_defer_presses() {
-        keymap_thread::obj().start_defer_presses();
+        key::manager.start_defer();
     }
 
-    // Stop deferring key presses. All the deferred presses will be carried out after
-    // handling the current event, i.e. when the current event-handling method (on_*())
-    // that was calling stop_defer_presses() finishes.
+    // Stop deferring key presses. Any deferred presses will be carried out after
+    // handling the current event.
     static void stop_defer_presses() {
-        keymap_thread::obj().stop_defer_presses();
+        key::manager.stop_defer();
     }
 
     // Perform usbhub switchover, once all keys are released.
