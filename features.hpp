@@ -39,6 +39,12 @@ constexpr bool POWER_UP_CHECK_PORT1_FIRST = true;
 // If false, the power will be cut off to the extra port while USB suspends.
 constexpr bool KEEP_CHARGING_EXTRA_DEVICE_DURING_SUSPEND = true;
 
+// Extra port (v_con1/con2) is measured using this period.
+constexpr uint32_t EXTRA_PORT_MEASURING_PERIOD_MS = 5;
+
+// When v_5v stays at low level for this period we cut off the extra device.
+constexpr uint32_t GRACE_TIME_TO_CUT_EXTRA_MS = 1 *MS_PER_SEC;  // 1 second
+
 // Keyboard matrix scan rate (while operating in timer-based scan mode)
 constexpr uint32_t MATRIX_SCAN_PERIOD_MS = 1;  // or less than 1 ms (e.g. 887 us)?
 

@@ -5,7 +5,7 @@
 #include "thread_flags.h"       // for thread_flags_set()
 #include "ztimer.h"             // for ztimer_t
 
-#include "features.hpp"         // for RGB_LED_ENABLE
+#include "features.hpp"         // for RGB_LED_ENABLE and RGB_LED_GCR_MAX
 
 
 
@@ -23,6 +23,7 @@ public:
 
     void signal_usb_suspend() {}
     void signal_usb_resume() {}
+    void signal_report_5v() {}
     void signal_key_event(uint8_t, bool) {}
 
     void set_effect(const effect_t&) {}
@@ -46,6 +47,7 @@ public:
 
     void signal_usb_suspend() { thread_flags_set(m_pthread, FLAG_USB_SUSPEND); }
     void signal_usb_resume() { thread_flags_set(m_pthread, FLAG_USB_RESUME); }
+    void signal_report_5v();
     void signal_key_event(uint8_t led_id, bool pressed);
 
     // Todo: Effect for underglow leds?
@@ -76,30 +78,29 @@ private:
     // Global Current Control Register (GCR) value
     class gcr_t {
     public:
-        void set(uint8_t gcr);
-        void clear();
-        void change();
-        // bool is_set() const { return m_current_gcr > 0; }
+        bool is_enabled() const { return m_enabled; }
+        void enable() { m_enabled = true; }
+        void disable();
+
+        bool raise() {
+            return (m_desired_gcr < RGB_LED_GCR_MAX) && (++m_desired_gcr, true); }
+        bool lower() {
+            return (m_desired_gcr > 0) && (--m_desired_gcr, true); }
+
+        // SSD gets also locked or released according to whether gcr is zero or not.
+        void adjust();
 
     private:
+        bool m_enabled = false;
         uint8_t m_current_gcr = 0;
         uint8_t m_desired_gcr = 0;
-
-        // Todo: m_gcr_limit to limit the max gcr value, changing as reading v_5v.
-
-        ztimer_t m_timer = {
-            .base = {},
-            .callback = [](void*){
-                thread_flags_set(obj().m_pthread, FLAG_CHANGE_GCR);
-            },
-            .arg = nullptr };
     } m_gcr;
 
     enum : uint16_t {
         FLAG_EVENT          = 0x0001,  // not used
         FLAG_USB_SUSPEND    = 0x0002,
         FLAG_USB_RESUME     = 0x0004,
-        FLAG_CHANGE_GCR     = 0x0008,
+        FLAG_ADJUST_GCR     = 0x0008,
         FLAG_SET_EFFECT     = 0x0010,
         FLAG_TIMEOUT        = THREAD_FLAG_TIMEOUT,     // (1u << 14)
         FLAG_KEY_EVENT      = THREAD_FLAG_MSG_WAITING  // (1u << 15)

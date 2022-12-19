@@ -22,13 +22,11 @@ adc_thread::adc_thread()
 
     adc_input::v_5v.wait_for_stable_5v();
 
-    const kernel_pid_t pid = thread_create(
+    m_pthread = thread_get_unchecked( thread_create(
         m_stack, sizeof(m_stack),
         THREAD_PRIO_ADC,
         THREAD_CREATE_STACKTEST,
-        _adc_thread, this, "adc_thread");
-
-    m_pthread = thread_get(pid);
+        _adc_thread, this, "adc_thread") );
 }
 
 void* adc_thread::_adc_thread(void* arg)
@@ -68,22 +66,17 @@ void* adc_thread::_adc_thread(void* arg)
                 event->handler(event);
         }
 
-        if ( flags & FLAG_USB_SUSPEND ) {
+        if ( flags & FLAG_USB_SUSPEND )
             usbport::pstate->process_usb_suspend();
-        }
 
-        if ( flags & FLAG_USB_RESUME ) {
+        if ( flags & FLAG_USB_RESUME )
             usbport::pstate->process_usb_resume();
-        }
 
-        if ( flags & FLAG_USBPORT_SWITCHOVER ) {
+        if ( flags & FLAG_USBPORT_SWITCHOVER )
             usbport::pstate->process_usbport_switchover();
-        }
 
-        if ( flags & FLAG_REPORT_5V ) {
-            // Todo: Try to adjust GCR first before reporting to pstate.
+        if ( flags & FLAG_REPORT_5V )
             usbport::pstate->process_v_5v_level();
-        }
 
         if ( flags & FLAG_REPORT_EXTRA ) {
             // It is always that v_extra != nullptr as this event occurs only when
@@ -94,17 +87,14 @@ void* adc_thread::_adc_thread(void* arg)
                 usbport::pstate->process_extra_unconnected();
         }
 
-        if ( flags & FLAG_EXTRA_MANUAL ) {
+        if ( flags & FLAG_EXTRA_MANUAL )
             usbport::pstate->process_extra_enable_manually();
-        }
 
-        if ( flags & FLAG_EXTRA_AUTOMATIC ) {
+        if ( flags & FLAG_EXTRA_AUTOMATIC )
             usbport::pstate->process_extra_back_to_automatic();
-        }
 
-        if ( flags & FLAG_TIMEOUT ) {
+        if ( flags & FLAG_TIMEOUT )
             usbport::pstate->process_timeout();
-        }
     }
 
     // Should never reach this point.

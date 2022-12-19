@@ -6,6 +6,7 @@
 
 #include <atomic>               // for std::atomic<>
 #include "event_ext.hpp"        // for event_ext_t
+#include "features.hpp"         // for RGB_GCR_CHANGE_PERIOD_MS, ...
 
 
 
@@ -61,13 +62,11 @@ private:
     std::atomic<uint16_t> m_result = 0u;
 
     // Signal to adc_thread that result is ready.
-    virtual void _isr_signal_report() const =0;
+    virtual void _isr_signal_report() =0;
 
-    const uint32_t MEASURE_PERIOD_MS = _MEASURE_PERIODS[line];
-    static constexpr uint32_t _MEASURE_PERIODS[] = {
-        11,   // measure v_5v at every 11 ms
-        5, 5  // measure v_con1/con2 at every 5 ms
-    };
+    // Measure v_5v at every 16 ms and v_con1/con2 at every 5 ms.
+    const uint32_t MEASURE_PERIOD_MS = (line == ADC_LINE_5V)
+        ? RGB_GCR_CHANGE_PERIOD_MS : EXTRA_PORT_MEASURING_PERIOD_MS;
 
     ztimer_t m_schedule_timer = {
         .base = {},
@@ -87,21 +86,21 @@ private:
 
 
 
+enum v_5v_level: int8_t {
+    V_5V_PANIC      = -1,
+    V_5V_UNSTABLE   = 0,
+    V_5V_LOW        = 1,
+    V_5V_STABLE     = V_5V_LOW,
+    V_5V_MID        = 2,
+    V_5V_HIGH       = 3
+};
+
 class adc_input_v_5v: public adc_input {
 public:
-    adc_input_v_5v& sync_measure() { adc_input::sync_measure(); return *this; }
-
-    enum v_5v_level: int8_t {
-        V_5V_PANIC      = -1,
-        V_5V_UNSTABLE   = 0,
-        V_5V_LOW        = 1,
-        V_5V_STABLE     = V_5V_LOW,
-        V_5V_MID        = 2,
-        V_5V_HIGH       = 3
-    };
+    adc_input_v_5v& sync_measure();
 
     // Read the result in level.
-    v_5v_level level() const;
+    v_5v_level level() const { return m_level; }
 
     // Wait (indefinitely) until v_5v stays above ADC_5V_START_LEVEL for around 5 ms,
     // blocking the calling thread. It can cause a watchdog reset if it waits too long.
@@ -112,7 +111,12 @@ private:
     friend class adc_input;
     adc_input_v_5v(): adc_input(ADC_LINE_5V) {}
 
-    void _isr_signal_report() const;
+    // m_level is updated according to m_result on sync_measure() and async_measure().
+    v_5v_level m_level = V_5V_UNSTABLE;
+
+    void update_level();
+
+    void _isr_signal_report();
 };
 
 
@@ -131,7 +135,7 @@ private:
     friend class adc_input;
     using adc_input::adc_input;
 
-    void _isr_signal_report() const;
+    void _isr_signal_report();
 
     const uint16_t NOMINAL_LEVEL =
         line == ADC_LINE_CON1 ? ADC_CON1_NOMINAL : ADC_CON2_NOMINAL;

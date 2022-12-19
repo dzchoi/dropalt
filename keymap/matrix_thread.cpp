@@ -18,7 +18,7 @@ matrix_thread::matrix_thread()
     __builtin_memset(matrix, 0, sizeof(matrix));
     __builtin_memset(raw_matrix, 0, sizeof(raw_matrix));
 
-    m_pthread = thread_get( thread_create(
+    m_pthread = thread_get_unchecked( thread_create(
         m_stack, sizeof(m_stack),
         THREAD_PRIO_MATRIX,
         THREAD_CREATE_STACKTEST,

@@ -102,7 +102,7 @@ public:
     }
 
     // Once the extra port is disabled due to panic it remains disabled until the extra
-    // device is plugged out, the USB is suspended, or the extra port is enabled manually
+    // device is plugged out, USB is suspended, or the extra port is enabled manually
     // (though it may result in the panic disabling again).
     void set_panic_disabled() { m_panic_disabled = true; }
 
@@ -143,6 +143,5 @@ private:
 
     bool m_enabled_manually = false;
 
-    static constexpr uint32_t GRACE_TIME_TO_CUT_EXTRA_MS = 1000;
     ztimer_t extra_cutting_timer = {};
 };

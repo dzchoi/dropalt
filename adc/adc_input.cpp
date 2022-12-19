@@ -7,6 +7,7 @@
 
 #include "adc_input.hpp"
 #include "adc_thread.hpp"       // for signal_report_5v/extra() and signal_event()
+#include "rgb_thread.hpp"       // for signal_report_5v()
 
 
 
@@ -52,12 +53,14 @@ void adc_input::sync_measure()
     mutex_unlock(&m_mutex);
 }
 
-void adc_input_v_5v::_isr_signal_report() const
+void adc_input_v_5v::_isr_signal_report()
 {
+    update_level();
+    rgb_thread::obj().signal_report_5v();
     adc_thread::obj().signal_report_5v();
 }
 
-void adc_input_v_con::_isr_signal_report() const
+void adc_input_v_con::_isr_signal_report()
 {
     adc_thread::obj().signal_report_extra();
 }
@@ -77,15 +80,27 @@ void adc_input::_hdlr_periodic_measure(event_t* event)
     that->async_measure();
 }
 
-adc_input_v_5v::v_5v_level adc_input_v_5v::level() const
+adc_input_v_5v& adc_input_v_5v::sync_measure()
+{
+    adc_input::sync_measure();
+    update_level();
+    return *this;
+}
+
+void adc_input_v_5v::update_level()
 {
     const uint16_t result = read();
 
-    if ( result >= ADC_5V_HIGH ) return V_5V_HIGH;
-    if ( result >= ADC_5V_LOW ) return V_5V_MID;
-    if ( result >= ADC_5V_START_LEVEL ) return V_5V_LOW;
-    if ( result >= ADC_5V_PANIC ) return V_5V_UNSTABLE;
-    return V_5V_PANIC;
+    if ( result >= ADC_5V_HIGH )
+        m_level = V_5V_HIGH;
+    else if ( result >= ADC_5V_LOW )
+        m_level = V_5V_MID;
+    else if ( result >= ADC_5V_START_LEVEL )
+        m_level = V_5V_LOW;
+    else if ( result >= ADC_5V_PANIC )
+        m_level = V_5V_UNSTABLE;
+    else
+        m_level = V_5V_PANIC;
 }
 
 void adc_input_v_5v::wait_for_stable_5v()

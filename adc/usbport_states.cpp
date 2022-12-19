@@ -4,8 +4,8 @@
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
 
-#include "adc_input.hpp"        // for v_5v, v_con1 and v_con2
-#include "features.hpp"         // for DEBUG_LED_BLINK_PERIOD_MS
+#include "adc_input.hpp"        // for v_5v, v_con1/con2, ...
+#include "features.hpp"         // for DEBUG_LED_BLINK_PERIOD_MS, ...
 #include "usbport_states.hpp"
 
 
@@ -177,14 +177,15 @@ void state_extra_enabled::process_extra_back_to_automatic()
 
 void state_extra_enabled::process_v_5v_level()
 {
-    // Todo: GCR adjusting should do its best while running the timer.
-    if ( adc_input::v_5v.level() < adc_input_v_5v::V_5V_STABLE ) {
-        if ( !ztimer_is_set(ZTIMER_MSEC, &extra_cutting_timer) )
+    if ( ztimer_is_set(ZTIMER_MSEC, &extra_cutting_timer) ) {
+        if ( adc_input::v_5v.level() >= V_5V_STABLE )
+            ztimer_remove(ZTIMER_MSEC, &extra_cutting_timer);
+    }
+    else {
+        if ( adc_input::v_5v.level() < V_5V_STABLE )
             ztimer_set_timeout_flag(ZTIMER_MSEC,
                 &extra_cutting_timer, GRACE_TIME_TO_CUT_EXTRA_MS);
     }
-    else
-        ztimer_remove(ZTIMER_MSEC, &extra_cutting_timer);
 }
 
 void state_extra_enabled::process_timeout()

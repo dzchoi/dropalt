@@ -21,11 +21,11 @@ int main()
 {
     // Create all threads in the order of dependency.
     (void)main_thread::obj();
-    (void)adc_thread::obj();
     (void)rgb_thread::obj();
+    (void)adc_thread::obj();
     (void)usb_thread::obj();
-    (void)matrix_thread::obj();
     (void)keymap_thread::obj();
+    (void)matrix_thread::obj();
 
     if constexpr ( RGB_LED_ENABLE ) {
         // https://stackoverflow.com/questions/21737613/image-of-hsv-color-wheel-for-opencv

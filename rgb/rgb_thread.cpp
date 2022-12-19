@@ -2,14 +2,16 @@
 #include "is31fl3733.h"
 #include "led_conf.hpp"         // for is31_leds[]
 #include "msg.h"                // for msg_init_queue(), msg_try_receive(), msg_send()
+#include "thread_flags.h"       // for thread_flags_wait_any(), thread_flags_set(), ...
 #include "ztimer.h"             // for ztimer_set() and ztimer_now()
 
 #define ENABLE_DEBUG    (1)
 #include "debug.h"
 
+#include "adc_input.hpp"        // for v_5v and V_5V_MID
 #include "color.hpp"            // for CIE1931_CURVE[]
 #include "effects.hpp"
-#include "features.hpp"         // for RGB_DISABLE_WHEN_USB_SUSPENDS, ...
+#include "features.hpp"         // for RGB_DISABLE_WHEN_USB_SUSPENDS
 #include "rgb_thread.hpp"
 
 
@@ -36,11 +38,8 @@ void* rgb_thread_tl<true>::_rgb_thread(void* arg)
 
     is31_switch_all_leds_on_off(true);
 
-    // Release the Software Shutdown (SSD) now if RGB_DISABLE_WHEN_USB_SUSPENDS is false,
-    // so LEDs start working now. Otherwise, they will start later when USB is resumed
-    // (FLAG_USB_RESUME).
     if constexpr ( !RGB_DISABLE_WHEN_USB_SUSPENDS )
-        that->m_gcr.set(RGB_LED_GCR_MAX);
+        that->m_gcr.enable();
 
     msg_t msg;
     while ( true ) {
@@ -49,21 +48,21 @@ void* rgb_thread_tl<true>::_rgb_thread(void* arg)
             FLAG_KEY_EVENT
             | FLAG_USB_SUSPEND
             | FLAG_USB_RESUME
-            | FLAG_CHANGE_GCR
+            | FLAG_ADJUST_GCR
             | FLAG_SET_EFFECT
             | FLAG_TIMEOUT
             );
 
         if constexpr ( RGB_DISABLE_WHEN_USB_SUSPENDS ) {
             if ( flags & FLAG_USB_SUSPEND )
-                that->m_gcr.clear();
+                that->m_gcr.disable();
 
             if ( flags & FLAG_USB_RESUME )
-                that->m_gcr.set(RGB_LED_GCR_MAX);
+                that->m_gcr.enable();
         }
 
-        if ( flags & FLAG_CHANGE_GCR )
-            that->m_gcr.change();
+        if ( flags & FLAG_ADJUST_GCR )
+            that->m_gcr.adjust();
 
         if ( flags & FLAG_SET_EFFECT )
             that->initialize_effect();
@@ -79,29 +78,29 @@ void* rgb_thread_tl<true>::_rgb_thread(void* arg)
     return nullptr;
 }
 
-void rgb_thread_tl<true>::gcr_t::clear()
+void rgb_thread_tl<true>::signal_report_5v()
 {
+    if ( m_gcr.is_enabled() )
+        if ( (adc_input::v_5v.level() > V_5V_MID && m_gcr.raise())
+          || (adc_input::v_5v.level() < V_5V_MID && m_gcr.lower()) )
+            thread_flags_set(m_pthread, FLAG_ADJUST_GCR);
+}
+
+void rgb_thread_tl<true>::gcr_t::disable()
+{
+    m_enabled = false;
     is31_set_gcr(m_current_gcr = m_desired_gcr = 0);
     is31_switch_unlock_ssd(false);
 }
 
-void rgb_thread_tl<true>::gcr_t::set(uint8_t gcr)
-{
-    m_desired_gcr = gcr;
-    thread_flags_set(obj().m_pthread, FLAG_CHANGE_GCR);
-}
-
-void rgb_thread_tl<true>::gcr_t::change()
+void rgb_thread_tl<true>::gcr_t::adjust()
 {
     if ( m_current_gcr != m_desired_gcr ) {
         if ( m_current_gcr == 0 )
             is31_switch_unlock_ssd(true);
-        is31_set_gcr(m_desired_gcr > m_current_gcr ? ++m_current_gcr : --m_current_gcr);
+        is31_set_gcr(m_current_gcr = m_desired_gcr);
         if ( m_current_gcr == 0 )
             is31_switch_unlock_ssd(false);
-
-        if ( m_current_gcr != m_desired_gcr )
-            ztimer_set(ZTIMER_MSEC, &m_timer, RGB_GCR_CHANGE_PERIOD_MS);
     }
 }
 
