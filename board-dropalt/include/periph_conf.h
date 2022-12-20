@@ -209,12 +209,17 @@ static const i2c_conf_t i2c_config[] = {
         .gclk_src = SAM0_GCLK_PERIPH,
         .flags    = I2C_FLAG_RUN_STANDBY,
 #ifdef MODULE_PERIPH_DMA
-        // Todo???: Use of .tx_trigger = SERCOM0_DMAC_ID_TX for I2C DMA transfer may
-        //  cause a crash since the current implementation of i2c_write_bytes() for
-        //  MODULE_PERIPH_DMA does not handle transmit errors. When keyboard is powered
-        //  up by plugging into the host USB port there seems to be a short period that
-        //  5V is on but the i2c transmission to HUB fails because HUB does not respond
-        //  (due to unstable voltage?).
+        // Todo: Use of .tx_trigger = SERCOM0_DMAC_ID_TX for I2C DMA transfer may cause
+        //  an indefinite wait since the current implementation of i2c_write_bytes() for
+        //  MODULE_PERIPH_DMA (actually, dma_wait() in riot/cpu/sam0_common/periph/dma.c)
+        //  does not handle transfer errors. When keyboard is powered up by plugging into
+        //  the host USB port the i2c transfer to USB2422 fails sometimes even though
+        //  v_5v is stable. (This can also happen with non-DMA transfer but it handles
+        //  transfer failures.)
+        //  This could be fixed by dma_wait() doing timed-wait or by isr_dmac() handling
+        //  DMAC_INTPEND_TERR, but using non-DMA is not so bad considering that this I2C
+        //  transfer is performed only once at power up and it adds ~30 ms to the time
+        //  when using DMA transfer.
         .tx_trigger = DMA_TRIGGER_DISABLED,
         .rx_trigger = DMA_TRIGGER_DISABLED,
 #endif

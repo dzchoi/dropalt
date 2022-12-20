@@ -85,6 +85,7 @@ static inline void _usbhub_reset(void)
     ztimer_sleep(ZTIMER_USEC, 2);  // t1 for a minimum of 1 us (from table 4-2, USB2422 datasheet)
 
     sr_exp_writedata(SR_CTRL_HUB_RESET_N, 0);  // reset high to run
+    ztimer_sleep(ZTIMER_USEC, 10);
 }
 
 // Load HUB configuration data to USB2422.
@@ -92,25 +93,30 @@ static inline void _usbhub_reset(void)
 bool usbhub_configure(void)
 {
     _usbhub_reset();
-    ztimer_sleep(ZTIMER_USEC, 10);
 
+    const uint8_t* const src_begin = (const uint8_t*)&usb2422_cfg;
+    const size_t src_size = sizeof(usb2422_cfg);
+    const uint8_t* const src_end = src_begin + src_size;
+
+    // A block write into USB2422 allows a transfer maximum of 32 data bytes.
+    int chunk_size = 32;
     bool status = true;
-    const size_t data_size = sizeof(Usb2422);
-    const size_t chunk_size = 32;
-    assert( data_size % chunk_size == 0 );  // Todo: assert() from RIOT?
 
     uint8_t buffer[2] = {
         0,          // start register number
         chunk_size  // size of the following data
     };
 
-    const uint8_t* const base = (const uint8_t*)&usb2422_cfg;
-    for ( const uint8_t* src = base ; status && src < &base[data_size] ; src += chunk_size ) {
-        i2c_acquire(I2C_DEV(0));
+    const i2c_t I2C = I2C_DEV(0);
+    for ( const uint8_t* p = src_begin ; status && p < src_end ; p += chunk_size ) {
+        if ( chunk_size > src_end - p )
+            chunk_size = src_end - p;
+
+        i2c_acquire(I2C);
         status =
-            i2c_write_bytes(I2C_DEV(0), USB2422_ADDR, buffer, 2, I2C_NOSTOP) == 0 &&
-            i2c_write_bytes(I2C_DEV(0), USB2422_ADDR, src, chunk_size, I2C_NOSTART) == 0;
-        i2c_release(I2C_DEV(0));
+            i2c_write_bytes(I2C, USB2422_ADDR, buffer, 2, I2C_NOSTOP) == 0 &&
+            i2c_write_bytes(I2C, USB2422_ADDR, p, chunk_size, I2C_NOSTART) == 0;
+        i2c_release(I2C);
         buffer[0] += chunk_size;
     }
 
@@ -130,9 +136,9 @@ void usbhub_init(void)
     // Prepare the HUB configuration data
     retrieve_factory_serial();
 
-    // When the keyboard is powered up by manually plugging in to a host port instead of
-    // powering up the host with the keyboard already connected, usbhub_configure() can
-    // fail sometimes. HUB seems unresponsive to the configuration data sent over I2C.
+    // When keyboard is powered up by manually plugging into the host USB port
+    // usbhub_configure() fails sometimes due to the failure with transferring the
+    // configuration data over I2C (noise in SMBUS line?).
     while ( !usbhub_configure() )
         ztimer_sleep(ZTIMER_MSEC, 1);
 }
