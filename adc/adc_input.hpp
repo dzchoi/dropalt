@@ -128,6 +128,9 @@ public:
     // To be used only on the port which has SR_CTRL_SRC_x disabled (i.e. v_extra).
     bool is_device_connected() const;
 
+    // This can be used when the port has SR_CTRL_SRC_x either enabled or disabled.
+    // (However, some old version of PCB seems not working when SR_CTRL_SRC_x is enabled.
+    // So, it would be safer to have SR_CTRL_SRC_x disabled.)
     bool is_host_connected() const;
 
 private:

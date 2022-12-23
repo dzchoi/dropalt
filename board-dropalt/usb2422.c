@@ -151,11 +151,10 @@ void usbhub_init(void)
 void usbhub_disable_all_ports(void)
 {
     sr_exp_writedata(
-        SR_CTRL_SRC_1               // USBC-1 available for test
-        | SR_CTRL_SRC_2             // USBC-2 available for test
-        | SR_CTRL_E_UP_N            // HOST disable
+        SR_CTRL_E_UP_N              // HOST disable
         | SR_CTRL_E_DN1_N           // EXTRA disable
-        , 0
+        , SR_CTRL_SRC_1
+        | SR_CTRL_SRC_2
     );
     ztimer_sleep(ZTIMER_USEC, 10);
 }

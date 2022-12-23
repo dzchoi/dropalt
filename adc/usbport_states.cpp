@@ -83,6 +83,20 @@ void state_usb_suspended::determine_host()
 
             if ( desired_port != USB_PORT_UNKNOWN )
                 break;
+
+            // For safety purposes if desired_port is unknown for 1 second (= blink timer
+            // period) it is determined by POWER_UP_CHECK_PORT1_FIRST. Then users can
+            // perform switchover manually as necessary.
+            // Todo: Modify the algorithm to decide either port 1 or port 2 first. Then
+            //  decide the other port according to the measurements. Consider also the
+            //  worst case that the desired port remains unknown.
+            if ( !ztimer_is_set(ZTIMER_MSEC, &blink_timer) ) {
+                desired_port =
+                    POWER_UP_CHECK_PORT1_FIRST ? USB_PORT_1 : USB_PORT_2;
+                DEBUG("ADC: host port @%d determined by default\n", desired_port);
+                break;
+            }
+
             ztimer_sleep(ZTIMER_MSEC, 10);  // So, each iteration will take 12 ms.
         }
 
