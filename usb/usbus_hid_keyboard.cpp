@@ -148,7 +148,7 @@ void usbus_hid_keyboard_t::on_transfer_complete()
 {
     DEBUG("Keyboard: --------\n");
     if ( m_report_updated > 1 ) {
-        DEBUG("Keyboard:\e[0;34m register deferred events\e[0m\n");
+        DEBUG("Keyboard: register deferred events\n");
         // This needs fixing Riot's _usbus_thread() to handle multiple events on event
         // queue, as submit() triggers an event while handling another event.
         submit();

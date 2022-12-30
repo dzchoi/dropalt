@@ -1,10 +1,8 @@
 #pragma once
 
-#include "matrix.h"
-#include "thread.h"
-#include "ztimer.h"             // for ztimer_t and ztimer_now()
-
-#include "features.hpp"         // for DEBOUNCE_TIME_MS
+#include "thread.h"             // for thread_t
+#include "thread_flags.h"       // for THREAD_FLAG_TIMEOUT
+#include "ztimer.h"             // for ztimer_t
 
 
 
@@ -26,35 +24,30 @@ private:
 
     matrix_thread();  // Can be called only by obj().
 
-    // matrix state (1:on, 0:off)
-    matrix_row_t raw_matrix[MATRIX_ROWS];  // raw values
-    matrix_row_t matrix[MATRIX_ROWS];      // cooked values after debounce
-
     // thread body
     static void* _matrix_thread(void* arg);
 
-    // Symmetric, deferred and global debouncing algorithm
-    //  - Symmetric: same debounce time for both key-press and release
-    //  - Deferred: wait for debounce time before reporting change
-    //  - Global: one timer for all keys. Any key change state affects the global timer.
-    //  - Timer-based scan while any key pressing, then goes interrupt-based when idle.
+    // Asymmetric, Interrupt/Timer-based, and Per-key debouncing algorithm
+    //  - Asymmetric: eager presses but deferred releases (Deferred - wait for debounce
+    //    time before reporting change)
+    //  - Timer-based scan while any key is being pressed, then interrupt-based when all
+    //    keys are released.
+    //  - Per-key: one timer per key (when releasing).
 
-    void detect_change(bool first_scan);
-    bool commit_change();
+    // Implement the eager debouncing algorithm, returning the decision of whether the
+    // key at (row, col) is being pressed.
+    static bool _debouncer(unsigned row, unsigned col, bool is_pressed);
+
+    void perform_scan();
 
     static void _isr_detect_any_key_down(void* arg);
 
-    ztimer_t scan_timer = {};
-    uint32_t debounce_started;  // no need to initialize.
+    ztimer_t m_scan_timer = {};
 
-    bool is_debounce_done() const {
-        return debounce_started
-            && (ztimer_now(ZTIMER_MSEC) - debounce_started) >= DEBOUNCE_TIME_MS;
-    }
+    bool m_first_scan;  // no need to initialize.
 
     enum {
-        FLAG_EVENT              = 0x0001,  // == THREAD_FLAG_EVENT from event.h
-        FLAG_START_SCAN         = 0x0002,
-        FLAG_CONTINUE_SCAN      = THREAD_FLAG_TIMEOUT  // (1u << 14)
+        FLAG_EVENT              = 0x0001,  // not used
+        FLAG_SCAN               = THREAD_FLAG_TIMEOUT  // (1u << 14)
     };
 };

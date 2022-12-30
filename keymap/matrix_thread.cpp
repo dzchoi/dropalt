@@ -1,23 +1,21 @@
 #include "board.h"              // for THREAD_PRIO_MATRIX
+#include "matrix.h"             // for matrix_init(), matrix_scan(), ...
+#include "thread_flags.h"       // for thread_flags_t, thread_flags_set(), ...
 #include "ztimer.h"             // for ztimer_now() and ztimer_set_timeout_flag()
 
-#define ENABLE_DEBUG 0
+#define ENABLE_DEBUG 1
 #include "debug.h"
 
-#include "features.hpp"         // for MATRIX_SCAN_PERIOD_MS
+#include "features.hpp"         // for DEBOUNCE_TIME_MS and MATRIX_SCAN_PERIOD_MS
 #include "keymap_thread.hpp"    // for signal_key_event()
+#include "manager.hpp"          // for pressing_slot_t::m_when_release_started
 #include "matrix_thread.hpp"
 #include "pmap.hpp"             // for key::maps[][]
-#include "rgb_thread.hpp"       // for signal_key_event()
 
 
 
 matrix_thread::matrix_thread()
 {
-    // Initialize matrix state: all keys off
-    __builtin_memset(matrix, 0, sizeof(matrix));
-    __builtin_memset(raw_matrix, 0, sizeof(raw_matrix));
-
     m_pthread = thread_get_unchecked( thread_create(
         m_stack, sizeof(m_stack),
         THREAD_PRIO_MATRIX,
@@ -25,7 +23,7 @@ matrix_thread::matrix_thread()
         _matrix_thread, this, "matrix_thread") );
 
     // Initialize matrix gpio pins and start ISR for detecting GPIO_RISING.
-    matrix_init(&_isr_detect_any_key_down, this);
+    matrix_init(&_debouncer, &_isr_detect_any_key_down, this);
 }
 
 void* matrix_thread::_matrix_thread(void* arg)
@@ -34,91 +32,82 @@ void* matrix_thread::_matrix_thread(void* arg)
 
     while ( true ) {
         // Zzz
-        thread_flags_t flags = thread_flags_wait_any(
-            FLAG_EVENT
-            | FLAG_START_SCAN
-            | FLAG_CONTINUE_SCAN
-            );
-
-        if ( flags & FLAG_START_SCAN )
-            that->detect_change(true);
-
-        if ( flags & FLAG_CONTINUE_SCAN )
-            that->detect_change(false);
+        if ( thread_flags_wait_any(FLAG_SCAN) )
+            that->perform_scan();
     }
 
     return nullptr;
 }
 
-void matrix_thread::detect_change(bool first_scan)
+bool matrix_thread::_debouncer(unsigned row, unsigned col, bool is_pressed)
 {
-    // Note that the first scan following the interrupt is not reliable as there tends to
-    // be a lot of bounces. It depends on when the scan is performed, whether during a
-    // bounce or not.
-    const bool is_changed = matrix_scan(raw_matrix) || first_scan;
-    bool continue_scan = true;
+    key::pmap_t& pmap = key::maps[row][col];
 
-    if ( is_changed ) {
-        // Very rare but it is possible to have debounce_started = 0 from ztimer_now()
-        // even though we meant to start debounce. Even so, it is not a problem at all,
-        // being regarded as missing one true change, which happens quite often during
-        // scans.
-        debounce_started = ztimer_now(ZTIMER_MSEC);
-        DEBUG("Matrix: changed\t\t%x %x %x %x %x\n",
-            raw_matrix[0], raw_matrix[1], raw_matrix[2], raw_matrix[3], raw_matrix[4]);
+    if ( pmap.get_pressing_slot() == nullptr ) {
+        if ( is_pressed ) {
+            // Note that pressing slots may not be created (or removed) immediately after
+            // signaling the press (or release) event to keymap_thread. And, we can
+            // possibly signal the same event twice (especially for release, as the
+            // pressing slot gets removed at the end, not start, of processing the
+            // release event), but such duplicate events will be taken care of by
+            // keymap_thread (See manager_t::handle_press/release()).
+            DEBUG("Matrix: press (%p)\n", &pmap);
+            keymap_thread::obj().signal_key_event(&pmap, true);
+        }
+        return is_pressed;
     }
 
-    else if ( is_debounce_done() ) {
-        continue_scan = commit_change();
-        debounce_started = 0;
-    }
+    uint32_t& release_started = pmap.get_pressing_slot()->m_when_release_started;
 
-    if ( continue_scan )
-        ztimer_set_timeout_flag(ZTIMER_MSEC, &scan_timer, MATRIX_SCAN_PERIOD_MS);
-}
-
-bool matrix_thread::commit_change()
-{
-    // Update matrix[] and report any changes from the last report.
-    matrix_row_t is_any_down = 0;
-    bool is_changed = false;
-    for ( unsigned row = 0 ; row < MATRIX_ROWS ; row++ ) {
-        is_any_down |= raw_matrix[row];
-        if ( matrix_row_t _xor = matrix[row] ^ raw_matrix[row] ) {
-            do {
-                const unsigned col = __builtin_ctz(_xor);
-                const matrix_row_t mask = matrix_row_t(1) << col;
-                const bool is_pressed = ((raw_matrix[row] & mask) != 0);
-                DEBUG("Matrix: report %s\n", is_pressed ? "press" : "release");
-                key::pmap_t& pmap = key::maps[row][col];
-                rgb_thread::obj().signal_key_event(pmap.led_id(), is_pressed);
-                keymap_thread::obj().signal_key_event(&pmap, is_pressed);
-                _xor &= ~mask;
-            } while ( _xor != 0 );
-            matrix[row] = raw_matrix[row];
-            is_changed = true;
+    if ( is_pressed ) {
+        if ( release_started ) {
+            DEBUG("Matrix:\e[0;34m press debounced (%p)\e[0m\n", &pmap);
+            release_started = 0;
         }
     }
 
-    if ( !is_changed ) {
-        // If !is_changed, we stay awake because we know that something was changing to
-        // initiate the debouncing process, but not yet detected until the debouncing
-        // is done. Wait for it further.
-        DEBUG("Matrix:\e[0;31m --- no report\e[0m\n");
-        return true;
+    else if ( !release_started ) {
+        // Very rare but it is possible to still have release_started = 0 from
+        // ztimer_now() even though we meant to start releasing. Even so, it is not a
+        // problem at all; we only missed the very first scan of the release and count it
+        // as being still pressed, which happens quite often due to the nature of
+        // bouncing switches.
+        release_started = ztimer_now(ZTIMER_MSEC);
     }
 
-    if ( is_any_down ) {
-        DEBUG("Matrix: still pressed\t\t%x %x %x %x %x\n",
-            raw_matrix[0], raw_matrix[1], raw_matrix[2], raw_matrix[3], raw_matrix[4]);
-        return true;
+    else if ( ztimer_now(ZTIMER_MSEC) - release_started >= DEBOUNCE_TIME_MS ) {
+        DEBUG("Matrix: release (%p)\n", &pmap);
+        keymap_thread::obj().signal_key_event(&pmap, false);
+        return false;
     }
 
-    // When the matrix has been changed and all keys are up, we go back to sleep, setting
-    // up the interrupt to take over the following detection.
-    matrix_enable_interrupts();
-    DEBUG("Matrix: --- done\n");
-    return false;  // to stop scan.
+    return true;
+}
+
+void matrix_thread::perform_scan()
+{
+    const bool any_pressed = matrix_scan();
+
+    if ( any_pressed ) {
+        m_first_scan = false;
+        ztimer_set_timeout_flag(ZTIMER_MSEC, &m_scan_timer, MATRIX_SCAN_PERIOD_MS);
+    }
+
+    // Stay in first_scan until press is detected, scanning with reduced scan period.
+    // (This is because the first scan following the interrupt is not reliable as there
+    // tends to be a lot of bounces, depending on when the scan is performed, whether
+    // during a bounce or not.)
+    else if ( m_first_scan ) {
+        ztimer_set_timeout_flag(
+            ZTIMER_USEC, &m_scan_timer, MATRIX_SCAN_PERIOD_MS * US_PER_MS / 4);
+    }
+
+    // When all keys are released we go back to sleep, setting up the interrupt to take
+    // over the following detection.
+    else {
+        matrix_enable_interrupts();
+        DEBUG("Matrix: ---- sleep\n");
+    }
 }
 
 void matrix_thread::_isr_detect_any_key_down(void* arg)
@@ -126,5 +115,6 @@ void matrix_thread::_isr_detect_any_key_down(void* arg)
     // Prepare to wake up for the first scan.
     matrix_disable_interrupts();
     matrix_thread* const that = static_cast<matrix_thread*>(arg);
-    thread_flags_set(that->m_pthread, FLAG_START_SCAN);
+    that->m_first_scan = true;
+    thread_flags_set(that->m_pthread, FLAG_SCAN);
 }

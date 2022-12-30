@@ -87,6 +87,9 @@ void* keymap_thread::_keymap_thread(void* arg)
         // Complete any deferred key presses if we are no longer deferring. Note that in
         // the meanwhile presses can be deferred again.
         manager.complete_if_not_deferring();
+
+        if ( !manager.is_any_pressing() )
+            DEBUG("Keymap: ---- all handled\n");
     }
 
     return nullptr;

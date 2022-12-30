@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vector>               // for std::vector<>
-#include "pmap.hpp"             // for pmap_t::m_pressing_slot
+#include "pmap.hpp"             // for get/set_pressing_slot()
 #include "usb_descriptor.hpp"   // for SKRO_KEYS_SIZE
 
 
@@ -12,29 +12,33 @@ class observer_t;
 
 
 
-struct pressing_slot {
+struct pressing_slot_t {
     pmap_t* m_slot;
+    uint32_t m_when_release_started;
 
-    pressing_slot(pmap_t* slot): m_slot(slot) {
-        m_slot->m_pressing_slot = this;
+    pressing_slot_t(pmap_t* slot)
+    : m_slot(slot), m_when_release_started(0) {
+        m_slot->set_pressing_slot(this);
     }
 
     // This move constructor will deal with the reallocation of the pressing vector,
     // m_pressing_list.
-    pressing_slot(pressing_slot&& other): m_slot(other.m_slot) {
-        m_slot->m_pressing_slot = this;
+    pressing_slot_t(pressing_slot_t&& other)
+    : m_slot(other.m_slot), m_when_release_started(0) {
+        m_slot->set_pressing_slot(this);
     }
 
-    // Note that we do not do `m_slot->m_pressing_slot = nullptr` in the destructor, which
+    // Note that we do not do `m_slot->set_pressing_slot(nullptr)` in destructor, which
     // will affect the moved object when its old object is deleted after the move.
 
     // This move assignment operator will handle the removal of middle element in the
     // vector.
-    pressing_slot& operator=(pressing_slot&& other) {
+    pressing_slot_t& operator=(pressing_slot_t&& other) {
         // printf("---\e[0;34m move_slot: index=%lu->%lu, deferred=%lu\e[0m\n",
         //     manager.index(&other), manager.index(this), m_index_deferred);
         m_slot = other.m_slot;
-        m_slot->m_pressing_slot = this;
+        m_when_release_started = other.m_when_release_started;
+        m_slot->set_pressing_slot(this);
         return *this;
     }
 };
@@ -99,7 +103,7 @@ public:
     bool unenroll_observer(observer_t* observer);
 
 private:
-    std::vector<pressing_slot> m_pressing_list;
+    std::vector<pressing_slot_t> m_pressing_list;
 
     // The start index of deferred presses in the pressing list (We use indexes instead
     // of pointers to deal with the possible reallocation of the vector.)
@@ -111,7 +115,7 @@ private:
     observer_t* m_observers = nullptr;
 
     // Helper method to return the index of pslot in the pressing list.
-    size_t index(const pressing_slot* pslot) const {
+    size_t index(const pressing_slot_t* pslot) const {
         assert( pslot >= &m_pressing_list[0] );
         return pslot - &m_pressing_list[0];
     }
@@ -124,7 +128,8 @@ private:
 
     // Indicate if press is deferred on the given slot.
     bool is_deferred(pmap_t* slot) const {
-        return slot->m_pressing_slot && index(slot->m_pressing_slot) >= m_index_deferred;
+        return slot->get_pressing_slot()
+            && index(slot->get_pressing_slot()) >= m_index_deferred;
     }
 
     // Walk through the deferred presses in the pressing list, and carry out them now,

@@ -9,7 +9,7 @@ namespace key {
 
 class map_t;
 class pmap_t;
-class pressing_slot;
+class pressing_slot_t;
 
 
 
@@ -36,12 +36,12 @@ public:
         return led_conf.led_id[n / MATRIX_COLS][n % MATRIX_COLS];
     }
 
-private:
-    friend class pressing_slot;
-    friend class manager_t;
+    pressing_slot_t* get_pressing_slot() const { return m_pressing_slot; }
+    void set_pressing_slot(pressing_slot_t* slot) { m_pressing_slot = slot; }
 
+private:
     map_t* const m_pmap;
-    pressing_slot* m_pressing_slot = nullptr;
+    pressing_slot_t* m_pressing_slot = nullptr;
 };
 
 }  // namespace key

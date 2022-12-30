@@ -5,6 +5,7 @@
 #include "map.hpp"
 #include "map_proxy.hpp"
 #include "observer.hpp"
+#include "rgb_thread.hpp"       // for signal_key_event()
 
 
 
@@ -39,6 +40,13 @@ void manager_t::notify_and_execute_press(pmap_t* slot)
 
 void manager_t::handle_press(pmap_t* slot)
 {
+    if ( slot->get_pressing_slot() != nullptr ) {
+        DEBUG("Keymap:\e[0;31m duplicate press event (%p)\e[0m\n", slot);
+        return;
+    }
+
+    rgb_thread::obj().signal_key_event(slot->led_id(), true);
+
     add_pressing_slot(slot);
 
     if ( !is_deferring() ) {
@@ -78,6 +86,13 @@ void manager_t::notify_and_execute_release(pmap_t* slot)
 
 void manager_t::handle_release(pmap_t* slot)
 {
+    if ( slot->get_pressing_slot() == nullptr ) {
+        DEBUG("Keymap:\e[0;31m duplicate release event (%p)\e[0m\n", slot);
+        return;
+    }
+
+    rgb_thread::obj().signal_key_event(slot->led_id(), false);
+
     DEBUG("Keymap: handle release (%p)\n", slot);
     if ( is_deferred(slot) )
         complete_on_release(slot);
@@ -130,7 +145,7 @@ void manager_t::stop_defer()
 
 void manager_t::add_pressing_slot(pmap_t* slot)
 {
-    assert( slot->m_pressing_slot == nullptr );
+    assert( slot->get_pressing_slot() == nullptr );
     if ( !is_deferring() ) {
         // When we have a new press coming in we are either press-deferring or not. If
         // not deferring we should have completed all previously deferred presses (in
@@ -140,17 +155,17 @@ void manager_t::add_pressing_slot(pmap_t* slot)
     }
 
     m_pressing_list.emplace_back(slot);
-    // DEBUG("--- add_pressing_slot: index=%lu\n", index(slot->m_pressing_slot));
+    // DEBUG("--- add_pressing_slot: index=%lu\n", index(slot->get_pressing_slot()));
 }
 
 void manager_t::remove_pressing_slot(pmap_t* slot)
 {
-    assert( slot->m_pressing_slot != nullptr );
-    const size_t idx = index(slot->m_pressing_slot);
+    assert( slot->get_pressing_slot() != nullptr );
+    const size_t idx = index(slot->get_pressing_slot());
     if ( m_index_deferred > idx )  // i.e. if !is_deferred(slot),
         m_index_deferred--;
 
-    slot->m_pressing_slot = nullptr;
+    slot->set_pressing_slot(nullptr);
     // DEBUG("--- remove_pressing_slot: index=%lu, deferred=%lu\n", idx, m_index_deferred);
     m_pressing_list.erase(m_pressing_list.begin() + idx);
 }
