@@ -16,13 +16,13 @@ class state_extra_enabled;
 // will be inherited by all child classes.
 class usbport {
 public:
-    inline static usbport* pstate = nullptr;
+    static inline usbport* pstate = nullptr;
 
     // Note that v_host is measured with SR_CTRL_SRC_x enabled while v_extra is measured
     // with SR_CTRL_SRC_y disabled, and v_extra is kept measuring periodically while
     // v_host is not and has to be measured explicitly.
-    inline static adc_input_v_con* v_host = nullptr;   // either v_con1 or v_con2
-    inline static adc_input_v_con* v_extra = nullptr;  // the opposite port of v_host
+    static inline adc_input_v_con* v_host = nullptr;   // either v_con1 or v_con2
+    static inline adc_input_v_con* v_extra = nullptr;  // the opposite port of v_host
 
     static void setup_state();  // Set up initial state.
 

@@ -22,7 +22,7 @@ enum sw_cs_to_register: uint8_t {
 };
 static_assert( SW_CS_TO_REGISTER_END == PWM_REGISTER_COUNT );
 
-constexpr is31_led_t is31_leds[] = {
+inline constexpr is31_led_t is31_leds[] = {
 // Note that the led_id matches LED number + 1 that is printed on the PCB.
     // led_id { driver,  g,  r,  b  },  // associated key
     // Todo: `driver` to be accompanied by attributes such as (CapsLock) indicator.
@@ -152,7 +152,7 @@ struct __attribute__((packed)) led_conf_t {
 
 constexpr uint8_t _NA = 0xFF;
 
-constexpr led_conf_t led_conf = { {
+inline constexpr led_conf_t led_conf = { {
     {  0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  12,  13,  14 },
     { 15,  16,  17,  18,  19,  20,  21,  22,  23,  24,  25,  26,  27,  28,  29 },
     { 30,  31,  32,  33,  34,  35,  36,  37,  38,  39,  40,  41, _NA,  42,  43 },
