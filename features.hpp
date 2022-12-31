@@ -46,11 +46,11 @@ constexpr uint32_t EXTRA_PORT_MEASURING_PERIOD_MS = 5;
 constexpr uint32_t GRACE_TIME_TO_CUT_EXTRA_MS = 1 *MS_PER_SEC;  // 1 second
 
 // Keyboard matrix scan rate (while operating in timer-based scan mode)
-constexpr uint32_t MATRIX_SCAN_PERIOD_MS = 1;  // or less than 1 ms (e.g. 887 us)?
+constexpr uint32_t MATRIX_SCAN_PERIOD_US = 997;  // very close to 1 ms.
 
 // Keys are registered only after this time period of no bounces.
 // If too short, it may double a register, but too long period may miss.
-constexpr uint32_t DEBOUNCE_TIME_MS = 4;
+constexpr uint32_t DEBOUNCE_TIME_MS = 5;
 
 // TAPPING_TERM_MS is the maximum time from press to release to be counted as a tap.
 constexpr uint32_t TAPPING_TERM_MS = 200;

@@ -6,7 +6,7 @@
 #define ENABLE_DEBUG 1
 #include "debug.h"
 
-#include "features.hpp"         // for DEBOUNCE_TIME_MS and MATRIX_SCAN_PERIOD_MS
+#include "features.hpp"         // for DEBOUNCE_TIME_MS and MATRIX_SCAN_PERIOD_US
 #include "keymap_thread.hpp"    // for signal_key_event()
 #include "manager.hpp"          // for pressing_slot_t::m_when_release_started
 #include "matrix_thread.hpp"
@@ -66,19 +66,29 @@ bool matrix_thread::_debouncer(unsigned row, unsigned col, bool is_pressed)
         }
     }
 
-    else if ( !release_started ) {
-        // Very rare but it is possible to still have release_started = 0 from
-        // ztimer_now() even though we meant to start releasing. Even so, it is not a
-        // problem at all; we only missed the very first scan of the release and count it
-        // as being still pressed, which happens quite often due to the nature of
-        // bouncing switches.
-        release_started = ztimer_now(ZTIMER_MSEC);
-    }
+    else {
+        const uint32_t now = ztimer_now(ZTIMER_MSEC);
 
-    else if ( ztimer_now(ZTIMER_MSEC) - release_started >= DEBOUNCE_TIME_MS ) {
-        DEBUG("Matrix: release (%p)\n", &pmap);
-        keymap_thread::obj().signal_key_event(&pmap, false);
-        return false;
+        if ( !release_started ) {
+            // Very rare but it is possible to still have release_started = 0 from
+            // ztimer_now() above even though we meant to start releasing. Even so, it is
+            // not a problem at all; we only missed the very first scan of the release and
+            // count it as being still pressed, which happens quite often due to the
+            // nature of bouncing switches.
+            release_started = now;
+        }
+
+        else if ( now - release_started >= DEBOUNCE_TIME_MS ) {
+            DEBUG("Matrix: release (%p)\n", &pmap);
+            // This reset of release_started helps to not send the same release event
+            // again to keymap_thread. The released key will be just regarded as being
+            // released now and will take another DEBOUNCE_TIME_MS before signaling the
+            // same release again, but it will likely soon disappear from the pressing
+            // list before ever doing so.
+            release_started = now;
+            keymap_thread::obj().signal_key_event(&pmap, false);
+            return false;
+        }
     }
 
     return true;
@@ -90,7 +100,7 @@ void matrix_thread::perform_scan()
 
     if ( any_pressed ) {
         m_first_scan = false;
-        ztimer_set_timeout_flag(ZTIMER_MSEC, &m_scan_timer, MATRIX_SCAN_PERIOD_MS);
+        ztimer_set_timeout_flag(ZTIMER_USEC, &m_scan_timer, MATRIX_SCAN_PERIOD_US);
     }
 
     // Stay in first_scan until press is detected, scanning with reduced scan period.
@@ -98,8 +108,7 @@ void matrix_thread::perform_scan()
     // tends to be a lot of bounces, depending on when the scan is performed, whether
     // during a bounce or not.)
     else if ( m_first_scan ) {
-        ztimer_set_timeout_flag(
-            ZTIMER_USEC, &m_scan_timer, MATRIX_SCAN_PERIOD_MS * US_PER_MS / 4);
+        ztimer_set_timeout_flag(ZTIMER_USEC, &m_scan_timer, MATRIX_SCAN_PERIOD_US / 4);
     }
 
     // When all keys are released we go back to sleep, setting up the interrupt to take
