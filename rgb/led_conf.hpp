@@ -5,7 +5,7 @@
 
 
 
-enum sw_cs_to_register: uint8_t {
+enum _sw_cs_to_register: uint8_t {
     A_1, A_2, A_3, A_4, A_5, A_6, A_7, A_8, A_9, A_10, A_11, A_12, A_13, A_14, A_15, A_16,
     B_1, B_2, B_3, B_4, B_5, B_6, B_7, B_8, B_9, B_10, B_11, B_12, B_13, B_14, B_15, B_16,
     C_1, C_2, C_3, C_4, C_5, C_6, C_7, C_8, C_9, C_10, C_11, C_12, C_13, C_14, C_15, C_16,
@@ -22,8 +22,8 @@ enum sw_cs_to_register: uint8_t {
 };
 static_assert( SW_CS_TO_REGISTER_END == PWM_REGISTER_COUNT );
 
-inline constexpr is31_led_t is31_leds[] = {
-// Note that the led_id matches LED number + 1 that is printed on the PCB.
+inline constexpr is31_led_t IS31_LEDS[] = {
+// Note that the led_id + 1 matches the LED number that is printed on the PCB.
     // led_id { driver,  g,  r,  b  },  // associated key
     // Todo: `driver` to be accompanied by attributes such as (CapsLock) indicator.
     /* 0  */  { 1, A_2,  B_2,  C_2  },  // Esc
@@ -134,31 +134,31 @@ inline constexpr is31_led_t is31_leds[] = {
     /* 104 */ { 1, J_10, K_10, L_10 },
 };
 
-constexpr size_t ALL_LED_COUNT = sizeof(is31_leds) / sizeof(is31_leds[0]);
+constexpr size_t ALL_LED_COUNT = sizeof(IS31_LEDS) / sizeof(IS31_LEDS[0]);
 constexpr size_t KEY_LED_COUNT = 67;
 constexpr size_t UNDERGLOW_COUNT = ALL_LED_COUNT - KEY_LED_COUNT;
 
 
 
-struct __attribute__((packed)) point_t {
+constexpr uint8_t NO_LED = 0xFF;
+constexpr uint8_t _NA = NO_LED;
+
+inline constexpr uint8_t LED_ID[MATRIX_ROWS * MATRIX_COLS] = {
+     0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  12,  13,  14,
+    15,  16,  17,  18,  19,  20,  21,  22,  23,  24,  25,  26,  27,  28,  29,
+    30,  31,  32,  33,  34,  35,  36,  37,  38,  39,  40,  41, _NA,  42,  43,
+    44, _NA,  45,  46,  47,  48,  49,  50,  51,  52,  53,  54,  55,  56,  57,
+    58,  59,  60, _NA, _NA, _NA,  61, _NA, _NA, _NA,  62,  63,  64,  65,  66
+};
+
+
+
+struct __attribute__((packed)) xy_t {
     uint8_t x;
     uint8_t y;
 };
 
-struct __attribute__((packed)) led_conf_t {
-    uint8_t led_id[MATRIX_ROWS][MATRIX_COLS];  // maps key matrix to is31_leds[]
-    point_t point[ALL_LED_COUNT];
-};
-
-constexpr uint8_t _NA = 0xFF;
-
-inline constexpr led_conf_t led_conf = { {
-    {  0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  12,  13,  14 },
-    { 15,  16,  17,  18,  19,  20,  21,  22,  23,  24,  25,  26,  27,  28,  29 },
-    { 30,  31,  32,  33,  34,  35,  36,  37,  38,  39,  40,  41, _NA,  42,  43 },
-    { 44, _NA,  45,  46,  47,  48,  49,  50,  51,  52,  53,  54,  55,  56,  57 },
-    { 58,  59,  60, _NA, _NA, _NA,  61, _NA, _NA, _NA,  62,  63,  64,  65,  66 }
-}, {
+inline constexpr xy_t LED_XY[ALL_LED_COUNT] = {
     // Key LEDs
     {8,56}, {22,56}, {35,56}, {49,56}, {63,56}, {77,56}, {91,56}, {105,56}, {118,56}, {132,56}, {146,56}, {160,56}, {174,56}, {195,56}, {215,56},
 
@@ -179,4 +179,4 @@ inline constexpr led_conf_t led_conf = { {
     {222,62}, {191,64}, {179,64}, {167,64}, {153,64}, {139,64}, {125,64}, {112,64}, {98,64}, {84,64}, {70,64}, {56,64}, {42,64}, {28,64}, {1,62},
     // leftmost column
     {0,50}, {0,38}, {0,25}, {0,13}
-} };
+};

@@ -262,6 +262,7 @@ void usbus_hid_keyboard_t::_hdlr_receive_data(
         hidx->m_keyboard_led_state = data[0];
 
     DEBUG("Keyboard: set keyboard_led_state=0x%x\n", hidx->m_keyboard_led_state);
+    rgb_thread::obj().signal_led_state();
 }
 
 void usbus_hid_keyboard_tl<NKRO>::set_protocol(uint8_t protocol)

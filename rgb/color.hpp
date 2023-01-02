@@ -15,6 +15,13 @@ struct hsv_t {
     static constexpr uint16_t COLORS = 0x600;
 };
 
+// https://stackoverflow.com/questions/21737613/image-of-hsv-color-wheel-for-opencv
+constexpr uint16_t ORANGE = 30 * hsv_t::COLORS / 360;
+constexpr uint16_t SPRING_GREEN = 90 * hsv_t::COLORS / 360;
+
+// White: hsv_t{ 0, 0, 255 }
+// Black: hsv_t{ 0, 0, 0 }
+
 
 
 struct rgb_t {

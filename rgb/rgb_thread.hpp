@@ -5,7 +5,8 @@
 #include "thread_flags.h"       // for thread_flags_set()
 #include "ztimer.h"             // for ztimer_t
 
-#include "features.hpp"         // for RGB_LED_ENABLE and RGB_LED_GCR_MAX
+#include "features.hpp"         // for RGB_LED_ENABLE, RGB_LED_GCR_MAX, ...
+#include "effects.hpp"          // for indicators_t
 
 
 
@@ -25,6 +26,7 @@ public:
     void signal_usb_resume() {}
     void signal_report_5v() {}
     void signal_key_event(uint8_t, bool) {}
+    void signal_led_state() {}
 
     void set_effect(const effect_t&) {}
 
@@ -49,6 +51,7 @@ public:
     void signal_usb_resume() { thread_flags_set(m_pthread, FLAG_USB_RESUME); }
     void signal_report_5v();
     void signal_key_event(uint8_t led_id, bool pressed);
+    void signal_led_state() { thread_flags_set(m_pthread, FLAG_CHANGE_LED_STATE); }
 
     // Todo: Effect for underglow leds?
     void set_effect(effect_t&);
@@ -97,13 +100,14 @@ private:
     } m_gcr;
 
     enum : uint16_t {
-        FLAG_EVENT          = 0x0001,  // not used
-        FLAG_USB_SUSPEND    = 0x0002,
-        FLAG_USB_RESUME     = 0x0004,
-        FLAG_ADJUST_GCR     = 0x0008,
-        FLAG_SET_EFFECT     = 0x0010,
-        FLAG_TIMEOUT        = THREAD_FLAG_TIMEOUT,     // (1u << 14)
-        FLAG_KEY_EVENT      = THREAD_FLAG_MSG_WAITING  // (1u << 15)
+        FLAG_EVENT              = 0x0001,  // not used
+        FLAG_USB_SUSPEND        = 0x0002,
+        FLAG_USB_RESUME         = 0x0004,
+        FLAG_ADJUST_GCR         = 0x0008,
+        FLAG_CHANGE_LED_STATE   = 0x0010,
+        FLAG_SET_EFFECT         = 0x0020,
+        FLAG_TIMEOUT            = THREAD_FLAG_TIMEOUT,     // (1u << 14)
+        FLAG_KEY_EVENT          = THREAD_FLAG_MSG_WAITING  // (1u << 15)
     };
 
     effect_t* m_peffect = nullptr;
@@ -111,6 +115,11 @@ private:
     void initialize_effect();
     void process_key_event(uint8_t led_id, bool pressed);
     void refresh_effect();
+
+    // Indicators can work without having an Effect set up.
+    indicators_t m_indicators = RGB_INDICATOR_COLOR;
+
+    void change_led_state();
 };
 
 using rgb_thread = rgb_thread_tl<RGB_LED_ENABLE>;

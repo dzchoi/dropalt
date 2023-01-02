@@ -1,7 +1,7 @@
 #pragma once
 
+#include "led_conf.hpp"         // for LED_ID[]
 #include "periph_conf.h"        // for MATRIX_ROWS and MATRIX_COLS
-#include "led_conf.hpp"         // for led_conf.led_id[]
 
 
 
@@ -20,6 +20,10 @@ class pressing_slot_t;
 // complex types do not.
 extern pmap_t maps[MATRIX_ROWS][MATRIX_COLS];
 
+// One-dimensional version of key::maps.
+inline pmap_t (&maps_1)[MATRIX_ROWS * MATRIX_COLS] =
+    reinterpret_cast<pmap_t (&)[MATRIX_ROWS * MATRIX_COLS]>(maps);
+
 
 
 class pmap_t {
@@ -30,11 +34,10 @@ public:
 
     operator map_t*() { return m_pmap; }
 
-    // Return the led_id associated with the slot.
-    uint8_t led_id() const {
-        size_t n = this - &maps[0][0];
-        return led_conf.led_id[n / MATRIX_COLS][n % MATRIX_COLS];
-    }
+    size_t index() const { return this - &maps[0][0]; }
+
+    // Return the led_id corresponding to the slot.
+    uint8_t led_id() const { return LED_ID[index()]; }
 
     pressing_slot_t* get_pressing_slot() const { return m_pressing_slot; }
     void set_pressing_slot(pressing_slot_t* slot) { m_pressing_slot = slot; }

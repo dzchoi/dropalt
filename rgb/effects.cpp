@@ -5,7 +5,8 @@
 
 #include "color.hpp"            // for CIE1931_CURVE[]
 #include "effects.hpp"
-#include "led_conf.hpp"         // for led_conf.point[]
+#include "led_conf.hpp"         // for LED_XY[]
+#include "usb_thread.hpp"       // for hid_keyboard.get_led_state()
 
 
 
@@ -46,59 +47,6 @@ ohsv_t glimmer::update(uint8_t led_id, uint32_t time)
 void glimmer::update_done()
 {
     enable_update_next(m_timer);
-}
-
-
-
-template <size_t N>
-typename touched_leds_t<N>::iterator touched_leds_t<N>::create(uint8_t led_id)
-{
-    iterator it = m_array.begin();
-    for ( ; it != m_array.end() ; ++it )
-        if ( it->state == DONE ) {
-            if ( it == m_actual_end )
-                ++m_actual_end;
-
-            // Initialize the members.
-            it->when_released_ms = 0;
-            it->led_id = led_id;
-            it->state = PRESSED;
-            break;
-        }
-
-    return it;
-}
-
-template <size_t N>
-typename touched_leds_t<N>::iterator touched_leds_t<N>::find(
-    uint8_t led_id, bool pressed_only)
-{
-    iterator it = begin();
-    for ( ; it != end() ; ++it )
-        // If pressed_only is true only the (first) element with PRESSED state is found
-        // as the tie breaker.
-        if ( it->led_id == led_id && (!pressed_only || it->state == PRESSED) )
-            break;
-
-    return it;
-}
-
-template <size_t N>
-void touched_leds_t<N>::collect_garbage(bool handle_updating)
-{
-    // If handle_updating is true all non-PRESSED states are automatically moved down;
-    // RELEASED -> DONE and UPDATING -> RELEASED. So, to not erase elements their states
-    // need to keep updating as UPDATING, which is the case of ripple::update().
-    if ( handle_updating )
-        for ( iterator it = begin() ; it != end() ; ++it ) {
-            if ( it->state == RELEASED )
-                it->state = DONE;
-            else if ( it->state == UPDATING )
-                it->state = RELEASED;
-        }
-
-    while ( m_actual_end != begin() && (m_actual_end - 1)->state == DONE )
-        --m_actual_end;
 }
 
 
@@ -211,7 +159,7 @@ void ripple::update_done()
 ohsv_t ripple::update(uint8_t led_id, uint32_t time)
 {
     assert( !m_touched_leds.empty() );
-    const auto [px, py] = led_conf.point[led_id];
+    const auto [px, py] = LED_XY[led_id];
     unsigned depth = 0;  // <= m_hsv.v
 
     for ( auto it = m_touched_leds.begin() ; it != m_touched_leds.end() ; ++it ) {
@@ -225,7 +173,7 @@ ohsv_t ripple::update(uint8_t led_id, uint32_t time)
                 continue;  // This wave didn't start yet. Ignore it.
         }
 
-        const auto [center_x, center_y] = led_conf.point[it->led_id];
+        const auto [center_x, center_y] = LED_XY[it->led_id];
         uint32_t dist = std::sqrt(0.0f +  // to convert into floating-point.
             (px - center_x)*(px - center_x) + (py - center_y)*(py - center_y) );
         uint32_t t_reach = dist * m_period_ms / m_wavelength;
@@ -248,4 +196,24 @@ ohsv_t ripple::update(uint8_t led_id, uint32_t time)
     if ( depth > m_hsv.v )
         depth = m_hsv.v;
     return hsv_t{ m_hsv.h, m_hsv.s, CIE1931_CURVE[m_hsv.v - uint8_t(depth)] };
+}
+
+
+
+ohsv_t indicators_t::is_lit(uint8_t led_id)
+{
+    const uint8_t led_state = usb_thread::obj().hid_keyboard.get_led_state();
+
+    if ( led_id != NO_LED )
+        // Thanks to the g++ optimization this for-loop is compiled into simple if-
+        // statement(s) since indicators_t::led_ids[] is declared as constexpr.
+        for ( size_t i = 0 ; i < sizeof(led_ids) ; i++ )
+            if ( led_ids[i] == led_id ) {
+                if ( led_state & (uint8_t(1) << i) )
+                    return m_hsv;
+                else
+                    return {};
+            }
+
+    return {};
 }

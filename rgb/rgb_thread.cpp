@@ -1,6 +1,5 @@
 #include "board.h"              // for THREAD_PRIO_RGB
 #include "is31fl3733.h"
-#include "led_conf.hpp"         // for is31_leds[]
 #include "msg.h"                // for msg_init_queue(), msg_try_receive(), msg_send()
 #include "thread_flags.h"       // for thread_flags_wait_any(), thread_flags_set(), ...
 #include "ztimer.h"             // for ztimer_set() and ztimer_now()
@@ -12,6 +11,7 @@
 #include "color.hpp"            // for CIE1931_CURVE[]
 #include "effects.hpp"
 #include "features.hpp"         // for RGB_DISABLE_WHEN_USB_SUSPENDS
+#include "led_conf.hpp"         // for IS31_LEDS[]
 #include "rgb_thread.hpp"
 
 
@@ -49,6 +49,7 @@ void* rgb_thread_tl<true>::_rgb_thread(void* arg)
             | FLAG_USB_SUSPEND
             | FLAG_USB_RESUME
             | FLAG_ADJUST_GCR
+            | FLAG_CHANGE_LED_STATE
             | FLAG_SET_EFFECT
             | FLAG_TIMEOUT
             );
@@ -63,6 +64,9 @@ void* rgb_thread_tl<true>::_rgb_thread(void* arg)
 
         if ( flags & FLAG_ADJUST_GCR )
             that->m_gcr.adjust();
+
+        if ( flags & FLAG_CHANGE_LED_STATE )
+            that->change_led_state();
 
         if ( flags & FLAG_SET_EFFECT )
             that->initialize_effect();
@@ -114,7 +118,7 @@ void rgb_thread_tl<true>::initialize_effect()
 {
     for ( uint8_t led_id = 0 ; led_id < KEY_LED_COUNT ; led_id++ ) {
         const rgb_t rgb = m_peffect->initial_update(led_id);
-        is31_set_color(is31_leds[led_id], rgb.r, rgb.g, rgb.b);
+        is31_set_color(IS31_LEDS[led_id], rgb.r, rgb.g, rgb.b);
     }
 
     is31_refresh_colors();
@@ -134,12 +138,12 @@ void rgb_thread_tl<true>::signal_key_event(uint8_t led_id, bool pressed)
 
 void rgb_thread_tl<true>::process_key_event(uint8_t led_id, bool pressed)
 {
-    const auto ohsv =
+    const ohsv_t ohsv =
         m_peffect->process_key_event(led_id, ztimer_now(ZTIMER_MSEC), pressed);
 
-    if ( ohsv ) {
+    if ( ohsv && !m_indicators.is_lit(led_id) ) {
         const rgb_t rgb = *ohsv;
-        is31_set_color(is31_leds[led_id], rgb.r, rgb.g, rgb.b);
+        is31_set_color(IS31_LEDS[led_id], rgb.r, rgb.g, rgb.b);
 
         // Todo: We could do refresh_colors only if m_gcr.is_set() is true, which then
         //  means we should do it on FLAG_USB_RESUME, but instead we would better turn
@@ -154,13 +158,39 @@ void rgb_thread_tl<true>::refresh_effect()
 {
     const uint32_t now = ztimer_now(ZTIMER_MSEC);
     for ( uint8_t led_id = 0 ; led_id < KEY_LED_COUNT ; led_id++ ) {
-        const auto ohsv = m_peffect->update(led_id, now);
-        if ( ohsv ) {
+        // If led_id corresponds to a (lit) indicator we skip refreshing the effect on it,
+        // leaving it unchanged.
+        if ( m_indicators.is_lit(led_id) )
+            continue;
+
+        if ( const ohsv_t ohsv = m_peffect->update(led_id, now) ) {
             const rgb_t rgb = *ohsv;
-            is31_set_color(is31_leds[led_id], rgb.r, rgb.g, rgb.b);
+            is31_set_color(IS31_LEDS[led_id], rgb.r, rgb.g, rgb.b);
         }
     }
 
     is31_refresh_colors();
     m_peffect->update_done();
+}
+
+void rgb_thread_tl<true>::change_led_state()
+{
+    for ( uint8_t led_id : m_indicators.led_ids )
+        if ( led_id != NO_LED ) {
+            rgb_t rgb { 0, 0, 0 };  // black (i.e. turn it off)
+
+            if ( const ohsv_t ohsv = m_indicators.is_lit(led_id) )
+                rgb = *ohsv;
+
+            else if ( m_peffect ) {
+                if ( m_peffect->is_updating(led_id) )
+                    continue;
+                rgb = m_peffect->initial_update(led_id);
+            }
+            // else: Turn it off if no Effect is set up.
+
+            is31_set_color(IS31_LEDS[led_id], rgb.r, rgb.g, rgb.b);
+        }
+
+    is31_refresh_colors();
 }

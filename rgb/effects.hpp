@@ -27,6 +27,9 @@ public:
     // Called when all leds are updated and refreshed.
     virtual void update_done() {}
 
+    // Check if the given led is under update.
+    virtual bool is_updating(uint8_t) { return false; }
+
     // Called when a key is pressed/released.
     virtual ohsv_t process_key_event(uint8_t, uint32_t, bool) { return {}; }
 
@@ -62,6 +65,8 @@ public:
     ohsv_t update(uint8_t led_id, uint32_t time);
 
     void update_done();
+
+    bool is_updating(uint8_t) { return true; }
 
 private:
     const hsv_t m_hsv;
@@ -107,6 +112,57 @@ private:
     iterator m_actual_end = m_array.begin();
 };
 
+template <size_t N>
+typename touched_leds_t<N>::iterator touched_leds_t<N>::create(uint8_t led_id)
+{
+    iterator it = m_array.begin();
+    for ( ; it != m_array.end() ; ++it )
+        if ( it->state == DONE ) {
+            if ( it == m_actual_end )
+                ++m_actual_end;
+
+            // Initialize the members.
+            it->when_released_ms = 0;
+            it->led_id = led_id;
+            it->state = PRESSED;
+            break;
+        }
+
+    return it;
+}
+
+template <size_t N>
+typename touched_leds_t<N>::iterator touched_leds_t<N>::find(
+    uint8_t led_id, bool pressed_only)
+{
+    iterator it = begin();
+    for ( ; it != end() ; ++it )
+        // If pressed_only is true only the (first) element with PRESSED state is found
+        // as the tie breaker.
+        if ( it->led_id == led_id && (!pressed_only || it->state == PRESSED) )
+            break;
+
+    return it;
+}
+
+template <size_t N>
+void touched_leds_t<N>::collect_garbage(bool handle_updating)
+{
+    // If handle_updating is true all non-PRESSED states are automatically moved down;
+    // RELEASED -> DONE and UPDATING -> RELEASED. So, to not erase elements their states
+    // need to keep updating as UPDATING, which is the case of ripple::update().
+    if ( handle_updating )
+        for ( iterator it = begin() ; it != end() ; ++it ) {
+            if ( it->state == RELEASED )
+                it->state = DONE;
+            else if ( it->state == UPDATING )
+                it->state = RELEASED;
+        }
+
+    while ( m_actual_end != begin() && (m_actual_end - 1)->state == DONE )
+        --m_actual_end;
+}
+
 
 
 class finger_trace: public effect_t {
@@ -118,6 +174,11 @@ public:
     ohsv_t update(uint8_t led_id, uint32_t time);
 
     void update_done();
+
+    // Inherit the base method; even if the led is being updated by Effect it does not
+    // actually take effect as being an indicator, and we have to restore it manually on
+    // release.
+    // bool is_updating(uint8_t) { return false; }
 
     ohsv_t process_key_event(uint8_t led_id, uint32_t time, bool pressed);
 
@@ -144,6 +205,8 @@ public:
 
     void update_done();
 
+    bool is_updating(uint8_t) { return !m_touched_leds.empty(); }
+
     ohsv_t process_key_event(uint8_t led_id, uint32_t time, bool pressed);
 
 private:
@@ -153,4 +216,28 @@ private:
     ztimer_t m_timer = {};
 
     touched_leds_t<EFFECT_RIPPLE_MAX_WAVES> m_touched_leds;
+};
+
+
+
+// Simple indicators with the same solid color.
+class indicators_t {
+public:
+    constexpr indicators_t(hsv_t hsv): m_hsv(hsv) {}
+
+    // Return hsv if the led_id corresponds to an indicator and if its led_state is on.
+    ohsv_t is_lit(uint8_t led_id);
+
+    // Refer to https://wiki.osdev.org/USB_Human_Interface_Devices for indicator bit
+    // positions.
+    static constexpr uint8_t led_ids[] = {
+        NUM_LOCK_LED_ID,
+        CAPS_LOCK_LED_ID,
+        SCROLL_LOCK_LED_ID,
+        COMPOSE_LED_ID,
+        KANA_LED_ID,
+    };
+
+private:
+    const hsv_t m_hsv;
 };

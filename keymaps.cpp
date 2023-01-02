@@ -8,6 +8,7 @@
 #include "tap_dance.hpp"
 #include "tap_hold.hpp"
 #include "timer.hpp"
+#include "usb_thread.hpp"       // for hid_keyboard.get_led_state()
 
 
 
@@ -38,6 +39,65 @@ tap_hold_t<BALANCED> t_SPC { SPC, RSFT };
 
 mod_morph_t m_LSFT { LSFT, SPC, t_SPC };
 
+class tap_capslock_t: public map_dance_t {
+    // Todo: Implement map_conditional(cond, key_if_true, key_otherwise), so that t_LSFT
+    //  can be defined as:
+    //  mod_morph_t t_LSFT {
+    //      map_conditional {
+    //          [](){ return hid_keyboard.get_led_state() & 0x2; },
+    //          CAPSLOCK,
+    //          tap_dance_double_t { LSFT, CAPSLOCK }
+    //      },
+    //      SPC,
+    //      t_SPC
+    //  };
+
+public:
+    // constexpr tap_capslock_t(
+    //     map_t& once, uint32_t tapping_term_ms =TAPPING_TERM_MS)
+    // : map_dance_t(tapping_term_ms), m_once(once) {}
+
+    template <class T>
+    constexpr tap_capslock_t(
+        T&& once, uint32_t tapping_term_ms =TAPPING_TERM_MS)
+    : map_dance_t(tapping_term_ms), m_once(std::forward<T>(once)) {}
+
+private:
+    void on_press(pmap_t* slot) {
+        if ( get_step() == 1 ) {
+            if ( usb_thread::obj().hid_keyboard.get_led_state() & 0x2 ) {
+                m_ponce = &m_twice;
+                finish();
+            }
+            else
+                m_ponce = &m_once;
+
+            m_ponce->press(slot);
+        }
+
+        else {
+            m_once.release(slot);
+            m_twice.press(slot);
+            finish();
+        }
+    }
+
+    void on_release(pmap_t* slot) {
+        if ( get_step() == 1 )
+            m_ponce->release(slot);
+        else
+            m_twice.release(slot);
+    }
+
+    map_t& m_once;
+    map_t* m_ponce = nullptr;
+    map_t& m_twice = CAPSLOCK;
+};
+
+// tap_capslock_t t_LSFT { m_LSFT };
+
+
+
 // Here m_BKSP has RSFT as its modifier. With t_SPC instead, when m_BKSP is pressed
 // within the tapping term of t_SPC the tap version of t_SPC (i.e. SPC) would be sent
 // immediately after sending DEL.
@@ -46,7 +106,7 @@ mod_morph_t<UNDO_MOD> m_BKSP { BKSP, DEL, RSFT };
 mod_morph_t m_GRV { GRV, POWER, FN };
 
 // Todo: Block repeated presses of Function keys.
-tap_hold_t t_1 { _1, F1 };        // sizeof = 60
+tap_hold_t t_1 { _1, F1 };        // sizeof = 72
 mod_morph_t m_1 { t_1, F1, FN };  // sizeof = 24
 tap_hold_t t_2 { _2, F2 };
 mod_morph_t m_2 { t_2, F2, FN };
@@ -137,14 +197,6 @@ private:
         // DEBUG("test: map_t=%d literal_t=%d timer_t=%d tap_hold_t=%d mod_morph_t=%d\n",
         //     sizeof(map_t), sizeof(literal_t), sizeof(timer_t),
         //     sizeof(tap_hold_t<HOLD_PREFERRED>), sizeof(mod_morph_t<UNDO_MOD>));
-
-        // Test key sequence
-        // send_press(KC_SCOLON);
-        // send_press(KC_F);
-        // send_press(KC_A);
-        // send_release(KC_SCOLON);
-        // send_release(KC_F);
-        // send_release(KC_A);
     }
 
     void on_timeout(pmap_t*) {

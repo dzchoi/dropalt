@@ -28,14 +28,10 @@ int main()
     (void)matrix_thread::obj();
 
     if constexpr ( RGB_LED_ENABLE ) {
-        // https://stackoverflow.com/questions/21737613/image-of-hsv-color-wheel-for-opencv
-        constexpr uint16_t orange = 30 * hsv_t::COLORS / 360;
-        // constexpr uint16_t spring_green = 90 * hsv_t::COLORS / 360;
-
-        // fixed_color effect = hsv_t{ orange, 255, 255 };
-        // glimmer effect { hsv_t{ orange, 255, 255 }, 5 *MS_PER_SEC };
-        // finger_trace effect { hsv_t{ orange, 255, 255 }, 5 *MS_PER_SEC };
-        ripple effect { hsv_t{ orange, 255, 255 }, 250, 50 };
+        // fixed_color effect = hsv_t{ ORANGE, 255, 255 };
+        // glimmer effect { hsv_t{ ORANGE, 255, 255 }, 5 *MS_PER_SEC };
+        // finger_trace effect { hsv_t{ ORANGE, 255, 255 }, 5 *MS_PER_SEC };
+        ripple effect { hsv_t{ ORANGE, 255, 255 }, 250, 50 };
 
         // rgb_thread::set_color_all(rgb_t{0, 255, 128});
         rgb_thread::obj().set_effect(effect);

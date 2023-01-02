@@ -5,6 +5,9 @@
 #include <stdint.h>             // for uint8_t
 #include "time_units.h"         // for MS_PER_SEC
 
+#include "color.hpp"            // for hsv_t
+#include "led_conf.hpp"         // for NO_LED
+
 
 
 // These *_ENABLE constants will enable/disable the corresponding feature and also
@@ -78,3 +81,13 @@ constexpr unsigned EFFECT_FINGER_TRACE_MAX_TRACERS = 16;
 
 // Max number of waves for Ripple Effect.
 constexpr unsigned EFFECT_RIPPLE_MAX_WAVES = 8;
+
+// Indicators will have this fixed color when turned on.
+constexpr hsv_t RGB_INDICATOR_COLOR = hsv_t{ 0, 0, 255 };  // white
+
+// LEDs corresponding to keyboard indicators. Refer to LED_ID[] to locate every led_id.
+constexpr uint8_t NUM_LOCK_LED_ID    = NO_LED;
+constexpr uint8_t CAPS_LOCK_LED_ID   = 44;  // Lshift
+constexpr uint8_t SCROLL_LOCK_LED_ID = NO_LED;
+constexpr uint8_t COMPOSE_LED_ID     = NO_LED;
+constexpr uint8_t KANA_LED_ID        = NO_LED;
