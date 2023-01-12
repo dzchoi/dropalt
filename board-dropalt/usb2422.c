@@ -16,14 +16,14 @@ static Usb2422 usb2422_cfg = {
     .VID.reg = HUB_VENDOR_ID,           // from Microchip 4/19/2018
     .PID.reg = HUB_PRODUCT_ID,          // from Microchip 4/19/2018
     .DID.reg = HUB_DEVICE_VER,          // BCD 01.01
-    .CFG1.bit.SELF_BUS_PWR = 0,         // 0=bus-powered, 1=self-powered
+    .CFG1.bit.SELF_BUS_PWR = 1,         // 0=bus-powered, 1=self-powered
     .CFG1.bit.CURRENT_SNS = 0,          // 0=ganged, 1=port-by-port, 2=no sensing
     .CFG1.bit.HS_DISABLE = 1,           // full speed only
     .CFG2.bit.COMPOUND = 1,             // Hub as part of a compound device
     .CFG3.bit.STRING_EN = 1,            // strings enabled
     .NRD.bit.PORT2_NR = 1,              // Keyboard is permantly attached.
-    .MAXPB.reg = (500 >> 1),            // 500mA together (Keyboard will report 0mA.)
-    .HCMCB.reg = 0,                     // 0mA
+    .MAXPB.reg = 0,                     // 0 mA
+    .HCMCB.reg = 0,                     // 0 mA
     .MFRSL.reg = sizeof(HUB_MANUFACTURER) - 1,  // exclude the trailing '\0'
     .PRDSL.reg = sizeof(HUB_PRODUCT) - 1,
     .SERSL.reg = sizeof(HUB_NO_SERIAL) - 1,

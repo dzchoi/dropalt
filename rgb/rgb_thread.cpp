@@ -105,6 +105,13 @@ void rgb_thread_tl<true>::gcr_t::adjust()
         is31_set_gcr(m_current_gcr = m_desired_gcr);
         if ( m_current_gcr == 0 )
             is31_switch_unlock_ssd(false);
+
+        DEBUG("Rgb: v_5v=%d v_con1=%d v_con2=%d gcr=%d\n",
+            adc_input::v_5v.read(),
+            adc_input::v_con1.read(),
+            adc_input::v_con2.read(),
+            m_current_gcr
+        );
     }
 }
 

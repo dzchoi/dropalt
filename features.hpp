@@ -74,7 +74,7 @@ constexpr bool RGB_DISABLE_WHEN_USB_SUSPENDS = true;
 constexpr uint8_t RGB_LED_GCR_MAX = 255;  // or 165;
 
 // GCR changes slowly and gracefully, changing 1 GCR per this time period.
-constexpr uint32_t RGB_GCR_CHANGE_PERIOD_MS = 16;
+constexpr uint32_t RGB_GCR_CHANGE_PERIOD_MS = 32;
 
 // Max number of tracers for Finger-Trace Effect.
 constexpr unsigned EFFECT_FINGER_TRACE_MAX_TRACERS = 16;

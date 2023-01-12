@@ -69,6 +69,7 @@ void state_usb_suspended::determine_host()
         // Determine the host port at power-up. This may loop for a few hundred
         // milliseconds when powering up the keyboard by plugging in the USB cable.
         while ( true ) {
+            // Todo: This loop would work with performing usbhub_enable_host_port() first.
             if constexpr ( POWER_UP_CHECK_PORT1_FIRST ) {
                 if ( adc_input::v_con1.sync_measure().is_host_connected() )
                     desired_port = USB_PORT_1;
@@ -91,9 +92,11 @@ void state_usb_suspended::determine_host()
             //  decide the other port according to the measurements. Consider also the
             //  worst case that the desired port remains unknown.
             if ( !ztimer_is_set(ZTIMER_MSEC, &blink_timer) ) {
+                // Todo: Use thread_flags_clear() instead of checking ztimer!
                 desired_port =
                     POWER_UP_CHECK_PORT1_FIRST ? USB_PORT_1 : USB_PORT_2;
-                DEBUG("ADC: host port @%d determined by default\n", desired_port);
+                DEBUG("ADC:\e[0;31m host port @%d determined by default\e[0m\n",
+                    desired_port);
                 break;
             }
 

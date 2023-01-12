@@ -106,7 +106,7 @@ extern "C" {
 // #define CONFIG_USB_SERIAL_STR (const uint16_t*)*(uint32_t*)((uint32_t)&_sfixed - 4)
 
 // USB configuration descriptor (USB 2.0 spec table 9-10)
-#define CONFIG_USB_MAX_POWER            0   // bMaxPower (USB HUB will report 500 mA.)
+#define CONFIG_USB_MAX_POWER            300  // bMaxPower (300 mA.)
 // #define CONFIG_USB_CONFIGURATION_STR "USB config" // iConfiguration
 #define CONFIG_USB_REM_WAKEUP           1  // bmAttributes
 
