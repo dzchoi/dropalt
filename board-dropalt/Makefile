@@ -11,6 +11,9 @@ endif
 ifneq (,$(filter periph_matrix,$(FEATURES_USED)))
     SRC += matrix.c
 endif
+ifneq (,$(filter periph_seeprom,$(FEATURES_USED)))
+    SRC += seeprom.c
+endif
 ifneq (,$(filter periph_sr_595,$(FEATURES_USED)))
     SRC += sr_595.c
 endif

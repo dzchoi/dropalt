@@ -135,6 +135,7 @@ void state_usb_suspended::begin()
 
 void state_usb_suspended::end()
 {
+    // Todo: Confirm that v_host->sync_measure().is_host_connected().
     ztimer_remove(ZTIMER_MSEC, &blink_timer);
     LED0_OFF;
 }

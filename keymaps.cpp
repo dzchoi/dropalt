@@ -5,6 +5,7 @@
 #include "literal.hpp"
 #include "map.hpp"
 #include "mod_morph.hpp"
+#include "persistent.hpp"       // for persistent::obj()
 #include "tap_dance.hpp"
 #include "tap_hold.hpp"
 #include "timer.hpp"
@@ -105,32 +106,32 @@ mod_morph_t<UNDO_MOD> m_BKSP { BKSP, DEL, RSFT };
 
 mod_morph_t m_GRV { GRV, POWER, FN };
 
-// Todo: Block repeated presses of Function keys.
-tap_hold_t t_1 { _1, F1 };        // sizeof = 72
-mod_morph_t m_1 { t_1, F1, FN };  // sizeof = 24
-tap_hold_t t_2 { _2, F2 };
-mod_morph_t m_2 { t_2, F2, FN };
-tap_hold_t t_3 { _3, F3 };
-mod_morph_t m_3 { t_3, F3, FN };
-tap_hold_t t_4 { _4, F4 };
-mod_morph_t m_4 { t_4, F4, FN };
-tap_hold_t t_5 { _5, F5 };
-mod_morph_t m_5 { t_5, F5, FN };
-tap_hold_t t_6 { _6, F6 };
-mod_morph_t m_6 { t_6, F6, FN };
-tap_hold_t t_7 { _7, F7 };
-mod_morph_t m_7 { t_7, F7, FN };
-tap_hold_t t_8 { _8, F8 };
-mod_morph_t m_8 { t_8, F8, FN };
-tap_hold_t t_9 { _9, F9 };
-mod_morph_t m_9 { t_9, F9, FN };
-tap_hold_t t_0 { _0, F10 };
-mod_morph_t m_0 { t_0, F10, FN };
+// Todo: Block repeated press of Function keys for tap_hold_t.
+// tap_hold_t t_1 { _1, F1 };        // sizeof = 72
+mod_morph_t m_1 { _1, F1, FN };  // sizeof = 24
+// tap_hold_t t_2 { _2, F2 };
+mod_morph_t m_2 { _2, F2, FN };
+// tap_hold_t t_3 { _3, F3 };
+mod_morph_t m_3 { _3, F3, FN };
+// tap_hold_t t_4 { _4, F4 };
+mod_morph_t m_4 { _4, F4, FN };
+// tap_hold_t t_5 { _5, F5 };
+mod_morph_t m_5 { _5, F5, FN };
+// tap_hold_t t_6 { _6, F6 };
+mod_morph_t m_6 { _6, F6, FN };
+// tap_hold_t t_7 { _7, F7 };
+mod_morph_t m_7 { _7, F7, FN };
+// tap_hold_t t_8 { _8, F8 };
+mod_morph_t m_8 { _8, F8, FN };
+// tap_hold_t t_9 { _9, F9 };
+mod_morph_t m_9 { _9, F9, FN };
+// tap_hold_t t_0 { _0, F10 };
+mod_morph_t m_0 { _0, F10, FN };
 
-tap_hold_t t_MINUS { MINUS, F11 };
-mod_morph_t m_MINUS { t_MINUS, F11, FN };
-tap_hold_t t_EQL { EQL, F12 };
-mod_morph_t m_EQL { t_EQL, F12, FN };
+// tap_hold_t t_MINUS { MINUS, F11 };
+mod_morph_t m_MINUS { MINUS, F11, FN };
+// tap_hold_t t_EQL { EQL, F12 };
+mod_morph_t m_EQL { EQL, F12, FN };
 
 
 
@@ -192,6 +193,13 @@ private:
             //     set_extra_usbport_back_to_automatic();
             // else
             //     enable_extra_usbport_manually();
+        }
+        else {
+            if ( persistent::obj().led_color.h == ORANGE )
+                persistent::obj().led_color = hsv_t{ SPRING_GREEN, 255, 255 };
+            else
+                persistent::obj().led_color = hsv_t{ ORANGE, 255, 255 };
+            persistent::obj().write(&persistent::led_color);
         }
 
         // DEBUG("test: map_t=%d literal_t=%d timer_t=%d tap_hold_t=%d mod_morph_t=%d\n",

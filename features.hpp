@@ -53,7 +53,7 @@ constexpr uint32_t MATRIX_SCAN_PERIOD_US = 997;  // very close to 1 ms.
 
 // Keys are registered only after this time period of no bounces.
 // If too short, it may double a register, but too long period may miss.
-constexpr uint32_t DEBOUNCE_TIME_MS = 5;
+constexpr uint32_t DEBOUNCE_TIME_MS = 8;
 
 // TAPPING_TERM_MS is the maximum time from press to release to be counted as a tap.
 constexpr uint32_t TAPPING_TERM_MS = 200;
@@ -91,3 +91,9 @@ constexpr uint8_t CAPS_LOCK_LED_ID   = 44;  // Lshift
 constexpr uint8_t SCROLL_LOCK_LED_ID = NO_LED;
 constexpr uint8_t COMPOSE_LED_ID     = NO_LED;
 constexpr uint8_t KANA_LED_ID        = NO_LED;
+
+// The identifier of the firmware that manages NVM.
+constexpr uint32_t NVM_MAGIC_NUMBER = 'd' + ('r' << 8) + ('o' << 16) + ('p' << 24);
+
+// NVM (SmartEEPROM) is delayed to write for this period.
+constexpr uint32_t NVM_WRITE_DELAY_MS = 4000;

@@ -6,5 +6,11 @@ endif
 ifneq (,$(filter is31fl3733 periph_usb2422,$(FEATURES_USED)))
     FEATURES_REQUIRED += periph_i2c
 endif
+ifneq (,$(filter periph_seeprom,$(FEATURES_USED)))
+    # This is needed even if we do not access NVM main array since it enables 
+    # MCLK_APBBMASK_NVMCTRL. Otherwise access to seeprom registers can cause unintended
+    # flash bank swap.
+    FEATURES_REQUIRED += periph_flashpage
+endif
 
 FEATURES_REQUIRED += periph_wdt

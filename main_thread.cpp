@@ -10,6 +10,7 @@
 #include "keymap_thread.hpp"
 #include "main_thread.hpp"
 #include "matrix_thread.hpp"
+#include "persistent.hpp"
 #include "rgb_thread.hpp"
 #include "usb_thread.hpp"
 
@@ -27,13 +28,15 @@ int main()
     (void)keymap_thread::obj();
     (void)matrix_thread::obj();
 
-    if constexpr ( RGB_LED_ENABLE ) {
-        // fixed_color effect = hsv_t{ ORANGE, 255, 255 };
-        // glimmer effect { hsv_t{ ORANGE, 255, 255 }, 5 *MS_PER_SEC };
-        // finger_trace effect { hsv_t{ ORANGE, 255, 255 }, 5 *MS_PER_SEC };
-        ripple effect { hsv_t{ ORANGE, 255, 255 }, 250, 50 };
+    // Read persistent data from NVM.
+    (void)persistent::obj();
 
-        // rgb_thread::set_color_all(rgb_t{0, 255, 128});
+    if constexpr ( RGB_LED_ENABLE ) {
+        // fixed_color effect = persistent::obj().led_color;
+        // glimmer effect { persistent::obj().led_color, 5 *MS_PER_SEC };
+        // finger_trace effect { persistent::obj().led_color, 5 *MS_PER_SEC };
+        ripple effect { persistent::obj().led_color, 250, 50 };
+
         rgb_thread::obj().set_effect(effect);
     }
 

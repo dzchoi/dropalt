@@ -4,7 +4,7 @@
 #include "thread_flags.h"       // for thread_flags_wait_any(), thread_flags_set(), ...
 #include "ztimer.h"             // for ztimer_set() and ztimer_now()
 
-#define ENABLE_DEBUG    (1)
+#define ENABLE_DEBUG    (0)
 #include "debug.h"
 
 #include "adc_input.hpp"        // for v_5v and V_5V_MID

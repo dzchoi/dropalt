@@ -1,7 +1,7 @@
 # Main makefile for building the firmware for Drop Alt
 
 # Application name will be used for .bin, .elf, and .map files.
-APPLICATION = dropalt-0.1
+APPLICATION = dropalt-0.5
 
 # Directory for RIOT repo.
 RIOTBASE := $(CURDIR)/riot
@@ -29,21 +29,14 @@ FEATURES_REQUIRED += cpp  # Todo: "cpp libstdcpp" ???
 FEATURES_REQUIRED += periph_adc_get
 FEATURES_REQUIRED += periph_gpio_irq
 FEATURES_REQUIRED += periph_matrix
-FEATURES_REQUIRED += periph_rtt     # For ZTIMER_MSEC
+FEATURES_REQUIRED += periph_rtt         # For ZTIMER_MSEC
+FEATURES_REQUIRED += periph_seeprom
 FEATURES_REQUIRED += periph_sr_595
 FEATURES_REQUIRED += periph_usb2422
 FEATURES_REQUIRED += periph_wdt
 
 # Enable DMA for I2C transfer
 FEATURES_REQUIRED += periph_dma     # will #define MODULE_PERIPH_DMA
-
-# Todo:
-# /* The Cortex-m0 based ATSAM devices can use the Single-cycle I/O Port for GPIO.
-# * When used, the gpio_t is mapped to the IOBUS area and must be mapped back to
-# * the peripheral memory space for configuration access. When it is not
-# * available, the _port_iobus() and _port() functions behave identical.
-# */
-# FEATURES_OPTIONAL += PERIPH_GPIO_FAST_READ
 
 $(shell grep -q 'RGB_LED_ENABLE = true' $(FEATURES_HPP))
 ifeq ($(.SHELLSTATUS),0)
@@ -52,6 +45,7 @@ endif
 
 # RIOT modules
 # USEMODULE += cpp11-compat
+# USEMODULE += newlib_nano          # used by default
 USEMODULE += usbus
 DISABLE_MODULE += usbus_hid         # We use our own implementation of usbus_hid,
 DISABLE_MODULE += auto_init_usbus   # and do not execute auto_init_usb().
@@ -72,12 +66,16 @@ USEMODULE += keymap
 USEMODULE += rgb
 USEMODULE += usb
 
-# Configure linker script
+# Configure linker script (See Table 9-1. Physical Memory Map in SAM D5x data sheet.)
 ROM_START_ADDR  = 0x00000000
-ROM_LEN         = 0x00040000  # 256K
+# Total flash size = NVMCTRL->PARAM.bit.NVMP * 512 (= 256KB)
+# SmartEEPROM raw space size = 2 * NVMCTRL->SEESTAT.bit.SBLK * 8K (= 16KB)
+ROM_LEN         = 0x0003C000  # 256K - 16K
 ROM_OFFSET      = 0x00004000  # The first 16K is occupied by bootloader.
 RAM_START_ADDR  = 0x20000000
 RAM_LEN         = 0x00020000  # 128K
+# Backup RAM means the persistent memory powered by an external battery, but the keyboard
+# does not use it.
 BACKUP_RAM_ADDR = 0x47000000
 BACKUP_RAM_LEN  = 0x00002000  # 8K
 
