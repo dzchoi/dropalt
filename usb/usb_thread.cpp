@@ -10,8 +10,6 @@ usb_thread::usb_thread()
 , hid_raw(&m_usbus)  // registered as the 2nd interface (Interface number is 1).
 {
     if constexpr ( VIRTSER_ENABLE )
-        // USB serial console (USB CDC-ACM device) connected on /dev/ttyACMx on Linux
-        // Todo: Why does it take so long for CDC_ACM to settle down?
         usb_cdc_acm_stdio_init(&m_usbus);
 
     // Create "usbus" thread.
