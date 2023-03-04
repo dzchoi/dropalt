@@ -20,6 +20,9 @@ unsigned info = 0;
 
 int main()
 {
+    // Read persistent data from NVM.
+    (void)persistent::obj();
+
     // Create all threads in the order of dependency.
     (void)main_thread::obj();
     (void)rgb_thread::obj();
@@ -27,9 +30,6 @@ int main()
     (void)usb_thread::obj();
     (void)keymap_thread::obj();
     (void)matrix_thread::obj();
-
-    // Read persistent data from NVM.
-    (void)persistent::obj();
 
     if constexpr ( RGB_LED_ENABLE ) {
         // fixed_color effect = persistent::obj().led_color;

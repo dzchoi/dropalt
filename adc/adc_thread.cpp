@@ -52,8 +52,8 @@ void* adc_thread::_adc_thread(void* arg)
             | FLAG_USB_SUSPEND
             | FLAG_USB_RESUME
             | FLAG_USBPORT_SWITCHOVER
-            | FLAG_REPORT_5V
-            | FLAG_REPORT_EXTRA
+            | FLAG_REPORT_V_5V
+            | FLAG_REPORT_V_CON
             | FLAG_EXTRA_MANUAL
             | FLAG_EXTRA_AUTOMATIC
             | FLAG_TIMEOUT
@@ -75,17 +75,11 @@ void* adc_thread::_adc_thread(void* arg)
         if ( flags & FLAG_USBPORT_SWITCHOVER )
             usbport::pstate->process_usbport_switchover();
 
-        if ( flags & FLAG_REPORT_5V )
-            usbport::pstate->process_v_5v_level();
+        if ( flags & FLAG_REPORT_V_5V )
+            usbport::pstate->process_v_5v();
 
-        if ( flags & FLAG_REPORT_EXTRA ) {
-            // It is always that v_extra != nullptr as this event occurs only when
-            // v_extra->schedule_periodic() is executed.
-            if ( usbport::v_extra->is_device_connected() )
-                usbport::pstate->process_extra_connected();
-            else
-                usbport::pstate->process_extra_unconnected();
-        }
+        if ( flags & FLAG_REPORT_V_CON )
+            usbport::pstate->process_v_con();
 
         if ( flags & FLAG_EXTRA_MANUAL )
             usbport::pstate->process_extra_enable_manually();

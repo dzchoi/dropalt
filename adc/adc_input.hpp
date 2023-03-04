@@ -45,7 +45,7 @@ protected:
     adc_input(uint8_t line);
 
     // Start measuring the input (non-blocking). The result will be reported later to
-    // adc_thread, calling signal_report_5v() or signal_report_extra().
+    // adc_thread, calling signal_report_v_5v() or signal_report_v_con().
     void async_measure();
 
     // Measure the input (blocking). Though blocking the caller it is not spinning but
@@ -78,7 +78,7 @@ private:
     // Define a separate event for measuring each adc_input, because sharing a single
     // event struct with different port numbers as argument would lose early events that
     // are already in the event queue when a new event is pushed. As to reporting, we use
-    // thread signals instead of events, FLAG_REPORT_5V and FLAG_REPORT_EXTRA defined in
+    // thread signals instead of events, FLAG_REPORT_V_5V and FLAG_REPORT_V_CON defined in
     // adc_thread.
     event_ext_t<adc_input*> m_event_periodic_measure;
     static void _hdlr_periodic_measure(event_t* event);
@@ -97,7 +97,11 @@ enum v_5v_level: int8_t {
 
 class adc_input_v_5v: public adc_input {
 public:
-    adc_input_v_5v& sync_measure();
+    adc_input_v_5v& sync_measure() {
+        adc_input::sync_measure();
+        update_level();
+        return *this;
+    }
 
     // Read the result in level.
     v_5v_level level() const { return m_level; }
@@ -123,14 +127,17 @@ private:
 
 class adc_input_v_con: public adc_input {
 public:
-    adc_input_v_con& sync_measure() { adc_input::sync_measure(); return *this; }
+    adc_input_v_con& sync_measure() {
+        adc_input::sync_measure();
+        return *this;
+    }
 
     // To be used only on the port which has SR_CTRL_SRC_x disabled (i.e. v_extra).
     bool is_device_connected() const;
 
-    // This can be used when the port has SR_CTRL_SRC_x either enabled or disabled.
-    // (However, some old version of PCB seems not working when SR_CTRL_SRC_x is enabled.
-    // So, it would be safer to have SR_CTRL_SRC_x disabled.)
+    // This can be used on the port that has SR_CTRL_SRC_x either enabled or disabled.
+    // (However, it may not work correctly when USB port on the keyboard is physically
+    // damaged, resulting in always false.)
     bool is_host_connected() const;
 
 private:

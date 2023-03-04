@@ -24,10 +24,11 @@ public:
 
     void signal_usb_suspend() {}
     void signal_usb_resume() {}
-    void signal_report_5v() {}
+    void signal_report_v_5v() {}
     void signal_key_event(uint8_t, bool) {}
     void signal_led_state() {}
 
+    // Todo: Change attributes of the current effect.
     void set_effect(const effect_t&) {}
 
     rgb_thread_tl(const rgb_thread_tl&) =delete;
@@ -49,7 +50,7 @@ public:
 
     void signal_usb_suspend() { thread_flags_set(m_pthread, FLAG_USB_SUSPEND); }
     void signal_usb_resume() { thread_flags_set(m_pthread, FLAG_USB_RESUME); }
-    void signal_report_5v();
+    void signal_report_v_5v();
     void signal_key_event(uint8_t led_id, bool pressed);
     void signal_led_state() { thread_flags_set(m_pthread, FLAG_CHANGE_LED_STATE); }
 

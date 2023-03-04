@@ -6,8 +6,8 @@
 #include "debug.h"
 
 #include "adc_input.hpp"
-#include "adc_thread.hpp"       // for signal_report_5v/extra() and signal_event()
-#include "rgb_thread.hpp"       // for signal_report_5v()
+#include "adc_thread.hpp"       // for signal_report_v_5v/v_con() and signal_event()
+#include "rgb_thread.hpp"       // for signal_report_v_5v()
 
 
 
@@ -56,13 +56,13 @@ void adc_input::sync_measure()
 void adc_input_v_5v::_isr_signal_report()
 {
     update_level();
-    rgb_thread::obj().signal_report_5v();
-    adc_thread::obj().signal_report_5v();
+    rgb_thread::obj().signal_report_v_5v();
+    adc_thread::obj().signal_report_v_5v();
 }
 
 void adc_input_v_con::_isr_signal_report()
 {
-    adc_thread::obj().signal_report_extra();
+    adc_thread::obj().signal_report_v_con();
 }
 
 void adc_input::_tmo_periodic_measure(void* arg)
@@ -78,13 +78,6 @@ void adc_input::_hdlr_periodic_measure(event_t* event)
 {
     adc_input* const that = static_cast<event_ext_t<adc_input*>*>(event)->arg;
     that->async_measure();
-}
-
-adc_input_v_5v& adc_input_v_5v::sync_measure()
-{
-    adc_input::sync_measure();
-    update_level();
-    return *this;
 }
 
 void adc_input_v_5v::update_level()

@@ -40,6 +40,8 @@ tap_hold_t<BALANCED> t_SPC { SPC, RSFT };
 
 mod_morph_t m_LSFT { LSFT, SPC, t_SPC };
 
+mod_morph_t m_P { P, PSCR, FN };
+
 class tap_capslock_t: public map_dance_t {
     // Todo: Implement map_conditional(cond, key_if_true, key_otherwise), so that t_LSFT
     //  can be defined as:
@@ -195,11 +197,9 @@ private:
             //     enable_extra_usbport_manually();
         }
         else {
-            if ( persistent::obj().led_color.h == ORANGE )
-                persistent::obj().led_color = hsv_t{ SPRING_GREEN, 255, 255 };
-            else
-                persistent::obj().led_color = hsv_t{ ORANGE, 255, 255 };
-            persistent::obj().write(&persistent::led_color);
+            const uint16_t color = persistent::obj().led_color.h == ORANGE
+                ? SPRING_GREEN : ORANGE;
+            persistent::obj().write(&persistent::led_color, hsv_t{ color, 255, 255 });
         }
 
         // DEBUG("test: map_t=%d literal_t=%d timer_t=%d tap_hold_t=%d mod_morph_t=%d\n",
@@ -223,7 +223,7 @@ private:
 pmap_t maps[MATRIX_ROWS][MATRIX_COLS] = {
     m_GRV, m_1, m_2, m_3, m_4, m_5, m_6, m_7, m_8, m_9, m_0, m_MINUS, m_EQL, m_BKSP, HOME,
 
-    TAB, Q, W, E, R, T, Y, U, I, O, P, LBRKT, RBRKT, BSLASH, END,
+    TAB, Q, W, E, R, T, Y, U, I, O, m_P, LBRKT, RBRKT, BSLASH, END,
 
     t_LCTL, A, S, D, F, G, H, J, K, L, COLON, QUOTE, ___, t_ENT, PGUP,
 

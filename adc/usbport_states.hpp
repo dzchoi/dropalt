@@ -28,20 +28,24 @@ public:
 
     // Event handlers
     // Note that the events triggered from measurements are recurring periodically
-    // (process_v_5v_level, process_extra_connected and process_extra_unconnected) but
-    // the others are not. If an event is not processed by the current state it is lost
-    // and not passed over to the next state (see adc_thread::_adc_thread).
+    // (process_v_5v() and process_v_con()) but the others are not. If an event is not
+    // processed by the current state it is lost and not passed over to the next state
+    // (see adc_thread::_adc_thread()).
     virtual void process_usb_suspend() {}
     virtual void process_usb_resume() {}
     virtual void process_usbport_switchover() {}
-    virtual void process_extra_connected() {}
-    virtual void process_extra_unconnected() {}
+    virtual void process_v_5v() {}
+    virtual void process_v_con() {}
     virtual void process_extra_enable_manually() {}
     virtual void process_extra_back_to_automatic() {}
-    virtual void process_v_5v_level() {}
     virtual void process_timeout() {}
 
 protected:
+    // Unlikely but if keyboard's USB port is physically damaged, the ADC measurement on
+    // the port can be incorrect and the automatic switchover on cable break will not
+    // work.
+    static inline bool enable_automatic_switchover = false;
+
     usbport() =default;  // Can be called only by child classes.
 
     virtual void begin() {}
@@ -70,6 +74,30 @@ protected:
 
 
 
+class state_determine_host: public usbport {
+// Determine host port during power-up.
+// It would take some hundred milliseconds until acquiring the host (i.e. USB is
+// resumed) when the keyboard is powered up by plugging in USB cable.
+public:
+    static state_determine_host& obj() {
+        static state_determine_host obj;
+        return obj;
+    }
+
+    void process_usb_resume() { help_process_usb_resume(); }
+    void process_usbport_switchover() { help_process_usbport_switchover(); }
+    void process_v_con();
+    void process_timeout();
+
+private:
+    void begin();
+    void end();
+
+    ztimer_t blink_timer = {};
+};
+
+
+
 class state_usb_suspended: public usbport {
 // Will stay until resumed, or until switchover or remote wake-up is triggered.
 public:
@@ -78,8 +106,8 @@ public:
         return obj;
     }
 
-    // Determine and acquire host port during power-up or switchover.
-    void determine_host();
+    // Acquire host port on switchover.
+    void perform_switchover();
 
     void process_usb_resume() { help_process_usb_resume(); }
     void process_usbport_switchover() { help_process_usbport_switchover(); }
@@ -108,8 +136,7 @@ public:
 
     void process_usb_suspend() { help_process_usb_suspend(); }
     void process_usbport_switchover() { help_process_usbport_switchover(); }
-    void process_extra_connected();
-    void process_extra_unconnected();
+    void process_v_con();
     void process_extra_enable_manually();
 
 private:
@@ -131,10 +158,10 @@ public:
     void process_usb_suspend() { help_process_usb_suspend(); }
     // Switchover is allowed but will be rejected by help_process_usbport_switchover().
     void process_usbport_switchover() { help_process_usbport_switchover(); }
-    void process_extra_unconnected();
+    void process_v_5v();
+    void process_v_con();
     void process_extra_enable_manually();
     void process_extra_back_to_automatic();
-    void process_v_5v_level();
     void process_timeout();
 
 private:

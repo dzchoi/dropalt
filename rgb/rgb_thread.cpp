@@ -82,7 +82,7 @@ void* rgb_thread_tl<true>::_rgb_thread(void* arg)
     return nullptr;
 }
 
-void rgb_thread_tl<true>::signal_report_5v()
+void rgb_thread_tl<true>::signal_report_v_5v()
 {
     if ( m_gcr.is_enabled() )
         if ( (adc_input::v_5v.level() > V_5V_MID && m_gcr.raise())

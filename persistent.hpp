@@ -2,6 +2,7 @@
 
 #include <stdint.h>             // for uint*_t
 #include "seeprom.h"
+#include "usb2422.h"            // for USB_PORT_1
 #include "ztimer.h"             // for ztimer_t
 
 #include "color.hpp"            // for hsv_t
@@ -21,11 +22,12 @@ public:
     // value execute write() after updating the member variable.
 
     uint32_t magic_number = NVM_MAGIC_NUMBER;
-    uint8_t major_version = 0;  // increased when existing member is changed
-    uint8_t minor_version = 1;  // increased only when new member is added
+    uint16_t layout_version = 1u + (1u << 8);  // major version and minor version
 
     // Todo: Effect instead of a color?
     hsv_t led_color = hsv_t{ ORANGE, 255, 255 };
+
+    uint8_t last_host_port = USB_PORT_1;
 
     // Write the data pointed by p into NVM (i.e. SmartEEPROM). To save the wearing out
     // only the changed parts are written, and written only after NVM_WRITE_DELAY_MS.
@@ -33,6 +35,12 @@ public:
     // seeprom.h).
     template <typename T>
     void write(T persistent::* p);
+
+    template <typename T>
+    void write(T persistent::* p, const T& value) {
+        this->*p = value;
+        write(p);
+    }
 
 private:
     persistent();

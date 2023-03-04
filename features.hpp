@@ -34,11 +34,6 @@ constexpr bool VIRTSER_ENABLE = true;
 // Note that the data packet size for every endpoint is defined as *_REPORT_SIZE in
 // usb_descriptor.hpp.
 
-// When we power cycle keyboard (through reset or downloading a firmware) with two hosts
-// connected we try the port 1 to connect to the host, if this flag is true. Otherwise,
-// we try the port 2 first.
-constexpr bool POWER_UP_CHECK_PORT1_FIRST = true;
-
 // If false, the power will be cut off to the extra port while USB suspends.
 constexpr bool KEEP_CHARGING_EXTRA_DEVICE_DURING_SUSPEND = true;
 

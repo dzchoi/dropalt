@@ -13,15 +13,16 @@ persistent::persistent()
     seeprom_init();
 
     const uint32_t _magic_number = magic_number;
-    const uint8_t _major_version = major_version;
+    const uint16_t _layout_version = layout_version;
     read(&persistent::magic_number);
-    read(&persistent::major_version);
+    read(&persistent::layout_version);
 
-    if ( magic_number == _magic_number && major_version == _major_version )
+    if ( magic_number == _magic_number && layout_version == _layout_version )
         read_all();
     else {
+        // Reset the NVM if it is corrupted or old-versioned.
         magic_number = _magic_number;
-        major_version = _major_version;
+        layout_version = _layout_version;
         write_all();
         DEBUG("persistent: reset default values\n");
     }

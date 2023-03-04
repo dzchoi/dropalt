@@ -29,11 +29,11 @@ public:
     // Signal a (generic) event to adc_thread.
     void signal_event(event_t* event) { event_post(&m_queue, event); }
 
-    // Signal that 5v report is ready.
-    void signal_report_5v() { thread_flags_set(m_pthread, FLAG_REPORT_5V); }
+    // Signal that v_5v report is ready.
+    void signal_report_v_5v() { thread_flags_set(m_pthread, FLAG_REPORT_V_5V); }
 
-    // Signal that extra-port report is ready.
-    void signal_report_extra() { thread_flags_set(m_pthread, FLAG_REPORT_EXTRA); }
+    // Signal that v_con report is ready.
+    void signal_report_v_con() { thread_flags_set(m_pthread, FLAG_REPORT_V_CON); }
 
     void signal_extra_enable_manually() {
         thread_flags_set(m_pthread, FLAG_EXTRA_MANUAL);
@@ -64,8 +64,8 @@ private:
         FLAG_USB_SUSPEND        = 0x0002,
         FLAG_USB_RESUME         = 0x0004,
         FLAG_USBPORT_SWITCHOVER = 0x0008,
-        FLAG_REPORT_5V          = 0x0010,
-        FLAG_REPORT_EXTRA       = 0x0020,
+        FLAG_REPORT_V_5V        = 0x0010,
+        FLAG_REPORT_V_CON       = 0x0020,
         FLAG_EXTRA_MANUAL       = 0x0040,
         FLAG_EXTRA_AUTOMATIC    = 0x0080,
         FLAG_TIMEOUT            = THREAD_FLAG_TIMEOUT  // (1u << 14)
