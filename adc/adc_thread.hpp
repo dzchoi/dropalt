@@ -44,7 +44,7 @@ public:
     }
 
     adc_thread(const adc_thread&) =delete;
-    void operator=(const adc_thread&) =delete;
+    adc_thread& operator=(const adc_thread&) =delete;
 
 private:
     thread_t* m_pthread;

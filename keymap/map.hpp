@@ -1,5 +1,8 @@
 #pragma once
 
+#include "assert.h"             // for assert()
+
+#include <type_traits>          // for std::is_base_of<>
 #include "adc_thread.hpp"       // for signal_extra_enable_manually(), ...
 #include "keymap_thread.hpp"    // for signal_usbport_switchover()
 #include "manager.hpp"          // for key::manager
@@ -18,7 +21,19 @@ class pmap_t;
 // be only checked for its pressing.
 class map_t {
 public: // User-facing methods
-    constexpr map_t() =default;  // could be omitted.
+    constexpr map_t() =default;
+
+    // Movable only at compile-time
+    // All keymaps should be created and initialized at compile-time and not be destroyed
+    // at run-time.
+    constexpr map_t(map_t&&) {
+        constexpr bool is_compile_time = __builtin_is_constant_evaluated();
+        assert( is_compile_time );
+    }
+
+    // Not copyable
+    map_t(const map_t&) =delete;
+    map_t& operator=(const map_t&) =delete;
 
     // Execute on_press/release() of the keymap with the slot who triggers the keymap.
     // Beware to not call `pmap->on_press(slot)` directly, which does not take care of
@@ -80,5 +95,24 @@ protected: // Utility methods that can be used by child classes
 // Keys that do nothing
 inline map_t NO;
 inline map_t& ___ = NO;
+
+
+
+// Meta-function to map T -> T and T& -> map_t&, if T is a derived class of map_t.
+
+template <class T>
+struct obj_or_ref {
+    static_assert( std::is_base_of_v<map_t, T> );
+    typedef T type;
+};
+
+template <class T>
+struct obj_or_ref<T&> {
+    static_assert( std::is_base_of_v<map_t, T> );
+    typedef map_t& type;
+};
+
+template <class T>
+using obj_or_ref_t = typename obj_or_ref<T>::type;
 
 }  // namespace key

@@ -1,4 +1,4 @@
-#define ENABLE_DEBUG    (1)
+#define ENABLE_DEBUG 1          // Will also affect DEBUG()'s in included files
 #include "debug.h"
 
 #include "features.hpp"         // for TAPPING_TERM_MS
@@ -30,18 +30,57 @@ uint8_t keymap[MATRIX_ROWS][MATRIX_COLS] = {
 };
 */
 
+// Custom modifiers
 map_t FN;
+map_t FN2;
 
-tap_hold_t<HOLD_PREFERRED> t_LCTL { ESC, LCTL };
+// Hold Tab = FN2
+tap_hold_t t_TAB { TAB, FN2, HOLD_PREFERRED };
 
-tap_hold_t<HOLD_PREFERRED> t_ENT { ENT, FN };
+// Tap LCTL = ESC
+tap_hold_t t_LCTL { ESC, LCTL, HOLD_PREFERRED };
 
-tap_hold_t<BALANCED> t_SPC { SPC, RSFT };
+// Hold ENTER = FN
+tap_hold_t t_ENT { ENT, FN, HOLD_PREFERRED };
 
-mod_morph_t m_LSFT { LSFT, SPC, t_SPC };
+// Hold SPC = RSFT
+tap_hold_t t_SPC { SPC, RSFT, BALANCED };
 
+// FN + P = PrtScr
 mod_morph_t m_P { P, PSCR, FN };
 
+// FN + LBRKT = Break/Pause
+mod_morph_t m_LBRKT { LBRKT, PAUSE, FN };
+
+// FN + RBRKT = ScrollLock
+mod_morph_t m_RBRKT { RBRKT, SCROLLLOCK, FN };
+
+// FN + H/J/K/L = Arrow keys
+mod_morph_t m_H { H, LEFT, FN };
+mod_morph_t m_J { J, DOWN, FN };
+mod_morph_t m_K { K, UP, FN };
+mod_morph_t m_L { L, RIGHT, FN };
+
+// Todo: Tab as second custom modifier.
+//  - FN + FN2 + H = Home
+//  - FN + FN2 + L = End
+//  - FN + FN2 + K = PgUp
+//  - FN + FN2 + J = PgDn
+
+// FN + BkSp = DEL
+mod_morph_t m_BKSP { BKSP, DEL, FN };
+
+// Alternatively, m_BKSP defines RSFT as its modifier. With t_SPC instead, when m_BKSP is
+// pressed within the tapping term of t_SPC the tap version of t_SPC (i.e. SPC) would be
+// sent immediately after sending DEL.
+// mod_morph_t<UNDO_MOD> m_BKSP { BKSP, DEL, RSFT };
+
+// FN + ` = Power
+mod_morph_t m_GRV { GRV, POWER, FN };
+
+
+
+template <class K>
 class tap_capslock_t: public map_dance_t {
     // Todo: Implement map_conditional(cond, key_if_true, key_otherwise), so that t_LSFT
     //  can be defined as:
@@ -56,14 +95,8 @@ class tap_capslock_t: public map_dance_t {
     //  };
 
 public:
-    // constexpr tap_capslock_t(
-    //     map_t& once, uint32_t tapping_term_ms =TAPPING_TERM_MS)
-    // : map_dance_t(tapping_term_ms), m_once(once) {}
-
-    template <class T>
-    constexpr tap_capslock_t(
-        T&& once, uint32_t tapping_term_ms =TAPPING_TERM_MS)
-    : map_dance_t(tapping_term_ms), m_once(std::forward<T>(once)) {}
+    constexpr tap_capslock_t(K&& once, uint32_t tapping_term_ms =TAPPING_TERM_MS)
+    : map_dance_t(tapping_term_ms), m_once(std::forward<K>(once)) {}
 
 private:
     void on_press(pmap_t* slot) {
@@ -92,42 +125,36 @@ private:
             m_twice.release(slot);
     }
 
-    map_t& m_once;
+    K m_once;
     map_t* m_ponce = nullptr;
     map_t& m_twice = CAPSLOCK;
 };
 
-// tap_capslock_t t_LSFT { m_LSFT };
+template <class T>
+tap_capslock_t(T&&) -> tap_capslock_t<obj_or_ref_t<T>>;
+
+template <class T>
+tap_capslock_t(T&&, uint32_t) -> tap_capslock_t<obj_or_ref_t<T>>;
+
+// t_SPC + LSFT = SPC
+// mod_morph_t m_LSFT { LSFT, SPC, t_SPC };
+
+tap_capslock_t t_LSFT { mod_morph_t { LSFT, SPC, t_SPC } };
 
 
 
-// Here m_BKSP has RSFT as its modifier. With t_SPC instead, when m_BKSP is pressed
-// within the tapping term of t_SPC the tap version of t_SPC (i.e. SPC) would be sent
-// immediately after sending DEL.
-mod_morph_t<UNDO_MOD> m_BKSP { BKSP, DEL, RSFT };
-
-mod_morph_t m_GRV { GRV, POWER, FN };
-
-// Todo: Block repeated press of Function keys for tap_hold_t.
-// tap_hold_t t_1 { _1, F1 };        // sizeof = 72
 mod_morph_t m_1 { _1, F1, FN };  // sizeof = 24
-// tap_hold_t t_2 { _2, F2 };
 mod_morph_t m_2 { _2, F2, FN };
-// tap_hold_t t_3 { _3, F3 };
 mod_morph_t m_3 { _3, F3, FN };
-// tap_hold_t t_4 { _4, F4 };
 mod_morph_t m_4 { _4, F4, FN };
-// tap_hold_t t_5 { _5, F5 };
 mod_morph_t m_5 { _5, F5, FN };
-// tap_hold_t t_6 { _6, F6 };
 mod_morph_t m_6 { _6, F6, FN };
-// tap_hold_t t_7 { _7, F7 };
 mod_morph_t m_7 { _7, F7, FN };
-// tap_hold_t t_8 { _8, F8 };
 mod_morph_t m_8 { _8, F8, FN };
-// tap_hold_t t_9 { _9, F9 };
+// Todo: Block repeated press of Function keys for tap_hold_t.
+// mod_morph_t m_9 { tap_hold_t { _9, F9 }, F9, FN };
 mod_morph_t m_9 { _9, F9, FN };
-// tap_hold_t t_0 { _0, F10 };
+// mod_morph_t m_0 { tap_hold_t { _0, F10 }, F10, FN };
 mod_morph_t m_0 { _0, F10, FN };
 
 // tap_hold_t t_MINUS { MINUS, F11 };
@@ -223,13 +250,13 @@ private:
 pmap_t maps[MATRIX_ROWS][MATRIX_COLS] = {
     m_GRV, m_1, m_2, m_3, m_4, m_5, m_6, m_7, m_8, m_9, m_0, m_MINUS, m_EQL, m_BKSP, HOME,
 
-    TAB, Q, W, E, R, T, Y, U, I, O, m_P, LBRKT, RBRKT, BSLASH, END,
+    TAB, Q, W, E, R, T, Y, U, I, O, m_P, m_LBRKT, m_RBRKT, BSLASH, END,
 
-    t_LCTL, A, S, D, F, G, H, J, K, L, COLON, QUOTE, ___, t_ENT, PGUP,
+    t_LCTL, A, S, D, F, G, m_H, m_J, m_K, m_L, COLON, QUOTE, ___, t_ENT, PGUP,
 
-    m_LSFT, ___, Z, X, C, V, B, N, M, COMMA, DOT, SLASH, RSFT, UP, PGDN,
+    t_LSFT, ___, Z, X, C, V, B, N, M, COMMA, DOT, SLASH, RSFT, UP, PGDN,
 
-    FN, LGUI, LALT, ___, ___, ___, t_SPC, ___, ___, ___,
+    LALT, LGUI, FN, ___, ___, ___, t_SPC, ___, ___, ___,
         RCTL, test /*RALT*/, LEFT, DOWN, RIGHT,
 };
 
