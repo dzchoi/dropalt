@@ -52,8 +52,7 @@ protected: // Methods to be used by child classes
     timer_t(const timer_t&) =delete;
     timer_t& operator=(const timer_t&) =delete;
 
-private: // Methods to be called by keymap_thread and key::manager
-    friend class ::keymap_thread;  // allows access to handle_timeout()
+private: // Methods to be called by key::manager
     friend class manager_t;
 
     // Will be called when the timer is expired.

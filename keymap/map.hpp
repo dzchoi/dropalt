@@ -45,7 +45,7 @@ public: // User-facing methods
     // Indicate if the keymap (not the slot) is being pressed.
     bool is_pressing() const { return m_pressing_count > 0; };
 
-private: // Methods to be called by key::manager
+private: // Methods to be called by key::manager and map_proxy_t
     friend class manager_t;
     friend class map_proxy_t;
 
