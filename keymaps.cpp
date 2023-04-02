@@ -5,6 +5,7 @@
 #include "literal.hpp"
 #include "map.hpp"
 #include "mod_morph.hpp"
+#include "norepeat.hpp"
 #include "persistent.hpp"       // for persistent::obj()
 #include "tap_dance.hpp"
 #include "tap_hold.hpp"
@@ -38,16 +39,16 @@ map_t FN2;
 tap_hold_t t_TAB { TAB, FN2, HOLD_PREFERRED };
 
 // Tap LCTL = ESC
-tap_hold_t t_LCTL { ESC, LCTL, HOLD_PREFERRED };
+tap_hold_t t_LCTL { ESC, LCTL, HOLD_PREFERRED };  // sizeof = 72
 
 // Hold ENTER = FN
 tap_hold_t t_ENT { ENT, FN, HOLD_PREFERRED };
 
 // Hold SPC = RSFT
-tap_hold_t t_SPC { SPC, RSFT, BALANCED };
+tap_hold_t t_SPC { SPC, RSFT, BALANCED };  // sizeof = 72
 
 // FN + P = PrtScr
-mod_morph_t m_P { P, PSCR, FN };
+mod_morph_t m_P { P, PSCR, FN };  // sizeof = 24
 
 // FN + LBRKT = Break/Pause
 mod_morph_t m_LBRKT { LBRKT, PAUSE, FN };
@@ -143,24 +144,19 @@ tap_capslock_t t_LSFT { mod_morph_t { LSFT, SPC, t_SPC } };
 
 
 
-mod_morph_t m_1 { _1, F1, FN };  // sizeof = 24
-mod_morph_t m_2 { _2, F2, FN };
-mod_morph_t m_3 { _3, F3, FN };
-mod_morph_t m_4 { _4, F4, FN };
-mod_morph_t m_5 { _5, F5, FN };
-mod_morph_t m_6 { _6, F6, FN };
-mod_morph_t m_7 { _7, F7, FN };
-mod_morph_t m_8 { _8, F8, FN };
-// Todo: Block repeated press of Function keys for tap_hold_t.
-// mod_morph_t m_9 { tap_hold_t { _9, F9 }, F9, FN };
-mod_morph_t m_9 { _9, F9, FN };
-// mod_morph_t m_0 { tap_hold_t { _0, F10 }, F10, FN };
-mod_morph_t m_0 { _0, F10, FN };
-
-// tap_hold_t t_MINUS { MINUS, F11 };
-mod_morph_t m_MINUS { MINUS, F11, FN };
-// tap_hold_t t_EQL { EQL, F12 };
-mod_morph_t m_EQL { EQL, F12, FN };
+// FN + 1 = F1 or Hold 1 = F1
+mod_morph_t m_1 { tap_hold_t { _1, norepeat_t { F1 } }, F1, FN };  // sizeof = 100
+mod_morph_t m_2 { tap_hold_t { _2, norepeat_t { F2 } }, F2, FN };
+mod_morph_t m_3 { tap_hold_t { _3, norepeat_t { F3 } }, F3, FN };
+mod_morph_t m_4 { tap_hold_t { _4, norepeat_t { F4 } }, F4, FN };
+mod_morph_t m_5 { tap_hold_t { _5, norepeat_t { F5 } }, F5, FN };
+mod_morph_t m_6 { tap_hold_t { _6, norepeat_t { F6 } }, F6, FN };
+mod_morph_t m_7 { tap_hold_t { _7, norepeat_t { F7 } }, F7, FN };
+mod_morph_t m_8 { tap_hold_t { _8, norepeat_t { F8 } }, F8, FN };
+mod_morph_t m_9 { tap_hold_t { _9, norepeat_t { F9 } }, F9, FN };
+mod_morph_t m_0 { tap_hold_t { _0, norepeat_t { F10 } }, F10, FN };
+mod_morph_t m_MINUS { tap_hold_t { MINUS, norepeat_t { F11 } }, F11, FN };
+mod_morph_t m_EQL { tap_hold_t { EQL, norepeat_t { F12 } }, F12, FN };
 
 
 
