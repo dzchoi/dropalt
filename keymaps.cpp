@@ -2,9 +2,9 @@
 #include "debug.h"
 
 #include "features.hpp"         // for TAPPING_TERM_MS
+#include "if.hpp"
 #include "literal.hpp"
 #include "map.hpp"
-#include "mod_morph.hpp"
 #include "norepeat.hpp"
 #include "persistent.hpp"       // for persistent::obj()
 #include "tap_dance.hpp"
@@ -35,6 +35,9 @@ uint8_t keymap[MATRIX_ROWS][MATRIX_COLS] = {
 map_t FN;
 map_t FN2;
 
+static bool FN_pressed() { return FN.is_pressed(); }
+static bool FN2_pressed() { return FN2.is_pressed(); }
+
 // Hold Tab = FN2
 tap_hold_t t_TAB { TAB, FN2, HOLD_PREFERRED };
 
@@ -48,28 +51,22 @@ tap_hold_t t_ENT { ENT, FN, HOLD_PREFERRED };
 tap_hold_t t_SPC { SPC, RSFT, BALANCED };  // sizeof = 72
 
 // FN + P = PrtScr
-mod_morph_t m_P { P, PSCR, FN };  // sizeof = 24
+if_t m_P { FN_pressed, PSCR, P };  // sizeof = 24
 
 // FN + LBRKT = Break/Pause
-mod_morph_t m_LBRKT { LBRKT, PAUSE, FN };
+if_t m_LBRKT { FN_pressed, PAUSE, LBRKT };
 
 // FN + RBRKT = ScrollLock
-mod_morph_t m_RBRKT { RBRKT, SCROLLLOCK, FN };
+if_t m_RBRKT { FN_pressed, SCROLLLOCK, RBRKT };
 
-// FN + H/J/K/L = Arrow keys
-mod_morph_t m_H { H, LEFT, FN };
-mod_morph_t m_J { J, DOWN, FN };
-mod_morph_t m_K { K, UP, FN };
-mod_morph_t m_L { L, RIGHT, FN };
-
-// Todo: Tab as second custom modifier.
-//  - FN + FN2 + H = Home
-//  - FN + FN2 + L = End
-//  - FN + FN2 + K = PgUp
-//  - FN + FN2 + J = PgDn
+// FN + H/J/K/L = Arrow keys, FN2 + H/J/K/L = Home/PgDn/PgUp/End
+if_t m_H { FN_pressed, LEFT, if_t(FN2_pressed, HOME, H) };  // sizeof = 44
+if_t m_J { FN_pressed, DOWN, if_t(FN2_pressed, PGDN, J) };
+if_t m_K { FN_pressed, UP, if_t(FN2_pressed, PGUP, K) };
+if_t m_L { FN_pressed, RIGHT, if_t(FN2_pressed, END, L) };
 
 // FN + BkSp = DEL
-mod_morph_t m_BKSP { BKSP, DEL, FN };
+if_t m_BKSP { FN_pressed, DEL, BKSP };
 
 // Alternatively, m_BKSP defines RSFT as its modifier. With t_SPC instead, when m_BKSP is
 // pressed within the tapping term of t_SPC the tap version of t_SPC (i.e. SPC) would be
@@ -77,86 +74,32 @@ mod_morph_t m_BKSP { BKSP, DEL, FN };
 // mod_morph_t<UNDO_MOD> m_BKSP { BKSP, DEL, RSFT };
 
 // FN + ` = Power
-mod_morph_t m_GRV { GRV, POWER, FN };
+if_t m_GRV { FN_pressed, POWER, GRV };
 
-
-
-template <class K>
-class tap_capslock_t: public map_dance_t {
-    // Todo: Implement map_conditional(cond, key_if_true, key_otherwise), so that t_LSFT
-    //  can be defined as:
-    //  mod_morph_t t_LSFT {
-    //      map_conditional {
-    //          [](){ return hid_keyboard.get_led_state() & 0x2; },
-    //          CAPSLOCK,
-    //          tap_dance_double_t { LSFT, CAPSLOCK }
-    //      },
-    //      SPC,
-    //      t_SPC
-    //  };
-
-public:
-    constexpr tap_capslock_t(K&& once, uint32_t tapping_term_ms =TAPPING_TERM_MS)
-    : map_dance_t(tapping_term_ms), m_once(std::forward<K>(once)) {}
-
-private:
-    void on_press(pmap_t* slot) {
-        if ( get_step() == 1 ) {
-            if ( usb_thread::obj().hid_keyboard.get_led_state() & 0x2 ) {
-                m_ponce = &m_twice;
-                finish();
-            }
-            else
-                m_ponce = &m_once;
-
-            m_ponce->press(slot);
-        }
-
-        else {
-            m_once.release(slot);
-            m_twice.press(slot);
-            finish();
-        }
-    }
-
-    void on_release(pmap_t* slot) {
-        if ( get_step() == 1 )
-            m_ponce->release(slot);
-        else
-            m_twice.release(slot);
-    }
-
-    K m_once;
-    map_t* m_ponce = nullptr;
-    map_t& m_twice = CAPSLOCK;
+// t_SPC + LSFT = SPC, Double LSFT = CapsLock, LSFT (when CapsLock on) = CapsLock
+if_t t_LSFT {  // sizeof = 112
+    [](){ return t_SPC.is_pressed(); },
+    SPC,
+    if_t (
+        [](){ return (usb_thread::obj().hid_keyboard.get_led_state() & 0x2) != 0; },
+        CAPSLOCK,
+        tap_dance_double_t(LSFT, CAPSLOCK)
+    )
 };
 
-template <class T>
-tap_capslock_t(T&&) -> tap_capslock_t<obj_or_ref_t<T>>;
-
-template <class T>
-tap_capslock_t(T&&, uint32_t) -> tap_capslock_t<obj_or_ref_t<T>>;
-
-// t_SPC + LSFT = SPC
-// mod_morph_t m_LSFT { LSFT, SPC, t_SPC };
-
-tap_capslock_t t_LSFT { mod_morph_t { LSFT, SPC, t_SPC } };
-
-
-
 // FN + 1 = F1 or Hold 1 = F1
-mod_morph_t m_1 { tap_hold_t { _1, norepeat_t { F1 } }, F1, FN };  // sizeof = 100
-mod_morph_t m_2 { tap_hold_t { _2, norepeat_t { F2 } }, F2, FN };
-mod_morph_t m_3 { tap_hold_t { _3, norepeat_t { F3 } }, F3, FN };
-mod_morph_t m_4 { tap_hold_t { _4, norepeat_t { F4 } }, F4, FN };
-mod_morph_t m_5 { tap_hold_t { _5, norepeat_t { F5 } }, F5, FN };
-mod_morph_t m_6 { tap_hold_t { _6, norepeat_t { F6 } }, F6, FN };
-mod_morph_t m_7 { tap_hold_t { _7, norepeat_t { F7 } }, F7, FN };
-mod_morph_t m_8 { tap_hold_t { _8, norepeat_t { F8 } }, F8, FN };
-mod_morph_t m_9 { tap_hold_t { _9, norepeat_t { F9 } }, F9, FN };
-mod_morph_t m_0 { tap_hold_t { _0, norepeat_t { F10 } }, F10, FN };
-mod_morph_t m_MINUS { tap_hold_t { MINUS, norepeat_t { F11 } }, F11, FN };
-mod_morph_t m_EQL { tap_hold_t { EQL, norepeat_t { F12 } }, F12, FN };
+if_t m_1 { FN_pressed, F1, tap_hold_t(_1, norepeat_t(F1)) };  // sizeof = 100
+if_t m_2 { FN_pressed, F2, tap_hold_t(_2, norepeat_t(F2)) };
+if_t m_3 { FN_pressed, F3, tap_hold_t(_3, norepeat_t(F3)) };
+if_t m_4 { FN_pressed, F4, tap_hold_t(_4, norepeat_t(F4)) };
+if_t m_5 { FN_pressed, F5, tap_hold_t(_5, norepeat_t(F5)) };
+if_t m_6 { FN_pressed, F6, tap_hold_t(_6, norepeat_t(F6)) };
+if_t m_7 { FN_pressed, F7, tap_hold_t(_7, norepeat_t(F7)) };
+if_t m_8 { FN_pressed, F8, tap_hold_t(_8, norepeat_t(F8)) };
+if_t m_9 { FN_pressed, F9, tap_hold_t(_9, norepeat_t(F9)) };
+if_t m_0 { FN_pressed, F10, tap_hold_t(_0, norepeat_t(F10)) };
+if_t m_MINUS { FN_pressed, F11, tap_hold_t(MINUS, norepeat_t(F11)) };
+if_t m_EQL { FN_pressed, F12, tap_hold_t(EQL, norepeat_t(F12)) };
 
 
 
@@ -192,12 +135,11 @@ private:
 
 // More keymap ideas:
 //  - qq to send TAB
-//  - double shift to send CapsLock
 //  - ;; to send ::
 
 
 
-class test_t: public map_t, public timer_t {
+class test_t: public map_t, public timer_t {  // sizeof = 48
 public:
     constexpr test_t(): timer_t(500) {}
 
@@ -211,49 +153,48 @@ private:
         stop_timer();
         // stop_defer_presses();
 
-        if ( FN.is_pressing() ) {
-            if ( t_LCTL.is_pressing() )
+        if ( FN.is_pressed() ) {
+            if ( t_LCTL.is_pressed() )
                 system_reset();
-            // else if ( LSFT.is_pressing() )
-            //     set_extra_usbport_back_to_automatic();
-            // else
-            //     enable_extra_usbport_manually();
-        }
-        else {
-            const uint16_t color = persistent::obj().led_color.h == ORANGE
-                ? SPRING_GREEN : ORANGE;
-            persistent::obj().write(&persistent::led_color, hsv_t{ color, 255, 255 });
+            else {
+                const uint16_t color = persistent::obj().led_color.h == ORANGE
+                    ? SPRING_GREEN : ORANGE;
+                persistent::obj().write(&persistent::led_color, hsv_t{ color, 255, 255 });
+            }
         }
 
-        // DEBUG("test: map_t=%d literal_t=%d timer_t=%d tap_hold_t=%d mod_morph_t=%d\n",
-        //     sizeof(map_t), sizeof(literal_t), sizeof(timer_t),
-        //     sizeof(tap_hold_t<HOLD_PREFERRED>), sizeof(mod_morph_t<UNDO_MOD>));
+        // if ( t_LCTL.is_pressed() ) {
+        //     if ( LSFT.is_pressed() )
+        //         set_extra_usbport_back_to_automatic();
+        //     else
+        //         enable_extra_usbport_manually();
+        // }
     }
 
     void on_timeout(pmap_t*) {
-        if ( FN.is_pressing() ) {
-            if ( t_LCTL.is_pressing() )
+        if ( FN.is_pressed() ) {
+            if ( t_LCTL.is_pressed() )
                 // assert( false );
                 WDT->CLEAR.reg = 0;  // anything other than 0xA5
             else
                 perform_usbport_switchover();
         }
     }
-} test;
+} TEST;
 
 
 
 pmap_t maps[MATRIX_ROWS][MATRIX_COLS] = {
     m_GRV, m_1, m_2, m_3, m_4, m_5, m_6, m_7, m_8, m_9, m_0, m_MINUS, m_EQL, m_BKSP, HOME,
 
-    TAB, Q, W, E, R, T, Y, U, I, O, m_P, m_LBRKT, m_RBRKT, BSLASH, END,
+    t_TAB, Q, W, E, R, T, Y, U, I, O, m_P, m_LBRKT, m_RBRKT, BSLASH, END,
 
     t_LCTL, A, S, D, F, G, m_H, m_J, m_K, m_L, COLON, QUOTE, ___, t_ENT, PGUP,
 
     t_LSFT, ___, Z, X, C, V, B, N, M, COMMA, DOT, SLASH, RSFT, UP, PGDN,
 
     LALT, LGUI, FN, ___, ___, ___, t_SPC, ___, ___, ___,
-        RCTL, test /*RALT*/, LEFT, DOWN, RIGHT,
+        RCTL, TEST /*RALT*/, LEFT, DOWN, RIGHT,
 };
 
 }  // namespace key

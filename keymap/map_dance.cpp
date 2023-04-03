@@ -29,7 +29,7 @@ void map_dance_t::on_timeout(pmap_t* slot)
     stop_observe();
     m_is_finished = true;  // Finish the dance.
     on_finish(slot);
-    if ( !is_pressing() ) {
+    if ( !is_pressed() ) {
         on_release(slot);  // Notify of the release late.
         m_step = 0;
     }

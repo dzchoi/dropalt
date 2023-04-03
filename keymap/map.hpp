@@ -43,7 +43,7 @@ public: // User-facing methods
     void release(pmap_t* slot) { key::manager.execute_release(this, slot); }
 
     // Indicate if the keymap (not the slot) is being pressed.
-    bool is_pressing() const { return m_pressing_count > 0; };
+    bool is_pressed() const { return m_pressing_count > 0; };
 
 private: // Methods to be called by key::manager and map_proxy_t
     friend class manager_t;

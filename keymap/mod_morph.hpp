@@ -1,5 +1,8 @@
 #pragma once
 
+// [OBSOLETE] mod_morph_t and map_modified_t can be replaced with if_t.
+// mod_morph_t(key1, key2, key3) == if_t( [](){ return key3.is_pressed(); }, key2, key1 )
+
 #include "map_modified.hpp"
 
 

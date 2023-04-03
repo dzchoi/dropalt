@@ -1,7 +1,7 @@
 # Main makefile for building the firmware for Drop Alt
 
 # Application name will be used for .bin, .elf, and .map files.
-APPLICATION = dropalt-0.5
+APPLICATION = dropalt-0.6
 
 # Directory for RIOT repo.
 RIOTBASE := $(CURDIR)/riot

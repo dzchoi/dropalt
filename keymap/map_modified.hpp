@@ -1,5 +1,8 @@
 #pragma once
 
+// [OBSOLETE] mod_morph_t and map_modified_t can be replaced with if_t.
+// mod_morph_t(key1, key2, key3) == if_t( [](){ return key3.is_pressed(); }, key2, key1 )
+
 #include "map_proxy.hpp"
 
 
@@ -41,7 +44,7 @@ template <class K>
 void map_modified_t<K>::on_proxy_press(pmap_t* slot)
 {
     assert( m_is_modified == false );
-    if ( m_modifier.is_pressing() ) {
+    if ( m_modifier.is_pressed() ) {
         m_is_modified = true;
         on_modified_press(slot);
     } else
