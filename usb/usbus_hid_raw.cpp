@@ -1,5 +1,4 @@
-#define ENABLE_DEBUG    (1)
-#include "debug.h"
+#include "log.h"
 
 #include "features.hpp"         // for RAW_REPORT_INTERVAL_MS
 #include "usbus_hid_raw.hpp"
@@ -71,7 +70,7 @@ void usbus_hid_raw_tl<true>::on_transfer_complete()
 void usbus_hid_raw_tl<true>::isr_on_transfer_timeout()
 {
     on_transfer_complete();
-    DEBUG("USB_HID:\e[0;31m tx_timer expired!\e[0m\n");
+    LOG_WARNING("USB_HID: tx_timer expired!\n");
 }
 
 int usbus_hid_raw_tl<true>::print(const char* str)

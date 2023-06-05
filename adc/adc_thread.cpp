@@ -2,9 +2,6 @@
 #include "thread.h"
 #include "usb2422.h"            // for usbhub_init()
 
-#define ENABLE_DEBUG    (1)
-#include "debug.h"
-
 #include "adc_input.hpp"
 #include "adc_thread.hpp"
 #include "usbport_states.hpp"

@@ -1,5 +1,8 @@
 #pragma once
 
+// LOCAL_LOG_LEVEL is controlled by the .cpp that includes this file.
+#include "log.h"
+
 #include "features.hpp"         // for TAPPING_TERM_MS
 #include "map.hpp"
 #include "observer.hpp"
@@ -141,7 +144,7 @@ void tap_hold_t<hold_preferred_t, K, L>::on_release(pmap_t* slot)
 {
     switch ( m_state ) {
         case NEITHER:
-            DEBUG("TapHold: decide tap on release\n");
+            LOG_DEBUG("TapHold: decide tap on release\n");
             decide_hold(slot, false);
             // Intentional fall-through
 
@@ -176,28 +179,28 @@ void tap_hold_t<hold_preferred_t, K, L>::decide_hold(pmap_t* slot, bool to_hold)
 template <class K, class L>
 void tap_hold_t<hold_preferred_t, K, L>::on_timeout(pmap_t* slot)
 {
-    DEBUG("TapHold: decide hold on timeout\n");
+    LOG_DEBUG("TapHold: decide hold on timeout\n");
     decide_hold(slot, true);
 }
 
 template <class K, class L>
 void tap_hold_t<hold_preferred_t, K, L>::on_other_press(pmap_t* slot)
 {
-    DEBUG("TapHold: decide hold on other press\n");
+    LOG_DEBUG("TapHold: decide hold on other press\n");
     decide_hold(slot, true);
 }
 
 template <class K, class L>
 void tap_hold_t<tap_preferred_t, K, L>::on_other_release(pmap_t* slot)
 {
-    DEBUG("TapHold: decide tap on other release\n");
+    LOG_DEBUG("TapHold: decide tap on other release\n");
     decide_hold(slot, false);
 }
 
 template <class K, class L>
 void tap_hold_t<balanced_t, K, L>::on_other_press(pmap_t* slot)
 {
-    DEBUG("TapHold: decide hold on other press and release\n");
+    LOG_DEBUG("TapHold: decide hold on other press and release\n");
     decide_hold(slot, true);
 }
 

@@ -34,7 +34,7 @@ struct pressing_slot_t {
     // This move assignment operator will handle the removal of middle element in the
     // vector.
     pressing_slot_t& operator=(pressing_slot_t&& other) {
-        // printf("---\e[0;34m move_slot: index=%lu->%lu, deferred=%lu\e[0m\n",
+        // LOG_DEBUG("--- move_slot: index=%lu->%lu, deferred=%lu\n",
         //     manager.index(&other), manager.index(this), m_index_deferred);
         m_slot = other.m_slot;
         m_when_release_started = other.m_when_release_started;

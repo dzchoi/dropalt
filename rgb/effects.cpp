@@ -1,8 +1,8 @@
+#define LOCAL_LOG_LEVEL LOG_NONE
+
+#include "log.h"
+
 #include <cmath>                // for std::sqrt() for floats
-
-#define ENABLE_DEBUG    (0)
-#include "debug.h"
-
 #include "color.hpp"            // for CIE1931_CURVE[]
 #include "effects.hpp"
 #include "led_conf.hpp"         // for LED_XY[]
@@ -68,7 +68,7 @@ ohsv_t finger_trace::process_key_event(uint8_t led_id, uint32_t time, bool press
 
     if ( pressed ) {
         if ( it == m_touched_leds.end() ) {
-            DEBUG("effect: create touched_led (%d)\n", led_id);
+            LOG_DEBUG("effect: create touched_led (%d)\n", led_id);
             m_touched_leds.create(led_id);
         } else
             it->state = PRESSED;
@@ -93,7 +93,7 @@ void finger_trace::update_done()
     if ( !m_touched_leds.empty() )
         enable_update_next(m_timer);
     else
-        DEBUG("effect: touched_leds all removed\n");
+        LOG_DEBUG("effect: touched_leds all removed\n");
 }
 
 ohsv_t finger_trace::update(uint8_t led_id, uint32_t time)
@@ -131,7 +131,7 @@ ohsv_t ripple::process_key_event(uint8_t led_id, uint32_t time, bool pressed)
     // others will have RELEASED state.
     if ( pressed ) {
         m_touched_leds.create(led_id);
-        DEBUG("effect: create touched_led (%d)\n", led_id);
+        LOG_DEBUG("effect: create touched_led (%d)\n", led_id);
         return hsv_t{ m_hsv.h, m_hsv.s, 0 };  // Turn it off.
     }
 
@@ -153,7 +153,7 @@ void ripple::update_done()
     if ( !m_touched_leds.empty() )
         enable_update_next(m_timer);
     else
-        DEBUG("effect: touched_leds all removed\n");
+        LOG_DEBUG("effect: touched_leds all removed\n");
 }
 
 ohsv_t ripple::update(uint8_t led_id, uint32_t time)

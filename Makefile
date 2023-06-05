@@ -1,7 +1,8 @@
 # Main makefile for building the firmware for Drop Alt
 
 # Application name will be used for .bin, .elf, and .map files.
-APPLICATION = dropalt-0.6
+# The version number should match that in launch.json.
+APPLICATION = dropalt-0.7
 
 # Directory for RIOT repo.
 RIOTBASE := $(CURDIR)/riot
@@ -57,12 +58,13 @@ else
 endif
 USEMODULE += ztimer
 USEMODULE += ztimer_msec
-USEMODULE += ztimer_usec            # Will use ztimer_periph_timer (timer_config[0])
+USEMODULE += ztimer_usec            # will use ztimer_periph_timer (timer_config[0])
 
 # Subdirectory modules
 EXTERNAL_MODULE_DIRS += $(CURDIR)
 USEMODULE += adc
 USEMODULE += keymap
+USEMODULE += log_write
 USEMODULE += rgb
 USEMODULE += usb
 
@@ -75,15 +77,26 @@ ROM_OFFSET      = 0x00004000  # The first 16K is occupied by bootloader.
 RAM_START_ADDR  = 0x20000000
 RAM_LEN         = 0x00020000  # 128K
 # Backup RAM means the persistent memory powered by an external battery, but the keyboard
-# does not use it.
+# does not enable it.
 BACKUP_RAM_ADDR = 0x47000000
 BACKUP_RAM_LEN  = 0x00002000  # 8K
+
+# The default ISR_STACKSIZE (=512 bytes) is not enough for LOG_ERROR() in
+# hard_fault_handler().
+CFLAGS += -DISR_STACKSIZE=THREAD_STACKSIZE_DEFAULT
+
+# The default THREAD_STACKSIZE_MAIN (=1536 bytes) is excessive.
+CFLAGS += -DTHREAD_STACKSIZE_MAIN=THREAD_STACKSIZE_DEFAULT
 
 VERBOSE_ASSERT := 1
 # Enabling VERBOSE_ASSERT will set:
 #  - DEVELHELP := 1                    # Enable assert() and SCHED_TEST_STACK.
 #  - CFLAGS += -DDEBUG_ASSERT_VERBOSE  # assert() will print the filename and line number.
 QUIET ?= 1
+
+# LOG_LEVEL = LOG_INFO by default, which filters out LOG_DEBUG.
+# Note also that LOG_ERROR() will save the log messages in NVM, if not filtered out.
+LOG_LEVEL = LOG_DEBUG
 
 # PROGRAMMER = jlink
 

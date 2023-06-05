@@ -24,6 +24,8 @@ private:
 
     thread_t* m_pthread;
 
+    friend int main();
+
     enum {
         FLAG_EVENT          = 0x0001,  // == THREAD_FLAG_EVENT from event.h
         FLAG_USB_RESET      = 0x0002,

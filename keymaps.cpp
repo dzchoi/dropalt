@@ -1,5 +1,4 @@
-#define ENABLE_DEBUG 1          // Will also affect DEBUG()'s in included files
-#include "debug.h"
+#include "log.h"
 
 #include "features.hpp"         // for TAPPING_TERM_MS
 #include "if.hpp"
@@ -150,34 +149,64 @@ private:
     }
 
     void on_release(pmap_t*) {
+        if ( !timer_is_running() )
+            return;
+
         stop_timer();
         // stop_defer_presses();
 
         if ( FN.is_pressed() ) {
             if ( t_LCTL.is_pressed() )
                 system_reset();
-            else {
-                const uint16_t color = persistent::obj().led_color.h == ORANGE
-                    ? SPRING_GREEN : ORANGE;
-                persistent::obj().write(&persistent::led_color, hsv_t{ color, 255, 255 });
-            }
+            else
+                perform_usbport_switchover();
         }
 
-        // if ( t_LCTL.is_pressed() ) {
-        //     if ( LSFT.is_pressed() )
-        //         set_extra_usbport_back_to_automatic();
-        //     else
-        //         enable_extra_usbport_manually();
-        // }
+        else if ( t_LCTL.is_pressed() ) {
+            LOG_INFO("--- persistent::clear_log()\n");
+            persistent::clear_log();
+        }
+
+        else {
+            if ( persistent::has_log() )
+                LOG_INFO(persistent::get_log());
+
+            LOG_INFO("--- ISR: %d used / %d bytes\n",
+                thread_isr_stack_usage(), ISR_STACKSIZE);
+            for ( kernel_pid_t i = KERNEL_PID_FIRST ; i <= KERNEL_PID_LAST ; i++ ) {
+                const thread_t* p = (const thread_t*)sched_threads[i];
+                if ( p == NULL )
+                    continue;
+                LOG_INFO("--- %s: %d used / %d bytes\n",
+                    p->name,
+                    p->stack_size - thread_measure_stack_free(p->stack_start),
+                    p->stack_size);
+            }
+        }
     }
 
+    // Long press
     void on_timeout(pmap_t*) {
         if ( FN.is_pressed() ) {
             if ( t_LCTL.is_pressed() )
-                // assert( false );
                 WDT->CLEAR.reg = 0;  // anything other than 0xA5
+            else if ( LSFT.is_pressed() )
+                enable_extra_usbport_manually();
             else
-                perform_usbport_switchover();
+                set_extra_usbport_back_to_automatic();
+        }
+
+        else if ( t_LCTL.is_pressed() ) {
+                // For testing hardfault,
+                asm ( "subs r0, r0\n" "bx r0" );  // UsageFault (INVSTATE)
+                __builtin_trap();                 // UsageFault (UNDEFINSTR)
+                *(uint32_t*)0xdead0000 = 0x20;    // BusFault
+        }
+
+        else {
+            const uint16_t color = persistent::obj().led_color.h == ORANGE
+                ? SPRING_GREEN : ORANGE;
+            persistent::write(&persistent::led_color, hsv_t{ color, 255, 255 });
         }
     }
 } TEST;

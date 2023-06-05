@@ -1,8 +1,6 @@
+#include "log.h"
 #include "usb2422.h"
 #include "ztimer.h"             // for ztimer_set_timeout_flag(), ztimer_remove(), ...
-
-#define ENABLE_DEBUG    (1)
-#include "debug.h"
 
 #include <utility>              // for std::swap()
 #include "adc_input.hpp"        // for v_5v, v_con1/con2, ...
@@ -28,7 +26,7 @@ void usbport::help_process_usb_suspend()
 
 void usbport::help_process_usb_resume()
 {
-    DEBUG("ADC: acquired host port %d @%lu\n", v_host->line, ztimer_now(ZTIMER_MSEC));
+    LOG_DEBUG("ADC: acquired host port %d @%lu\n", v_host->line, ztimer_now(ZTIMER_MSEC));
 
     if ( v_extra->sync_measure().is_device_connected() )
         transit_to<state_extra_enabled>();
@@ -44,7 +42,7 @@ void usbport::help_process_usbport_switchover()
     if ( !v_extra->sync_measure().is_device_connected() )
         transit_to<state_usb_suspended>().perform_switchover();
     else
-        DEBUG("ADC:\e[0;31m switchover not allowed to extra device!\e[0m\n");
+        LOG_WARNING("ADC: switchover not allowed to extra device!\n");
 }
 
 
@@ -52,7 +50,7 @@ void usbport::help_process_usbport_switchover()
 void state_determine_host::begin()
 {
     LED0_ON;
-    DEBUG("ADC:\e[0;34m state_determine_host\e[0m\n");
+    LOG_DEBUG("ADC: state_determine_host\n");
 
     if ( v_extra )
         v_extra->schedule_cancel();
@@ -68,7 +66,7 @@ void state_determine_host::begin()
     usbhub_disable_all_ports();
 
     const uint8_t desired_port = persistent::obj().last_host_port;
-    DEBUG("ADC: try port %d first @%lu\n", desired_port, ztimer_now(ZTIMER_MSEC));
+    LOG_DEBUG("ADC: try port %d first @%lu\n", desired_port, ztimer_now(ZTIMER_MSEC));
 
     usbhub_enable_host_port(desired_port);
     if ( desired_port == USB_PORT_1 ) {
@@ -90,11 +88,11 @@ void state_determine_host::process_v_con()
 {
     if ( v_host->is_host_connected() ) {
         v_host->schedule_cancel();
-        DEBUG("ADC: determined host port %d @%lu\n",
+        LOG_DEBUG("ADC: determined host port %d @%lu\n",
             v_host->line, ztimer_now(ZTIMER_MSEC));
 
         // Remember the host port when acquired only from state_determine_host.
-        persistent::obj().write(&persistent::last_host_port, v_host->line);
+        persistent::write(&persistent::last_host_port, v_host->line);
     }
 }
 
@@ -104,7 +102,7 @@ void state_determine_host::process_timeout()
     v_host->schedule_cancel();
 
     const uint8_t desired_port = v_extra->line;  // == usbhub_extra_port();
-    DEBUG("ADC: switchover to port %d @%lu\n", desired_port, ztimer_now(ZTIMER_MSEC));
+    LOG_DEBUG("ADC: switchover to port %d @%lu\n", desired_port, ztimer_now(ZTIMER_MSEC));
 
     usbhub_enable_host_port(desired_port);
     std::swap(v_host, v_extra);
@@ -121,7 +119,7 @@ void state_determine_host::end()
 
     enable_automatic_switchover = v_host->is_host_connected();
     if ( !enable_automatic_switchover )
-        DEBUG("ADC:\e[0;33m automatic switchover disabled\e[0m\n");
+        LOG_WARNING("ADC: automatic switchover disabled\n");
 
     // From now on, v_extra will be measured periodically.
     v_extra->schedule_periodic();
@@ -132,7 +130,7 @@ void state_determine_host::end()
 void state_usb_suspended::begin()
 {
     LED0_ON;
-    DEBUG("ADC:\e[0;34m state_usb_suspended\e[0m\n");
+    LOG_DEBUG("ADC: state_usb_suspended\n");
 
     // v_extra is not measured in state_usb_suspended.
     if ( v_extra )
@@ -146,7 +144,7 @@ void state_usb_suspended::perform_switchover()
     assert( v_host != nullptr && v_extra != nullptr );
 
     const uint8_t desired_port = v_extra->line;  // == usbhub_extra_port();
-    DEBUG("ADC: switchover to port %d @%lu\n", desired_port, ztimer_now(ZTIMER_MSEC));
+    LOG_DEBUG("ADC: switchover to port %d @%lu\n", desired_port, ztimer_now(ZTIMER_MSEC));
 
     usbhub_enable_host_port(desired_port);
     std::swap(v_host, v_extra);
@@ -165,7 +163,7 @@ void state_usb_suspended::end()
 
     enable_automatic_switchover = v_host->sync_measure().is_host_connected();
     if ( !enable_automatic_switchover )
-        DEBUG("ADC:\e[0;33m automatic switchover disabled\e[0m\n");
+        LOG_WARNING("ADC: automatic switchover disabled\n");
 
     // From now on, v_extra will be measured periodically.
     v_extra->schedule_periodic();
@@ -176,21 +174,21 @@ void state_usb_suspended::end()
 void state_extra_disabled::begin()
 {
     usbhub_switch_enable_extra_port(v_extra->line, false);
-    DEBUG("ADC:\e[0;34m state_extra_disabled\e[0m\n");
+    LOG_DEBUG("ADC: state_extra_disabled\n");
 }
 
 void state_extra_disabled::process_v_con()
 {
     if ( v_extra->is_device_connected() ) {
         if ( !m_panic_disabled ) {
-            DEBUG("ADC: extra device is connected to port %d\n", v_extra->line);
+            LOG_INFO("ADC: extra device is connected to port %d\n", v_extra->line);
             transit_to<state_extra_enabled>();
         }
     }
     else {
         if ( m_panic_disabled ) {
             m_panic_disabled = false;
-            DEBUG("ADC: extra device is disconnected from port %d\n", v_extra->line);
+            LOG_INFO("ADC: extra device is disconnected from port %d\n", v_extra->line);
         }
     }
 }
@@ -205,7 +203,7 @@ void state_extra_disabled::process_extra_enable_manually()
 void state_extra_enabled::begin()
 {
     usbhub_switch_enable_extra_port(v_extra->line, true);
-    DEBUG("ADC:\e[0;34m state_extra_enabled\e[0m\n");
+    LOG_DEBUG("ADC: state_extra_enabled\n");
 }
 
 void state_extra_enabled::process_v_5v()
@@ -225,7 +223,7 @@ void state_extra_enabled::process_v_con()
 {
     if ( !v_extra->is_device_connected() ) {
         if ( !m_enabled_manually ) {
-            DEBUG("ADC: extra device is disconnected from port %d\n", v_extra->line);
+            LOG_INFO("ADC: extra device is disconnected from port %d\n", v_extra->line);
             transit_to<state_extra_disabled>();
         }
     }
@@ -235,7 +233,7 @@ void state_extra_enabled::process_extra_enable_manually()
 {
     if ( !m_enabled_manually ) {
         m_enabled_manually = true;
-        DEBUG("ADC: extra port is enabled manually\n");
+        LOG_INFO("ADC: extra port is enabled manually\n");
     }
 }
 
@@ -243,7 +241,7 @@ void state_extra_enabled::process_extra_back_to_automatic()
 {
     if ( m_enabled_manually ) {
         m_enabled_manually = false;
-        DEBUG("ADC: extra port is back to automatic\n");
+        LOG_INFO("ADC: extra port is back to automatic\n");
         if ( !v_extra->is_device_connected() )
             transit_to<state_extra_disabled>();
     }
@@ -251,7 +249,7 @@ void state_extra_enabled::process_extra_back_to_automatic()
 
 void state_extra_enabled::process_timeout()
 {
-    DEBUG("ADC:\e[0;31m extra port is panic disabled\e[0m\n");
+    LOG_WARNING("ADC: extra port is panic disabled\n");
     transit_to<state_extra_disabled>().set_panic_disabled();
 }
 

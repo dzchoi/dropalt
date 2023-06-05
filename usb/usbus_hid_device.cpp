@@ -1,10 +1,9 @@
+#include "log.h"
+
 #include "usbus_hid_device.hpp" // Patch hid.h which is included by control.h below.
 
 #include "usb/usbus/control.h"  // for usbus_control_* definitions
 #include "ztimer.h"             // for ztimer_set(), ztimer_now() and ztimer_remove()
-
-#define ENABLE_DEBUG    (1)
-#include "debug.h"
 
 
 
@@ -48,7 +47,7 @@ usbus_hid_device_ext_t::usbus_hid_device_ext_t(usbus_t* _usbus,
     tx_ready.handler = _hdlr_tx_ready;
     mutex_init(&in_lock);
 
-    DEBUG("hid pre_init: %d %d\n", report_desc_size, report_desc[0]);
+    LOG_DEBUG("hid pre_init: %d %d\n", report_desc_size, report_desc[0]);
     usbus_register_event_handler(usbus, &handler_ctrl);
 }
 
@@ -74,7 +73,7 @@ void usbus_hid_device_ext_t::_init(usbus_t* usbus, usbus_handler_t* handler)
 {
     usbus_hid_device_ext_t* const hidx =
         static_cast<usbus_hid_device_ext_t*>((usbus_hid_device_t*)handler);
-    DEBUG("USB_HID: initialization (%d)\n", hidx->report_desc[0]);
+    LOG_DEBUG("USB_HID: initialization (%d)\n", hidx->report_desc[0]);
 
     hidx->hid_descr.next = nullptr;
     hidx->hid_descr.funcs = &_hid_descriptor;
@@ -95,7 +94,7 @@ void usbus_hid_device_ext_t::_event_handler(
             // boot protocol, then sends USB_RESET on entering OS to set it back to report
             // protocol.
             hidx->on_reset();
-            DEBUG("USB_HID: reset event\n");
+            LOG_DEBUG("USB_HID: reset event\n");
             break;
 
         // "The Suspend Interrupt bit in the Device Interrupt Flag register (INTFLAG
@@ -108,12 +107,12 @@ void usbus_hid_device_ext_t::_event_handler(
         // written to one and CTRLB.DETACH is written to zero."
         case USBUS_EVENT_USB_SUSPEND:   // USB suspend condition detected
             hidx->on_suspend();
-            DEBUG("USB_HID: suspend event @%lu\n", ztimer_now(ZTIMER_MSEC));
+            LOG_DEBUG("USB_HID: suspend event @%lu\n", ztimer_now(ZTIMER_MSEC));
             break;
 
         case USBUS_EVENT_USB_RESUME:    // USB resume condition detected
             hidx->on_resume();
-            DEBUG("USB_HID: resume event @%lu\n", ztimer_now(ZTIMER_MSEC));
+            LOG_DEBUG("USB_HID: resume event @%lu\n", ztimer_now(ZTIMER_MSEC));
             break;
 
         default:
@@ -124,7 +123,7 @@ void usbus_hid_device_ext_t::_event_handler(
 void usbus_hid_device_ext_t::_transfer_handler(
     usbus_t*, usbus_handler_t* handler, usbdev_ep_t* ep, usbus_event_transfer_t)
 {
-    // DEBUG("USB_HID: transfer_handler\n");  // Would be emitted every raw print.
+    // LOG_DEBUG("USB_HID: transfer_handler\n");  // Would be emitted every raw print.
 
     usbus_hid_device_ext_t* const hidx =
         static_cast<usbus_hid_device_ext_t*>((usbus_hid_device_t*)handler);
@@ -161,7 +160,7 @@ int usbus_hid_device_ext_t::_control_handler(
     usbus_hid_device_ext_t* const hidx =
         static_cast<usbus_hid_device_ext_t*>((usbus_hid_device_t*)handler);
 
-    DEBUG("USB_HID: request: %d type: %d value: %d length: %d state: %d\n",
+    LOG_DEBUG("USB_HID: request: %d type: %d value: %d length: %d state: %d\n",
           setup->request, setup->type, setup->value >> 8, setup->length, state);
 
     // Requests defined in USB HID 1.11 spec section 7
@@ -191,7 +190,7 @@ int usbus_hid_device_ext_t::_control_handler(
             if ( setup->length == 1 ) {
                 const uint8_t protocol = hidx->get_protocol();
                 usbus_control_slicer_put_char(usbus, protocol);
-                DEBUG("USB_HID: report protocol=%d\n", protocol);
+                LOG_DEBUG("USB_HID: report protocol=%d\n", protocol);
             }
             break;
 
@@ -225,12 +224,12 @@ int usbus_hid_device_ext_t::_control_handler(
             // contain 0 to indicate boot protocol, or 1 to indicate report protocol."
             const uint8_t protocol = (uint8_t)setup->value;  // LSB(wValue)
             hidx->set_protocol(protocol);
-            DEBUG("USB_HID: set protocol=%d\n", protocol);
+            LOG_DEBUG("USB_HID: set protocol=%d\n", protocol);
             break;
         }
 
         default:
-            DEBUG("USB_HID: unknown request %d\n", setup->request);
+            LOG_DEBUG("USB_HID: unknown request %d\n", setup->request);
             return -1;
     }
 

@@ -1,8 +1,8 @@
-#include "periph/wdt.h"
-#include "ztimer.h"             // for ztimer_sleep()
+#define LOCAL_LOG_LEVEL LOG_INFO
 
-#define ENABLE_DEBUG    0
-#include "debug.h"
+#include "log.h"
+#include "periph/wdt.h"         // for wdt_kick()
+#include "ztimer.h"             // for ztimer_sleep()
 
 #include "adc_input.hpp"
 #include "adc_thread.hpp"
@@ -18,10 +18,11 @@
 
 unsigned info = 0;
 
+// main() is the thread entry function of main thread. See kernel_init().
 int main()
 {
-    // Read persistent data from NVM.
-    (void)persistent::obj();
+    // Setup Seeprom.
+    persistent::init();
 
     // Create all threads in the order of dependency.
     (void)main_thread::obj();
@@ -32,23 +33,28 @@ int main()
     (void)matrix_thread::obj();
 
     if constexpr ( RGB_LED_ENABLE ) {
-        // fixed_color effect = persistent::obj().led_color;
-        // glimmer effect { persistent::obj().led_color, 5 *MS_PER_SEC };
-        // finger_trace effect { persistent::obj().led_color, 5 *MS_PER_SEC };
-        ripple effect { persistent::obj().led_color, 250, 50 };
-
+        // static fixed_color effect = persistent::obj().led_color;
+        // static glimmer effect { persistent::obj().led_color, 5 *MS_PER_SEC };
+        // static finger_trace effect { persistent::obj().led_color, 5 *MS_PER_SEC };
+        static ripple effect { persistent::obj().led_color, 250, 50 };
         rgb_thread::obj().set_effect(effect);
     }
 
     while ( true ) {
         wdt_kick();
-        ztimer_sleep(ZTIMER_MSEC, 1000);
+
+        static bool to_show_previous_logs = persistent::has_log();
+        if ( to_show_previous_logs && thread_flags_clear(main_thread::FLAG_USB_RESUME) ) {
+            // Use LOG_INFO instead of LOG_ERROR to not add duplicate logs.
+            LOG_INFO(persistent::get_log());
+            to_show_previous_logs = false;
+        }
 
         // char buffer[32];
         // sprintf(buffer, "%lu\n", info);
         // usb_thread::obj().hid_raw.print(buffer);
 
-        DEBUG(
+        LOG_DEBUG(
             "v_5v=%d v_con1=%d v_con2=%d %s-mode fsmstatus=0x%x info=0x%x\n",
             adc_input::v_5v.read(),
             adc_input::v_con1.read(),
@@ -56,6 +62,8 @@ int main()
             usb_thread::obj().hid_keyboard.get_protocol() ? "nkro" : "6kro",
             usb_thread::obj().fsmstatus(),
             info);
+
+        ztimer_sleep(ZTIMER_MSEC, 1000);
     }
 
     return 0;

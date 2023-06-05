@@ -1,12 +1,12 @@
+#define LOCAL_LOG_LEVEL LOG_NONE
+
 #include <stdint.h>
 #include "adc_get.h"
+#include "log.h"
 #include "periph/gpio.h"
 #include "periph_conf.h"
 #include "mutex.h"
 #include "ztimer.h"
-
-#define ENABLE_DEBUG 0
-#include "debug.h"
 
 #ifndef ADC_GCLK_SRC
     #define ADC_GCLK_SRC SAM0_GCLK_MAIN
@@ -157,7 +157,7 @@ static void _setup_calibration(Adc* dev)
 int adc_init(adc_t line)
 {
     if (line >= ADC_NUMOF) {
-        DEBUG("adc: line arg not applicable\n");
+        LOG_ERROR("adc: line arg not applicable\n");
         return -1;
     }
 
@@ -176,7 +176,7 @@ int adc_configure(Adc* dev, adc_res_t res)
      * falls between 12bit and 10bit.  See datasheet for details */
     if (!((res == ADC_RES_8BIT) || (res == ADC_RES_10BIT) ||
           (res == ADC_RES_12BIT))){
-        DEBUG("adc: invalid resolution\n");
+        LOG_ERROR("adc: invalid resolution\n");
         return -1;
     }
 
@@ -184,7 +184,7 @@ int adc_configure(Adc* dev, adc_res_t res)
 
     if (dev->CTRLA.reg & ADC_CTRLA_SWRST ||
         dev->CTRLA.reg & ADC_CTRLA_ENABLE ) {
-        DEBUG("adc: not ready\n");
+        LOG_ERROR("adc: not ready\n");
         return -1;
     }
 
@@ -290,7 +290,7 @@ static void* _arg0 = NULL;  // for ADC0
 int32_t adc_get(adc_t line, void (*callback)(void*, uint16_t), void* arg)
 {
     if ( line >= ADC_NUMOF ) {
-        DEBUG("adc: line arg not applicable\n");
+        LOG_ERROR("adc: line arg not applicable\n");
         return -1;
     }
 
@@ -328,7 +328,7 @@ int32_t adc_get(adc_t line, void (*callback)(void*, uint16_t), void* arg)
         dev->SWTRIG.bit.START = 1;
 #else
         _done();
-        DEBUG("adc: ADC_IRQ and ADCx_ISR need #defined for non-blocking\n");
+        LOG_ERROR("adc: ADC_IRQ and ADCx_ISR need #defined for non-blocking\n");
         return -1;
 #endif
     }

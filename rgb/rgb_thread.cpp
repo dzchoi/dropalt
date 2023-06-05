@@ -1,11 +1,11 @@
+#define LOCAL_LOG_LEVEL LOG_NONE
+
 #include "board.h"              // for THREAD_PRIO_RGB
 #include "is31fl3733.h"
+#include "log.h"
 #include "msg.h"                // for msg_init_queue(), msg_try_receive(), msg_send()
 #include "thread_flags.h"       // for thread_flags_wait_any(), thread_flags_set(), ...
 #include "ztimer.h"             // for ztimer_set() and ztimer_now()
-
-#define ENABLE_DEBUG    (0)
-#include "debug.h"
 
 #include "adc_input.hpp"        // for v_5v and V_5V_MID
 #include "color.hpp"            // for CIE1931_CURVE[]
@@ -106,7 +106,7 @@ void rgb_thread_tl<true>::gcr_t::adjust()
         if ( m_current_gcr == 0 )
             is31_switch_unlock_ssd(false);
 
-        DEBUG("Rgb: v_5v=%d v_con1=%d v_con2=%d gcr=%d\n",
+        LOG_DEBUG("Rgb: v_5v=%d v_con1=%d v_con2=%d gcr=%d\n",
             adc_input::v_5v.read(),
             adc_input::v_con1.read(),
             adc_input::v_con2.read(),

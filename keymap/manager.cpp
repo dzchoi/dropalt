@@ -1,5 +1,4 @@
-#define ENABLE_DEBUG    (1)
-#include "debug.h"
+#include "log.h"
 
 #include "manager.hpp"
 #include "map.hpp"
@@ -41,7 +40,7 @@ void manager_t::notify_and_execute_press(pmap_t* slot)
 void manager_t::handle_press(pmap_t* slot)
 {
     if ( slot->get_pressing_slot() != nullptr ) {
-        DEBUG("Keymap:\e[0;31m duplicate press event (%p)\e[0m\n", slot);
+        LOG_WARNING("Keymap: duplicate press event (%p)\n", slot);
         return;
     }
 
@@ -50,11 +49,11 @@ void manager_t::handle_press(pmap_t* slot)
     add_pressing_slot(slot);
 
     if ( !is_deferring() ) {
-        DEBUG("Keymap: handle press (%p)\n", slot);
+        LOG_DEBUG("Keymap: handle press (%p)\n", slot);
         notify_and_execute_press(slot);
     }
     else
-        DEBUG("Keymap: defer press (%p)\n", slot);
+        LOG_DEBUG("Keymap: defer press (%p)\n", slot);
 }
 
 void manager_t::execute_release(map_t* pmap, pmap_t* slot)
@@ -87,13 +86,13 @@ void manager_t::notify_and_execute_release(pmap_t* slot)
 void manager_t::handle_release(pmap_t* slot)
 {
     if ( slot->get_pressing_slot() == nullptr ) {
-        DEBUG("Keymap:\e[0;31m duplicate release event (%p)\e[0m\n", slot);
+        LOG_WARNING("Keymap: duplicate release event (%p)\n", slot);
         return;
     }
 
     rgb_thread::obj().signal_key_event(slot->led_id(), false);
 
-    DEBUG("Keymap: handle release (%p)\n", slot);
+    LOG_DEBUG("Keymap: handle release (%p)\n", slot);
     if ( is_deferred(slot) )
         complete_on_release(slot);
 
@@ -108,7 +107,7 @@ inline void manager_t::complete_on_release(pmap_t* slot)
     pmap_t* ppmap;
     do {
         ppmap = m_pressing_list[m_index_deferred++].m_slot;
-        DEBUG("Keymap: complete the deferred press (%p)\n", ppmap);
+        LOG_DEBUG("Keymap: complete the deferred press (%p)\n", ppmap);
         notify_and_execute_press(ppmap);
         // We do not take care of start/stop_defer() here that could be possibly called
         // from notify_and_execute_press() above, as the release whose press has been has
@@ -121,14 +120,14 @@ void manager_t::complete_if_not_deferring()
 {
     while ( !is_deferring() && m_index_deferred < m_pressing_list.size() ) {
         pmap_t* const ppmap = m_pressing_list[m_index_deferred++].m_slot;
-        DEBUG("Keymap: complete the deferred press (%p)\n", ppmap);
+        LOG_DEBUG("Keymap: complete the deferred press (%p)\n", ppmap);
         notify_and_execute_press(ppmap);
     }
 }
 
 void manager_t::start_defer()
 {
-    DEBUG("Keymap: start defer\n");
+    LOG_DEBUG("Keymap: start defer\n");
     // In the usual case of calling start_defer() from on_press(), and stop_defer() from
     // on_release() or before, the deferrings do not overlap. But, we allow them to be
     // called from other places (e.g. on_other_press()) and we allow the deferrings
@@ -140,7 +139,7 @@ void manager_t::stop_defer()
 {
     if ( m_is_deferring_presses > 0 )
         m_is_deferring_presses--;
-    DEBUG("Keymap: stop defer\n");
+    LOG_DEBUG("Keymap: stop defer\n");
 }
 
 void manager_t::add_pressing_slot(pmap_t* slot)
@@ -155,7 +154,7 @@ void manager_t::add_pressing_slot(pmap_t* slot)
     }
 
     m_pressing_list.emplace_back(slot);
-    // DEBUG("--- add_pressing_slot: index=%lu\n", index(slot->get_pressing_slot()));
+    // LOG_DEBUG("--- add_pressing_slot: index=%lu\n", index(slot->get_pressing_slot()));
 }
 
 void manager_t::remove_pressing_slot(pmap_t* slot)
@@ -166,7 +165,7 @@ void manager_t::remove_pressing_slot(pmap_t* slot)
         m_index_deferred--;
 
     slot->set_pressing_slot(nullptr);
-    // DEBUG("--- remove_pressing_slot: index=%lu, deferred=%lu\n", idx, m_index_deferred);
+    // LOG_DEBUG("--- remove_pressing_slot: index=%lu, deferred=%lu\n", idx, m_index_deferred);
     m_pressing_list.erase(m_pressing_list.begin() + idx);
 }
 

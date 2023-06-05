@@ -1,9 +1,9 @@
+// #define LOCAL_LOG_LEVEL LOG_NONE
+
 #include "adc_get.h"            // for adc_get()
+#include "log.h"
 #include "usb2422.h"            // for usbhub_is_configured_for_host_port()
 #include "ztimer.h"             // for ztimer_now()
-
-#define ENABLE_DEBUG    (1)
-#include "debug.h"
 
 #include "adc_input.hpp"
 #include "adc_thread.hpp"       // for signal_report_v_5v/v_con() and signal_event()
@@ -99,17 +99,14 @@ void adc_input_v_5v::update_level()
 void adc_input_v_5v::wait_for_stable_5v()
 {
     constexpr int V_5V_STABILITY_COUNT = 5;
-
-#if ENABLE_DEBUG
     const uint32_t since = ztimer_now(ZTIMER_MSEC);
-#endif
 
     int repeat = 0;
     while ( repeat++ < V_5V_STABILITY_COUNT )
         if ( sync_measure().level() < V_5V_STABLE )
             repeat = 0;
 
-    DEBUG("ADC: v_5v stabilized in %lu ms\n", ztimer_now(ZTIMER_MSEC) - since);
+    LOG_DEBUG("ADC: v_5v stabilized in %lu ms\n", ztimer_now(ZTIMER_MSEC) - since);
 }
 
 bool adc_input_v_con::is_device_connected() const

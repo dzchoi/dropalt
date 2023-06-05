@@ -1,10 +1,8 @@
 #include "board.h"              // for THREAD_PRIO_MATRIX
+#include "log.h"
 #include "matrix.h"             // for matrix_init(), matrix_scan(), ...
 #include "thread_flags.h"       // for thread_flags_t, thread_flags_set(), ...
 #include "ztimer.h"             // for ztimer_now() and ztimer_set_timeout_flag()
-
-#define ENABLE_DEBUG 1
-#include "debug.h"
 
 #include "features.hpp"         // for DEBOUNCE_TIME_MS and MATRIX_SCAN_PERIOD_US
 #include "keymap_thread.hpp"    // for signal_key_event()
@@ -51,7 +49,7 @@ bool matrix_thread::_debouncer(unsigned row, unsigned col, bool is_pressed)
             // pressing slot gets removed at the end, not start, of processing the
             // release event), but such duplicate events will be taken care of by
             // keymap_thread (See manager_t::handle_press/release()).
-            DEBUG("Matrix: press (%p)\n", &pmap);
+            LOG_DEBUG("Matrix: press (%p)\n", &pmap);
             keymap_thread::obj().signal_key_event(&pmap, true);
         }
         return is_pressed;
@@ -61,7 +59,7 @@ bool matrix_thread::_debouncer(unsigned row, unsigned col, bool is_pressed)
 
     if ( is_pressed ) {
         if ( release_started ) {
-            DEBUG("Matrix:\e[0;34m press debounced (%p)\e[0m\n", &pmap);
+            LOG_DEBUG("Matrix: press debounced (%p)\n", &pmap);
             release_started = 0;
         }
     }
@@ -79,7 +77,7 @@ bool matrix_thread::_debouncer(unsigned row, unsigned col, bool is_pressed)
         }
 
         else if ( now - release_started >= DEBOUNCE_TIME_MS ) {
-            DEBUG("Matrix: release (%p)\n", &pmap);
+            LOG_DEBUG("Matrix: release (%p)\n", &pmap);
             // This reset of release_started helps to not send the same release event
             // again to keymap_thread. The released key will be just regarded as being
             // released now and will take another DEBOUNCE_TIME_MS before signaling the
@@ -115,7 +113,7 @@ void matrix_thread::perform_scan()
     // over the following detection.
     else {
         matrix_enable_interrupts();
-        DEBUG("Matrix: ---- sleep\n");
+        LOG_DEBUG("Matrix: ---- sleep\n");
     }
 }
 

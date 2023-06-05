@@ -1,11 +1,9 @@
 #include "board.h"              // for THREAD_PRIO_KEYMAP
 #include "event.h"              // for event_queue_init(), event_get(), ...
+#include "log.h"
 #include "msg.h"                // for msg_send(), msg_try_receive(), 
 #include "thread.h"             // for thread_create(), thread_get_unchecked(), ...
 #include "thread_flags.h"       // for thread_flags_set(), thread_flags_wait_any(),
-
-#define ENABLE_DEBUG    (1)
-#include "debug.h"
 
 #include "adc_thread.hpp"       // for signal_usbport_switchover()
 #include "keymap_thread.hpp"
@@ -89,7 +87,7 @@ void* keymap_thread::_keymap_thread(void* arg)
         manager.complete_if_not_deferring();
 
         if ( !manager.is_any_pressing() )
-            DEBUG("Keymap: ---- all handled\n");
+            LOG_DEBUG("Keymap: ---- all handled\n");
     }
 
     return nullptr;

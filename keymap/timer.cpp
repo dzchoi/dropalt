@@ -1,5 +1,4 @@
-#define ENABLE_DEBUG    (1)
-#include "debug.h"
+#include "log.h"
 
 #include "keymap_thread.hpp"    // for signal_event()
 #include "timer.hpp"
@@ -39,7 +38,7 @@ void timer_t::_hdlr_timeout(event_t* event)
         // .press/release() from on_timeout().
         that->on_timeout(slot);
     else
-        DEBUG("Keymap:\e[0;34m spurious timeout (slot=%p)\e[0m\n", slot);
+        LOG_WARNING("Keymap: spurious timeout (slot=%p)\n", slot);
 }
 
 void timer_t::_tmo_key_timer(void* arg)
