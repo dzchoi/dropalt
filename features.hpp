@@ -6,7 +6,6 @@
 #include "time_units.h"         // for MS_PER_SEC
 
 #include "color.hpp"            // for hsv_t
-#include "led_conf.hpp"         // for NO_LED
 
 
 
@@ -56,6 +55,7 @@ constexpr uint32_t TAPPING_TERM_MS = 200;
 // Todo: Undefine this to not blink debug LED while USB suspends.
 constexpr uint32_t DEBUG_LED_BLINK_PERIOD_MS = 1 *MS_PER_SEC;  // 1 second
 
+// `false` will also disable keyboard indicator lamps.
 constexpr bool RGB_LED_ENABLE = true;
 
 // Rate for updating RGB leds to show effects. 17 ms corresponds to ~60 fps.
@@ -77,15 +77,9 @@ constexpr unsigned EFFECT_FINGER_TRACE_MAX_TRACERS = 16;
 // Max number of waves for Ripple Effect.
 constexpr unsigned EFFECT_RIPPLE_MAX_WAVES = 8;
 
-// Indicators will have this fixed color when turned on.
-constexpr hsv_t RGB_INDICATOR_COLOR = hsv_t{ 0, 0, 255 };  // white
-
-// LEDs corresponding to keyboard indicators. Refer to LED_ID[] to locate every led_id.
-constexpr uint8_t NUM_LOCK_LED_ID    = NO_LED;
-constexpr uint8_t CAPS_LOCK_LED_ID   = 44;  // Lshift
-constexpr uint8_t SCROLL_LOCK_LED_ID = NO_LED;
-constexpr uint8_t COMPOSE_LED_ID     = NO_LED;
-constexpr uint8_t KANA_LED_ID        = NO_LED;
+// Indicator lamp lights will have this solid color by default.
+// constexpr hsv_t RGB_INDICATOR_COLOR = hsv_t{ 0, 0, 255 };  // white
+constexpr hsv_t RGB_INDICATOR_COLOR = hsv_t{ 256, 255, 255 };  // yellow
 
 // The identifier of the firmware that manages NVM.
 constexpr uint32_t NVM_MAGIC_NUMBER = 'd' + ('r' << 8) + ('o' << 16) + ('p' << 24);

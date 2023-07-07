@@ -12,6 +12,7 @@
 
 namespace key {
 
+class map_lamp_t;
 class map_proxy_t;
 class pmap_t;
 
@@ -43,18 +44,23 @@ public: // User-facing methods
     void release(pmap_t* slot) { key::manager.execute_release(this, slot); }
 
     // Indicate if the keymap (not the slot) is being pressed.
-    bool is_pressed() const { return m_pressing_count > 0; };
+    bool is_pressed() const { return m_pressing_count > 0; }
 
-private: // Methods to be called by key::manager and map_proxy_t
+private: // Methods to be called by key::manager, map_proxy_t and pmap_t
     friend class manager_t;
     friend class map_proxy_t;
+    friend class pmap_t;
 
-    // Proxy keymaps will return their map_proxy_t* through this virtual method.
+    // Proxy keymaps will return their `map_proxy_t*` through this virtual method.
     virtual map_proxy_t* get_proxy() { return nullptr; }
 
-    virtual void on_press(pmap_t*) {};
+    // Keymaps that implements map_lamp_t will return their map_lamp_t* through this
+    // virtual method.
+    virtual map_lamp_t* get_lamp() { return nullptr; }
 
-    virtual void on_release(pmap_t*) {};
+    virtual void on_press(pmap_t*) {}
+
+    virtual void on_release(pmap_t*) {}
 
     int8_t m_pressing_count = 0;
 

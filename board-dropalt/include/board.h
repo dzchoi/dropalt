@@ -128,9 +128,6 @@ extern "C" {
 #   error THREAD_PRIORITY_MAIN != 7
 #endif
 
-// Todo: Where to define this?
-// #define THREAD_STACKSIZE_MAIN           THREAD_STACKSIZE_SMALL
-
 // Constants from linker script
 //extern uint32_t _srom;
 extern uint32_t _sfixed;

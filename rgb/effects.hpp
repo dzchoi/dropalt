@@ -3,13 +3,8 @@
 #include "ztimer.h"             // for ztimer_t, ztimer_set_timeout_flag()
 
 #include <array>                // for std::array<>
-#include <optional>             // for std::optional<>
-#include "color.hpp"            // for hsv_t
+#include "color.hpp"            // for hsv_t, ohsv_t
 #include "features.hpp"         // for RGB_UPDATE_PERIOD_MS, EFFECT_RIPPLE_MAX_WAVES, ...
-
-
-
-using ohsv_t = std::optional<hsv_t>;
 
 
 
@@ -175,9 +170,8 @@ public:
 
     void update_done();
 
-    // Inherit the base method; even if the led is being updated by Effect it does not
-    // actually take effect as being an indicator, and we have to restore it manually on
-    // release.
+    // Inherit the base method; even if the led is being updated by Effect, it will not
+    // affect indicator lamps and we have to restore it manually on release.
     // bool is_updating(uint8_t) { return false; }
 
     ohsv_t process_key_event(uint8_t led_id, uint32_t time, bool pressed);
@@ -216,28 +210,4 @@ private:
     ztimer_t m_timer = {};
 
     touched_leds_t<EFFECT_RIPPLE_MAX_WAVES> m_touched_leds;
-};
-
-
-
-// Simple indicators with the same solid color.
-class indicators_t {
-public:
-    constexpr indicators_t(hsv_t hsv): m_hsv(hsv) {}
-
-    // Return hsv if the led_id corresponds to an indicator and if its led_state is on.
-    ohsv_t is_lit(uint8_t led_id);
-
-    // Refer to https://wiki.osdev.org/USB_Human_Interface_Devices for indicator bit
-    // positions.
-    static constexpr uint8_t led_ids[] = {
-        NUM_LOCK_LED_ID,
-        CAPS_LOCK_LED_ID,
-        SCROLL_LOCK_LED_ID,
-        COMPOSE_LED_ID,
-        KANA_LED_ID,
-    };
-
-private:
-    const hsv_t m_hsv;
 };

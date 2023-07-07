@@ -329,6 +329,7 @@ static const uart_conf_t uart_config[] = {
 /* key matrix size */
 #define MATRIX_ROWS 5
 #define MATRIX_COLS 15
+#define NUM_SLOTS (MATRIX_ROWS * MATRIX_COLS)
 
 /* Port and Pin definition of key row hardware configuration */
 static const gpio_t row_pins[MATRIX_ROWS] = {  // for input

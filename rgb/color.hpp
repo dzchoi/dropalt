@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>             // for std::optional<>
 #include "fast_hsv2rgb.h"       // for fast_hsv2rgb_32bit()
 
 
@@ -14,6 +15,8 @@ struct hsv_t {
 
     static constexpr uint16_t COLORS = 0x600;
 };
+
+using ohsv_t = std::optional<hsv_t>;
 
 // https://stackoverflow.com/questions/21737613/image-of-hsv-color-wheel-for-opencv
 constexpr uint16_t ORANGE = 30 * hsv_t::COLORS / 360;

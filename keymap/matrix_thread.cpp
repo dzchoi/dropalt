@@ -8,7 +8,7 @@
 #include "keymap_thread.hpp"    // for signal_key_event()
 #include "manager.hpp"          // for pressing_slot_t::m_when_release_started
 #include "matrix_thread.hpp"
-#include "pmap.hpp"             // for key::maps[][]
+#include "pmap.hpp"             // for key::maps[]
 
 
 
@@ -39,7 +39,7 @@ void* matrix_thread::_matrix_thread(void* arg)
 
 bool matrix_thread::_debouncer(unsigned row, unsigned col, bool is_pressed)
 {
-    key::pmap_t& pmap = key::maps[row][col];
+    key::pmap_t& pmap = key::maps_2d[row][col];
 
     if ( pmap.get_pressing_slot() == nullptr ) {
         if ( is_pressed ) {

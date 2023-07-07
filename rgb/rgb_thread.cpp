@@ -12,6 +12,7 @@
 #include "effects.hpp"
 #include "features.hpp"         // for RGB_DISABLE_WHEN_USB_SUSPENDS
 #include "led_conf.hpp"         // for IS31_LEDS[]
+#include "pmap.hpp"             // for led_id(), lamp_id(), is_lamp_lit()
 #include "rgb_thread.hpp"
 
 
@@ -45,11 +46,10 @@ void* rgb_thread_tl<true>::_rgb_thread(void* arg)
     while ( true ) {
         // Zzz
         thread_flags_t flags = thread_flags_wait_any(
-            FLAG_KEY_EVENT
+            FLAG_SLOT_EVENT
             | FLAG_USB_SUSPEND
             | FLAG_USB_RESUME
             | FLAG_ADJUST_GCR
-            | FLAG_CHANGE_LED_STATE
             | FLAG_SET_EFFECT
             | FLAG_TIMEOUT
             );
@@ -65,18 +65,16 @@ void* rgb_thread_tl<true>::_rgb_thread(void* arg)
         if ( flags & FLAG_ADJUST_GCR )
             that->m_gcr.adjust();
 
-        if ( flags & FLAG_CHANGE_LED_STATE )
-            that->change_led_state();
-
         if ( flags & FLAG_SET_EFFECT )
             that->initialize_effect();
 
         if ( flags & FLAG_TIMEOUT )
             that->refresh_effect();
 
-        if ( flags & FLAG_KEY_EVENT )
+        if ( flags & FLAG_SLOT_EVENT )
             while ( msg_try_receive(&msg) == 1 )
-                that->process_key_event(msg.content.value, msg.type);
+                that->process_slot_event(
+                    static_cast<key::pmap_t*>(msg.content.ptr), slot_event_t(msg.type));
     }
 
     return nullptr;
@@ -132,72 +130,75 @@ void rgb_thread_tl<true>::initialize_effect()
     m_peffect->initial_update_done();
 }
 
-void rgb_thread_tl<true>::signal_key_event(uint8_t led_id, bool pressed)
+void rgb_thread_tl<true>::signal_slot_event(key::pmap_t* slot, slot_event_t event)
 {
     if ( m_peffect ) {
         msg_t msg;
-        msg.type = pressed;
-        msg.content.value = led_id;
+        msg.type = event;
+        msg.content.ptr = slot;
         // will block the caller (matrix_thread) if m_queue if full.
         msg_send(&msg, m_pid);
     }
 }
 
-void rgb_thread_tl<true>::process_key_event(uint8_t led_id, bool pressed)
+void rgb_thread_tl<true>::process_slot_event(key::pmap_t* slot, slot_event_t event)
 {
-    const ohsv_t ohsv =
-        m_peffect->process_key_event(led_id, ztimer_now(ZTIMER_MSEC), pressed);
+    const uint8_t led_id = slot->led_id();
+    assert( led_id != NO_LED );
+    rgb_t rgb { 0, 0, 0 };  // black (i.e. turn it off)
 
-    if ( ohsv && !m_indicators.is_lit(led_id) ) {
-        const rgb_t rgb = *ohsv;
-        is31_set_color(IS31_LEDS[led_id], rgb.r, rgb.g, rgb.b);
+    switch ( event ) {
+        case KEY_RELEASED:
+        case KEY_PRESSED: {
+            const ohsv_t ohsv =
+                m_peffect->process_key_event(led_id, ztimer_now(ZTIMER_MSEC), event);
 
-        // Todo: We could do refresh_colors only if m_gcr.is_set() is true, which then
-        //  means we should do it on FLAG_USB_RESUME, but instead we would better turn
-        //  off the entire effect on suspend and turn it on on resume. To enable this
-        //  we have to support the discontinuity of the effects (e.g. a key can be
-        //  pressed in suspend and released after resume.)
-        is31_refresh_colors();
+            if ( ohsv && !slot->is_lamp_lit() )
+                rgb = *ohsv;
+            else
+                return;
+
+            // Todo: We could do is31_refresh_colors() only if m_gcr.is_set() is true,
+            //  which then means we should do it on FLAG_USB_RESUME, but instead we would
+            //  better turn off the entire effect on suspend and turn it on on resume.
+            //  To enable this we have to support the discontinuity of the effects
+            //  (e.g. a key can be pressed in suspend and released after resume.)
+            break;
+        }
+
+        case LAMP_CHANGED: {
+            if ( const ohsv_t ohsv = slot->is_lamp_lit() )
+                rgb = *ohsv;
+
+            else if ( m_peffect ) {
+                if ( !m_peffect->is_updating(led_id) )
+                    rgb = m_peffect->initial_update(led_id);
+            }
+            // else: Turn it off if no Effect is set up.
+
+            break;
+        }
     }
+
+    is31_set_color(IS31_LEDS[led_id], rgb.r, rgb.g, rgb.b);
+    is31_refresh_colors();
 }
 
 void rgb_thread_tl<true>::refresh_effect()
 {
     const uint32_t now = ztimer_now(ZTIMER_MSEC);
-    for ( uint8_t led_id = 0 ; led_id < KEY_LED_COUNT ; led_id++ ) {
-        // If led_id corresponds to a (lit) indicator we skip refreshing the effect on it,
-        // leaving it unchanged.
-        if ( m_indicators.is_lit(led_id) )
-            continue;
 
-        if ( const ohsv_t ohsv = m_peffect->update(led_id, now) ) {
-            const rgb_t rgb = *ohsv;
-            is31_set_color(IS31_LEDS[led_id], rgb.r, rgb.g, rgb.b);
-        }
+    for ( auto slot = led_iter::begin() ; slot != led_iter::end() ; ++slot ) {
+        const uint8_t led_id = slot->led_id();
+        // If slot has an indicator lamp and if it is lit we skip refreshing the effect
+        // on it, leaving it unchanged.
+        if ( !slot->is_lamp_lit() )
+            if ( const ohsv_t ohsv = m_peffect->update(led_id, now) ) {
+                const rgb_t rgb = *ohsv;
+                is31_set_color(IS31_LEDS[led_id], rgb.r, rgb.g, rgb.b);
+            }
     }
 
     is31_refresh_colors();
     m_peffect->update_done();
-}
-
-void rgb_thread_tl<true>::change_led_state()
-{
-    for ( uint8_t led_id : m_indicators.led_ids )
-        if ( led_id != NO_LED ) {
-            rgb_t rgb { 0, 0, 0 };  // black (i.e. turn it off)
-
-            if ( const ohsv_t ohsv = m_indicators.is_lit(led_id) )
-                rgb = *ohsv;
-
-            else if ( m_peffect ) {
-                if ( m_peffect->is_updating(led_id) )
-                    continue;
-                rgb = m_peffect->initial_update(led_id);
-            }
-            // else: Turn it off if no Effect is set up.
-
-            is31_set_color(IS31_LEDS[led_id], rgb.r, rgb.g, rgb.b);
-        }
-
-    is31_refresh_colors();
 }

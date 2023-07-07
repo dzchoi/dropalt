@@ -24,7 +24,13 @@ public:
         return obj;
     }
 
-    void signal_key_event(key::pmap_t* slot, bool pressed);
+    void signal_key_event(key::pmap_t* slot, bool pressed) {
+        signal_slot_event(slot, slot_event_t(pressed));
+    }
+
+    void signal_lamp_state(key::pmap_t* slot) {
+        signal_slot_event(slot, LAMP_CHANGED);
+    }
 
     // Signal a (generic) event to keymap_thread.
     void signal_event(event_t* event) { event_post(&m_event_queue, event); }
@@ -60,4 +66,13 @@ private:
         FLAG_EVENT          = THREAD_FLAG_EVENT,       // 0x1
         FLAG_MSG_WAITING    = THREAD_FLAG_MSG_WAITING  // (1u << 15)
     };
+
+    enum slot_event_t: uint16_t {
+        KEY_RELEASED    = 0,
+        KEY_PRESSED     = 1,
+        LAMP_CHANGED    = 2
+    };
+
+    void signal_slot_event(key::pmap_t* slot, slot_event_t event);
+    void process_slot_event(key::pmap_t* slot, slot_event_t event);
 };

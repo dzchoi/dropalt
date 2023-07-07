@@ -82,7 +82,7 @@ enum hid_keyboard_keypad_usage: uint8_t {
     KC_F11,
     KC_F12,
     KC_PSCREEN,
-    KC_SCROLLLOCK,
+    KC_SCRLOCK,
     KC_PAUSE,
     KC_INSERT,
     KC_HOME,

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "is31fl3733.h"         // for PWM_REGISTER_COUNT and is31_led_t
-#include "periph_conf.h"        // for MATRIX_ROWS and MATRIX_COLS
+#include "periph_conf.h"        // for NUM_SLOTS
 
 
 
@@ -25,7 +25,6 @@ static_assert( SW_CS_TO_REGISTER_END == PWM_REGISTER_COUNT );
 inline constexpr is31_led_t IS31_LEDS[] = {
 // Note that the led_id + 1 matches the LED number that is printed on the PCB.
     // led_id { driver,  g,  r,  b  },  // associated key
-    // Todo: `driver` to be accompanied by attributes such as (CapsLock) indicator.
     /* 0  */  { 1, A_2,  B_2,  C_2  },  // Esc
     /* 1  */  { 1, D_3,  E_3,  F_3  },  // 1
     /* 2  */  { 1, D_4,  E_4,  F_4  },  // 2
@@ -143,7 +142,7 @@ constexpr size_t UNDERGLOW_COUNT = ALL_LED_COUNT - KEY_LED_COUNT;
 constexpr uint8_t NO_LED = 0xFF;
 constexpr uint8_t _NA = NO_LED;
 
-inline constexpr uint8_t LED_ID[MATRIX_ROWS * MATRIX_COLS] = {
+inline constexpr uint8_t LED_ID[NUM_SLOTS] = {
      0,   1,   2,   3,   4,   5,   6,   7,   8,   9,  10,  11,  12,  13,  14,
     15,  16,  17,  18,  19,  20,  21,  22,  23,  24,  25,  26,  27,  28,  29,
     30,  31,  32,  33,  34,  35,  36,  37,  38,  39,  40,  41, _NA,  42,  43,

@@ -6,7 +6,6 @@
 #include "color.hpp"            // for CIE1931_CURVE[]
 #include "effects.hpp"
 #include "led_conf.hpp"         // for LED_XY[]
-#include "usb_thread.hpp"       // for hid_keyboard.get_led_state()
 
 
 
@@ -196,24 +195,4 @@ ohsv_t ripple::update(uint8_t led_id, uint32_t time)
     if ( depth > m_hsv.v )
         depth = m_hsv.v;
     return hsv_t{ m_hsv.h, m_hsv.s, CIE1931_CURVE[m_hsv.v - uint8_t(depth)] };
-}
-
-
-
-ohsv_t indicators_t::is_lit(uint8_t led_id)
-{
-    const uint8_t led_state = usb_thread::obj().hid_keyboard.get_led_state();
-
-    if ( led_id != NO_LED )
-        // Thanks to the g++ optimization this for-loop is compiled into simple if-
-        // statement(s) since indicators_t::led_ids[] is declared as constexpr.
-        for ( size_t i = 0 ; i < sizeof(led_ids) ; i++ )
-            if ( led_ids[i] == led_id ) {
-                if ( led_state & (uint8_t(1) << i) )
-                    return m_hsv;
-                else
-                    return {};
-            }
-
-    return {};
 }

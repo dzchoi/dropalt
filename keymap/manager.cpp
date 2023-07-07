@@ -4,11 +4,36 @@
 #include "map.hpp"
 #include "map_proxy.hpp"
 #include "observer.hpp"
+#include "pmap.hpp"             // for get/set_pressing_slot()
 #include "rgb_thread.hpp"       // for signal_key_event()
 
 
 
 namespace key {
+
+inline pressing_slot_t::pressing_slot_t(pmap_t* slot)
+: m_slot(slot), m_when_release_started(0)
+{
+    m_slot->set_pressing_slot(this);
+}
+
+inline pressing_slot_t::pressing_slot_t(pressing_slot_t&& other)
+: m_slot(other.m_slot), m_when_release_started(0)
+{
+    m_slot->set_pressing_slot(this);
+}
+
+pressing_slot_t& pressing_slot_t::operator=(pressing_slot_t&& other)
+{
+    // LOG_DEBUG("--- move_slot: index=%lu->%lu, deferred=%lu\n",
+    //     manager.index(&other), manager.index(this), m_index_deferred);
+    m_slot = other.m_slot;
+    m_when_release_started = other.m_when_release_started;
+    m_slot->set_pressing_slot(this);
+    return *this;
+}
+
+
 
 void manager_t::execute_press(map_t* pmap, pmap_t* slot)
 {
@@ -44,7 +69,7 @@ void manager_t::handle_press(pmap_t* slot)
         return;
     }
 
-    rgb_thread::obj().signal_key_event(slot->led_id(), true);
+    rgb_thread::obj().signal_key_event(slot, true);
 
     add_pressing_slot(slot);
 
@@ -90,7 +115,7 @@ void manager_t::handle_release(pmap_t* slot)
         return;
     }
 
-    rgb_thread::obj().signal_key_event(slot->led_id(), false);
+    rgb_thread::obj().signal_key_event(slot, false);
 
     LOG_DEBUG("Keymap: handle release (%p)\n", slot);
     if ( is_deferred(slot) )
@@ -167,6 +192,12 @@ void manager_t::remove_pressing_slot(pmap_t* slot)
     slot->set_pressing_slot(nullptr);
     // LOG_DEBUG("--- remove_pressing_slot: index=%lu, deferred=%lu\n", idx, m_index_deferred);
     m_pressing_list.erase(m_pressing_list.begin() + idx);
+}
+
+bool manager_t::is_deferred(pmap_t* slot) const
+{
+    return slot->get_pressing_slot()
+        && index(slot->get_pressing_slot()) >= m_index_deferred;
 }
 
 bool manager_t::enroll_observer(observer_t* observer)

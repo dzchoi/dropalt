@@ -1,13 +1,16 @@
 #pragma once
 
+#include "assert.h"             // for assert()
+
 #include <vector>               // for std::vector<>
-#include "pmap.hpp"             // for get/set_pressing_slot()
 #include "usb_descriptor.hpp"   // for SKRO_KEYS_SIZE
 
 
 
 namespace key {
 
+class map_t;
+class pmap_t;
 class observer_t;
 
 
@@ -16,31 +19,18 @@ struct pressing_slot_t {
     pmap_t* m_slot;
     uint32_t m_when_release_started;
 
-    pressing_slot_t(pmap_t* slot)
-    : m_slot(slot), m_when_release_started(0) {
-        m_slot->set_pressing_slot(this);
-    }
+    pressing_slot_t(pmap_t* slot);
 
     // This move constructor will deal with the reallocation of the pressing vector,
     // m_pressing_list.
-    pressing_slot_t(pressing_slot_t&& other)
-    : m_slot(other.m_slot), m_when_release_started(0) {
-        m_slot->set_pressing_slot(this);
-    }
+    pressing_slot_t(pressing_slot_t&& other);
 
     // Note that we do not do `m_slot->set_pressing_slot(nullptr)` in destructor, which
     // will affect the moved object when its old object is deleted after the move.
 
     // This move assignment operator will handle the removal of middle element in the
     // vector.
-    pressing_slot_t& operator=(pressing_slot_t&& other) {
-        // LOG_DEBUG("--- move_slot: index=%lu->%lu, deferred=%lu\n",
-        //     manager.index(&other), manager.index(this), m_index_deferred);
-        m_slot = other.m_slot;
-        m_when_release_started = other.m_when_release_started;
-        m_slot->set_pressing_slot(this);
-        return *this;
-    }
+    pressing_slot_t& operator=(pressing_slot_t&& other);
 };
 
 
@@ -127,10 +117,7 @@ private:
     void remove_pressing_slot(pmap_t* slot);
 
     // Indicate if press is deferred on the given slot.
-    bool is_deferred(pmap_t* slot) const {
-        return slot->get_pressing_slot()
-            && index(slot->get_pressing_slot()) >= m_index_deferred;
-    }
+    bool is_deferred(pmap_t* slot) const;
 
     // Walk through the deferred presses in the pressing list, and carry out them now,
     // up to the press on the given slot.

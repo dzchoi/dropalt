@@ -2,8 +2,10 @@
 #include "mutex.h"
 
 #include "adc_thread.hpp"       // for signal_usb_suspend() and signal_usb_resume()
+#include "keymap_thread.hpp"    // for signal_lamp_state()
 #include "main_thread.hpp"      // for signal_usb_suspend() and signal_usb_resume()
-#include "rgb_thread.hpp"       // for signal_usb_suspend() and signal_usb_resume()
+#include "pmap.hpp"             // for lamp_iter, lamp_id()
+#include "rgb_thread.hpp"       // for signal_usb_suspend(), signal_usb_resume(), ...
 #include "usb_thread.hpp"       // for send_remote_wake_up()
 #include "usbus_hid_keyboard.hpp"
 
@@ -249,18 +251,30 @@ void usbus_hid_keyboard_t::_hdlr_receive_data(
     usbus_hid_device_t* hid, uint8_t* data, size_t len)
 {
     usbus_hid_keyboard_t* const hidx = static_cast<usbus_hid_keyboard_t*>(hid);
+    uint8_t lamp_state;
 
     if ( len == 2 ) {
         // used only for Shared EP but retained as a reference.
         const uint8_t report_id = data[0];
         if ( report_id == REPORT_ID_KEYBOARD || report_id == REPORT_ID_NKRO ) {
-            hidx->m_keyboard_led_state = data[1];
+            lamp_state = data[1];
         }
+        else
+            return;
     } else
-        hidx->m_keyboard_led_state = data[0];
+        lamp_state = data[0];
+    LOG_DEBUG("Keyboard: set led_lamp_state=0x%x\n", lamp_state);
 
-    LOG_DEBUG("Keyboard: set keyboard_led_state=0x%x\n", hidx->m_keyboard_led_state);
-    rgb_thread::obj().signal_led_state();
+    lamp_state ^= hidx->m_led_lamp_state;
+    for ( auto slot = lamp_iter::begin() ; slot != lamp_iter::end() ; ++slot )
+        // Notify only those slots whose lamp state is to be changed.
+        if ( lamp_state & (uint8_t(1) << slot->lamp_id()) ) {
+            rgb_thread::obj().signal_lamp_state(&*slot);
+            keymap_thread::obj().signal_lamp_state(&*slot);
+        }
+
+    // Update m_led_lamp_state with the received data.
+    hidx->m_led_lamp_state ^= lamp_state;
 }
 
 void usbus_hid_keyboard_tl<NKRO>::set_protocol(uint8_t protocol)

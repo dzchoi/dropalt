@@ -19,8 +19,8 @@ public:
     void on_suspend();
     void on_resume();
 
-    // Note that led state can be changed only by the host, in response to KC_CAPSLOCK.
-    uint8_t get_led_state() const { return m_keyboard_led_state; }
+    // Note that lamp state can be changed only by the host, in response to KC_CAPSLOCK.
+    uint8_t get_lamp_state() const { return m_led_lamp_state; }
 
     uint8_t get_protocol() const { return m_keyboard_protocol; }
 
@@ -53,7 +53,7 @@ protected:
 
     void help_init(usbus_t* usbus, size_t epsize, uint8_t ep_interval_ms);
 
-    uint8_t m_keyboard_led_state = 0;
+    uint8_t m_led_lamp_state = 0;
 
     // 0 = Boot protocol, 1 = Report protocol (default)
     // Note that only the host (e.g. bios) can pull it down to Boot protocol, using

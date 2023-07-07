@@ -8,15 +8,16 @@
 #include "adc_thread.hpp"       // for signal_usbport_switchover()
 #include "keymap_thread.hpp"
 #include "manager.hpp"          // for key::manager
+#include "pmap.hpp"             // for lamp_id(), lamp_on_off(), ...
 
 
 
 using key::manager;
 
-void keymap_thread::signal_key_event(key::pmap_t* slot, bool pressed)
+void keymap_thread::signal_slot_event(key::pmap_t* slot, slot_event_t event)
 {
     msg_t msg;
-    msg.type = pressed;
+    msg.type = event;
     msg.content.ptr = slot;
     // will block the caller (matrix_thread) until m_msg_queue has a room if it is full.
     msg_send(&msg, m_pid);  // will always return 1.
@@ -59,22 +60,9 @@ void* keymap_thread::_keymap_thread(void* arg)
         }
 
         if ( flags & FLAG_MSG_WAITING ) {
-            if ( msg_try_receive(&msg) == 1 ) {
-                key::pmap_t* const slot = static_cast<key::pmap_t*>(msg.content.ptr);
-
-                if ( msg.type )  // msg.type == 1 for press
-                    manager.handle_press(slot);
-
-                else {  // msg.type == 0 for release
-                    manager.handle_release(slot);
-
-                    // Execute switchover.
-                    if ( that->m_switchover_requested && !manager.is_any_pressing() ) {
-                        adc_thread::obj().signal_usbport_switchover();
-                        that->m_switchover_requested = false;
-                    }
-                }
-            }
+            if ( msg_try_receive(&msg) > 0 )
+                that->process_slot_event(
+                    static_cast<key::pmap_t*>(msg.content.ptr), slot_event_t(msg.type));
 
             // Key events are processed one at a time in order to process internal events
             // with higher priority.
@@ -91,6 +79,29 @@ void* keymap_thread::_keymap_thread(void* arg)
     }
 
     return nullptr;
+}
+
+void keymap_thread::process_slot_event(key::pmap_t* slot, slot_event_t event)
+{
+    switch ( event ) {
+        case KEY_RELEASED:
+            manager.handle_release(slot);
+
+            // Execute switchover.
+            if ( m_switchover_requested && !manager.is_any_pressing() ) {
+                adc_thread::obj().signal_usbport_switchover();
+                m_switchover_requested = false;
+            }
+            break;
+
+        case KEY_PRESSED:
+            manager.handle_press(slot);
+            break;
+
+        case LAMP_CHANGED:
+            slot->lamp_on_off(is_lamp_lit(slot->lamp_id()));
+            break;
+    }
 }
 
 // Note about Msg queue vs Event queue.

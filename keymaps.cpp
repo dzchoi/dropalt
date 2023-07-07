@@ -4,12 +4,13 @@
 #include "if.hpp"
 #include "literal.hpp"
 #include "map.hpp"
+#include "map_lamp.hpp"
 #include "norepeat.hpp"
 #include "persistent.hpp"       // for persistent::obj()
+#include "pmap.hpp"
 #include "tap_dance.hpp"
 #include "tap_hold.hpp"
 #include "timer.hpp"
-#include "usb_thread.hpp"       // for hid_keyboard.get_led_state()
 
 
 
@@ -55,8 +56,40 @@ if_t m_P { FN_pressed, PSCR, P };  // sizeof = 24
 // FN + LBRKT = Break/Pause
 if_t m_LBRKT { FN_pressed, PAUSE, LBRKT };
 
-// FN + RBRKT = ScrollLock
-if_t m_RBRKT { FN_pressed, SCROLLLOCK, RBRKT };
+// FN + DOWN = SCRLOCK
+// Most Linux Desktop Environments do not handle SCRLOCK but Windows does.
+if_t m_DOWN { FN_pressed, SCRLOCK, DOWN };
+
+class scrlock_t: public lamp_t<map_t&>, public timer_t {
+// Note that `lamp_t<map_t&>` equals `decltype(lamp_t(SCRLOCK_LAMP, m_DOWN))` which is
+// defined in the constructor initialization list below. If we used rvalue reference,
+// e.g. `lamp_t(SCRLOCK_LAMP, if_t(...))`, it should be `lamp_t<if_t>`, which is the
+// decltype of it.
+public:
+    constexpr scrlock_t(map_t& jiggler, uint32_t jiggle_timeout_ms)
+    : lamp_t(SCRLOCK_LAMP, m_DOWN), timer_t(jiggle_timeout_ms), m_jiggler(jiggler) {}
+
+private:
+    map_t& m_jiggler;
+
+    // It will not jiggle mostly when lamp is turned on by pressing SCRLOCK, because the
+    // lamp is turned on most likely before SCRLOCK is released. However, it will jiggle
+    // when the lamp is turned on due to switchover.
+    void lamp_on(pmap_t* slot) { on_timeout(slot); }
+
+    void lamp_off(pmap_t*) { stop_timer(); }
+
+    // Timer keeps running while SCRLOCK_LAMP is lit.
+    void on_timeout(pmap_t* slot) {
+        start_timer(slot);
+        if ( false == manager.is_any_pressing() ) {
+            m_jiggler.press(slot);
+            m_jiggler.release(slot);
+        }
+    }
+};
+
+scrlock_t l_DOWN { LSFT, 259 *MS_PER_SEC };  // 4 min 59 sec
 
 // FN + H/J/K/L = Arrow keys, FN2 + H/J/K/L = Home/PgDn/PgUp/End
 if_t m_H { FN_pressed, LEFT, if_t(FN2_pressed, HOME, H) };  // sizeof = 44
@@ -76,13 +109,15 @@ if_t m_BKSP { FN_pressed, DEL, BKSP };
 if_t m_GRV { FN_pressed, POWER, GRV };
 
 // t_SPC + LSFT = SPC, Double LSFT = CapsLock, LSFT (when CapsLock on) = CapsLock
-if_t t_LSFT {  // sizeof = 112
-    [](){ return t_SPC.is_pressed(); },
-    SPC,
+lamp_t l_LSFT { CAPSLOCK_LAMP,
     if_t (
-        [](){ return (usb_thread::obj().hid_keyboard.get_led_state() & 0x2) != 0; },
-        CAPSLOCK,
-        tap_dance_double_t(LSFT, CAPSLOCK)
+        [](){ return t_SPC.is_pressed(); },
+        SPC,
+        if_t (
+            [](){ return is_lamp_lit(CAPSLOCK_LAMP); },
+            CAPSLOCK,
+            tap_dance_double_t(LSFT, CAPSLOCK)
+        )
     )
 };
 
@@ -213,17 +248,17 @@ private:
 
 
 
-pmap_t maps[MATRIX_ROWS][MATRIX_COLS] = {
+pmap_t maps[NUM_SLOTS] = {
     m_GRV, m_1, m_2, m_3, m_4, m_5, m_6, m_7, m_8, m_9, m_0, m_MINUS, m_EQL, m_BKSP, HOME,
 
-    t_TAB, Q, W, E, R, T, Y, U, I, O, m_P, m_LBRKT, m_RBRKT, BSLASH, END,
+    t_TAB, Q, W, E, R, T, Y, U, I, O, m_P, m_LBRKT, RBRKT, BSLASH, END,
 
     t_LCTL, A, S, D, F, G, m_H, m_J, m_K, m_L, COLON, QUOTE, ___, t_ENT, PGUP,
 
-    t_LSFT, ___, Z, X, C, V, B, N, M, COMMA, DOT, SLASH, RSFT, UP, PGDN,
+    l_LSFT, ___, Z, X, C, V, B, N, M, COMMA, DOT, SLASH, RSFT, UP, PGDN,
 
     LALT, LGUI, FN, ___, ___, ___, t_SPC, ___, ___, ___,
-        RCTL, TEST /*RALT*/, LEFT, DOWN, RIGHT,
+        RCTL, TEST /*RALT*/, LEFT, l_DOWN, RIGHT,
 };
 
 }  // namespace key
