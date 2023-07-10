@@ -2,7 +2,7 @@
 
 # Application name will be used for .bin, .elf, and .map files.
 # The version number should match that in launch.json.
-APPLICATION = dropalt-0.8
+APPLICATION = dropalt-0.8.1
 
 # Directory for RIOT repo.
 RIOTBASE := $(CURDIR)/riot

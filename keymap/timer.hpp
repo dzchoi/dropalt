@@ -21,25 +21,33 @@ protected: // Methods to be used by child classes
 
     // Move constructor is needed for child classes such as tap_hold_t to be movable.
     constexpr timer_t(timer_t&& old)
-    : ztimer_t { .base = {}, .callback = _tmo_key_timer, .arg = nullptr }
-    , m_timeout_ms(old.m_timeout_ms) {
-        // Move-constructable only at compile-time.
-        constexpr bool is_compile_time = __builtin_is_constant_evaluated();
-        // `assert()` can be used in constexpr functions as long as the argument is
-        // constexpr. See https://stackoverflow.com/questions/32401256.
-        assert( is_compile_time );
+    : timer_t(old.m_timeout_ms) {
+        // This assert() is to disallow the (child) objects being moved at run-time (i.e.
+        // while the timer is ticking) and it still will not hurt the `constexpr`, thus
+        // enabling the move constructor to run at compile-time and generating the objects
+        // in .relocate section rather than in .bss section.
+        // Note that `assert()` can be used in constexpr functions as long as the
+        // argument is constexpr. See https://stackoverflow.com/questions/32401256.
+        assert( m_timeout_expected == nullptr );
+
+        // We could use this assert instead of `assert( m_timeout_expected == nullptr )`
+        // above, but it would generate the objects (e.g. `m_1`) in .bss section and
+        // initialize them from __static_initialization_and_destruction_0() in
+        // __libc_init_array().
+        // assert( !old.timer_is_running() );
+
+        // However, we cannot use __builtin_is_constant_evaluated(), because it will also
+        // break the `constexpr` like `!old.timer_is_running()` does, and it will return
+        // false when run from __static_initialization_and_destruction_0() even though it
+        // is before starting the main() function, causing the assert() to always fail.
+        // Do not use: assert( __builtin_is_constant_evaluated() );
     }
 
-    // ~timer_t() { stop_timer(); }
-    // We do not provide a destructor and make it trivial. It is also unnecessary as
-    // `timer_t` works as a helper base class of map_t child classes, and all map_t
-    // instances are declared as a compile-time literal (though mutable) and hence not
-    // going to be destroyed at run-time.
-    // If a non-trivial destructor were provided or if the constexpr move-constructor
-    // above added a non-constexpr expression (hence it breaks being constexpr), any
-    // classes derived from timer_t would be allocated in .bss section and thus
-    // constructed by __static_initialization_and_destruction_0() at run-time, while they
-    // would otherwise be constructed and allocated in .relocate section at compile-time.
+    // ~timer_t() { assert( m_timeout_expected == nullptr ); }
+    // To make it trivial we do not provide a destructor. It is also unnecessary as all
+    // map_t (and child) instances are created at compile-time (though mutable) and hence
+    // not going to be destroyed. Otherwise it would make the objects generated in .bss
+    // section instead of .relocate section.
 
     void start_timer(pmap_t* slot);
 

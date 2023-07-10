@@ -1,5 +1,7 @@
 #pragma once
 
+#include "assert.h"             // for assert()
+
 #include "manager.hpp"          // for enroll/unenroll_observer()
 
 
@@ -9,6 +11,10 @@ namespace key {
 class observer_t {
 protected: // Methods to be used by child classes
     constexpr observer_t() =default;
+
+    // Not movable during run-time. See the comment in timer.hpp for using assert() in
+    // constexpr functions.
+    constexpr observer_t(observer_t&&) { assert( who == nullptr ); }
 
     void start_observe(pmap_t* slot) { who = slot; manager.enroll_observer(this); }
 

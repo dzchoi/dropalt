@@ -22,15 +22,17 @@ class pmap_t;
 // be only checked for its pressing.
 class map_t {
 public: // User-facing methods
+    // Instances of map_t are not supposed to be const or constexpr since they contain the
+    // mutable member, m_pressing_count. However, the constexpr contructor (especially
+    // that in literal_t) still helps them to be created in .relocate section instead of
+    // .bss section, which means their initialization is done at compile-time rather than
+    // from __libc_init_array() at run-time.
+    // See https://stackoverflow.com/questions/50149036/ for constexpr constructor for
+    // non-const objects.
     constexpr map_t() =default;
 
-    // Movable only at compile-time
-    // All keymaps should be created and initialized at compile-time and not be destroyed
-    // at run-time.
-    constexpr map_t(map_t&&) {
-        constexpr bool is_compile_time = __builtin_is_constant_evaluated();
-        assert( is_compile_time );
-    }
+    // Move-constructible
+    constexpr map_t(map_t&&) =default;
 
     // Not copyable
     map_t(const map_t&) =delete;

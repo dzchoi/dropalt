@@ -34,8 +34,8 @@ void timer_t::_hdlr_timeout(event_t* event)
 
     if ( slot )
         // Timeout event is not deferred but handled immediately.
-        // The slot is not used by on_timeout() itself but will be needed to call
-        // .press/release() from on_timeout().
+        // The `slot` is not used by on_timeout() directly but will be needed for
+        // on_timeout() to be able to call e.g. .press/release(slot).
         that->on_timeout(slot);
     else
         LOG_WARNING("Keymap: spurious timeout (slot=%p)\n", slot);

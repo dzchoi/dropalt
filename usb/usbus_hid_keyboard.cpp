@@ -263,7 +263,8 @@ void usbus_hid_keyboard_t::_hdlr_receive_data(
             return;
     } else
         lamp_state = data[0];
-    LOG_DEBUG("Keyboard: set led_lamp_state=0x%x\n", lamp_state);
+    LOG_DEBUG("Keyboard: set led_lamp_state=0x%x @%lu\n",
+        lamp_state, ztimer_now(ZTIMER_MSEC));
 
     lamp_state ^= hidx->m_led_lamp_state;
     for ( auto slot = lamp_iter::begin() ; slot != lamp_iter::end() ; ++slot )
