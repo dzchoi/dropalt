@@ -81,7 +81,7 @@ enum hid_keyboard_keypad_usage: uint8_t {
     KC_F10,
     KC_F11,
     KC_F12,
-    KC_PSCREEN,
+    KC_PTRSCR,
     KC_SCRLOCK,
     KC_PAUSE,
     KC_INSERT,
@@ -89,7 +89,7 @@ enum hid_keyboard_keypad_usage: uint8_t {
     KC_PGUP,
     KC_DELETE,
     KC_END,
-    KC_PGDOWN,
+    KC_PGDN,
     KC_RIGHT,
     KC_LEFT,            // 0x50
     KC_DOWN,
@@ -178,8 +178,8 @@ enum hid_keyboard_keypad_usage: uint8_t {
     KC_EXSEL,           // 0xA4
 
     // 0xA5 to 0xAF - RESERVED
-    KC_RESERVED_A5,     // Used as macro identifier
-    KC_RESERVED_A6,     // this is used for special keyboard functions
+    KC_RESERVED_A5,
+    KC_RESERVED_A6,
     KC_RESERVED_A7,
     KC_RESERVED_A8,
     KC_RESERVED_A9,
@@ -197,7 +197,8 @@ enum hid_keyboard_keypad_usage: uint8_t {
     KC_DECIMAL_SEPARATOR,
     KC_CURRENCY_UNIT,
     KC_CURRENCY_SUB_UNIT,
-    KC_KP_LPAREN, KC_KP_RPAREN,
+    KC_KP_LPAREN,
+    KC_KP_RPAREN,
     KC_KP_LCBRACKET,    // {
     KC_KP_RCBRACKET,    // }
     KC_KP_TAB,
@@ -246,4 +247,201 @@ enum hid_keyboard_keypad_usage: uint8_t {
     KC_RSHIFT,
     KC_RALT,
     KC_RGUI,
+};
+
+// This is for debugging purposes. It will not be compiled if not referenced.
+inline constexpr const char* keycode_to_name[] = {
+    "NULL",             // 0x00
+    "ROLLOVER",
+    "POSTFAIL",
+    "UNDEFINED",
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H",
+    "I",
+    "J",
+    "K",
+    "L",
+    "M",                // 0x10
+    "N",
+    "O",
+    "P",
+    "Q",
+    "R",
+    "S",
+    "T",
+    "U",
+    "V",
+    "W",
+    "X",
+    "Y",
+    "Z",
+    "1",
+    "2",
+    "3",                // 0x20
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "0",
+    "ENTER",
+    "ESC",
+    "BKSP",
+    "TAB",
+    "SPACE",
+    "-",
+    "=",
+    "[",
+    "]",                // 0x30
+    "\\",               // \ (and |)
+    "NONUS#",           // Non-US # and ~ (Typically near the Enter key)
+    ";",                // ; (and :)
+    "'",                // ' and "
+    "`",                // Grave accent and tilde
+    ",",                // , and <
+    ".",                // . and >
+    "/",                // / and ?
+    "CAPSLOCK",
+    "F1",
+    "F2",
+    "F3",
+    "F4",
+    "F5",
+    "F6",
+    "F7",               // 0x40
+    "F8",
+    "F9",
+    "F10",
+    "F11",
+    "F12",
+    "PRTSCR",
+    "SCRLOCK",
+    "PAUSE",
+    "INS",
+    "HOME",
+    "PGUP",
+    "DEL",
+    "END",
+    "PGDN",
+    "RIGHT",
+    "LEFT",             // 0x50
+    "DOWN",
+    "UP",
+    "NUMLOCK",
+    "P/",
+    "P*",
+    "P-",
+    "P+",
+    "PENTER",
+    "P1",
+    "P2",
+    "P3",
+    "P4",
+    "P5",
+    "P6",
+    "P7",
+    "P8",               // 0x60
+    "P9",
+    "P0",
+    "P.",
+    "NONUS\\",          // Non-US \ and | (Typically near the Left-Shift key)
+    "APP",
+    "POWER",
+    "P=",
+    "F13",
+    "F14",
+    "F15",
+    "F16",
+    "F17",
+    "F18",
+    "F19",
+    "F20",
+    "F21",              // 0x70
+    "F22",
+    "F23",
+    "F24",
+    "EXECUTE",
+    "HELP",
+    "MENU",
+    "SELECT",
+    "STOP",
+    "AGAIN",
+    "UNDO",
+    "CUT",
+    "COPY",
+    "PASTE",
+    "FIND",
+    "MUTE",
+    "VOLUP",            // 0x80
+    "VOLDN",
+    "LOCKINGCAPS",      // locking Caps Lock
+    "LOCKINGNUM",       // locking Num Lock
+    "LOCKINGSCR",       // locking Scroll Lock
+    "P,",
+    "P=",               // equal sign on AS/400
+    "INT1",
+    "INT2",
+    "INT3",
+    "INT4",
+    "INT5",
+    "INT6",
+    "INT7",
+    "INT8",
+    "INT9",
+    "LANG1",            // 0x90
+    "LANG2",
+    "LANG3",
+    "LANG4",
+    "LANG5",
+    "LANG6",
+    "LANG7",
+    "LANG8",
+    "LANG9",
+    "ALTERASE",
+    "SYSREQ",
+    "CANCEL",
+    "CLEAR",
+    "PRIOR",
+    "RETURN",
+    "SEPARATOR",
+    "OUT",              // 0xA0
+    "OPER",
+    "CLEARAGAIN",
+    "CRSEL",
+    "EXSEL",            // 0xA4
+
+    // 0xA5 to 0xAF - RESERVED
+    "RESERVED",
+    "RESERVED",
+    "RESERVED",
+    "RESERVED",
+    "RESERVED",
+    "RESERVED",
+    "RESERVED",
+    "RESERVED",
+    "RESERVED",
+    "RESERVED",
+    "RESERVED",
+
+    // NOTE: Following codes(0xB0-DD) are not used but are in the HID Document.
+    "NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA",  // 0xB0
+    "NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA",  // 0xC0
+    "NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA","NA",  // 0xD0
+
+    // Modifiers
+    "LCTRL",            // 0xE0
+    "LSHIFT",
+    "LALT",
+    "LGUI",
+    "RCTRL",
+    "RSHIFT",
+    "RALT",
+    "RGUI",
 };

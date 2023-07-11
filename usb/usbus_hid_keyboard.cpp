@@ -1,3 +1,6 @@
+// Disabling logs will not compile keycode_to_name[] in hid_keycodes.hpp.
+// #define LOCAL_LOG_LEVEL LOG_NONE
+
 #include "log.h"
 #include "mutex.h"
 
@@ -5,7 +8,7 @@
 #include "keymap_thread.hpp"    // for signal_lamp_state()
 #include "main_thread.hpp"      // for signal_usb_suspend() and signal_usb_resume()
 #include "pmap.hpp"             // for lamp_iter, lamp_id()
-#include "rgb_thread.hpp"       // for signal_usb_suspend(), signal_usb_resume(), ...
+#include "rgb_thread.hpp"       // for signal_usb_suspend() and signal_usb_resume()
 #include "usb_thread.hpp"       // for send_remote_wake_up()
 #include "usbus_hid_keyboard.hpp"
 
@@ -96,22 +99,23 @@ void usbus_hid_keyboard_t::report_press(uint8_t keycode)
         if ( usbus_is_active() ) {
             if ( ++m_report_updated > 1 ) {
                 m_press_yet_to_submit = keycode;
-                LOG_DEBUG("Keyboard: defer press (0x%x)\n", keycode);
+                LOG_DEBUG("Keyboard: defer press (0x%x %s)\n",
+                    keycode, keycode_to_name[keycode]);
                 return;
             }
 
             // In the case m_report_updated == 1,
-            if ( keycode >= KC_A && keycode <= KC_Z )
-                LOG_DEBUG("Keyboard: register press (0x%x '%c')\n",
-                    keycode, 'a' - KC_A + keycode);
-            else
-                LOG_DEBUG("Keyboard: register press (0x%x)\n", keycode);
+            LOG_DEBUG("Keyboard: register press (0x%x %s)\n",
+                keycode, keycode_to_name[keycode]);
             submit();
         }
         else {
             // If USB is not active we still keep the report up to date but do not submit
             // to the host.
-            LOG_DEBUG("Keyboard: send remote wakeup request on press (0x%x)\n", keycode);
+            // Todo: Buffer key events that occur during switchover and emit them when
+            //  USB is active.
+            LOG_INFO("Keyboard: send remote wakeup request on press (0x%x %s)\n",
+                keycode, keycode_to_name[keycode]);
             usb_thread::obj().send_remote_wake_up();
         }
     }
@@ -129,11 +133,13 @@ void usbus_hid_keyboard_t::report_release(uint8_t keycode)
 
     if ( report_key(keycode, false) && usbus_is_active() ) {
         if ( ++m_report_updated == 1 ) {
-            LOG_DEBUG("Keyboard: register release (0x%x)\n", keycode);
+            LOG_DEBUG("Keyboard: register release (0x%x %s)\n",
+                keycode, keycode_to_name[keycode]);
             submit();
         }
         else
-            LOG_DEBUG("Keyboard: defer release (0x%x)\n", keycode);
+            LOG_DEBUG("Keyboard: defer release (0x%x %s)\n",
+                keycode, keycode_to_name[keycode]);
     }
 }
 
@@ -193,8 +199,8 @@ bool usbus_hid_keyboard_t::help_report_bits(uint8_t& bits, uint8_t keycode, bool
 {
     const uint8_t mask = uint8_t(1) << (keycode & 7);
     if ( ((bits & mask) != 0) == pressed ) {
-        LOG_ERROR("Keyboard: Key (0x%x) is already %sed\n", keycode,
-            pressed ? "press" : "releas");
+        LOG_ERROR("Keyboard: Key (0x%x %s) is already %sed\n",
+            keycode, keycode_to_name[keycode], pressed ? "press" : "releas");
         return false;
     }
 
@@ -212,7 +218,8 @@ bool usbus_hid_keyboard_t::help_skro_report_key(
     for ( i = 0 ; i < SKRO_KEYS_SIZE && keys[i] != KC_NO ; i++ )
         if ( keys[i] == keycode ) {
             if ( pressed ) {
-                LOG_ERROR("Keyboard: Key (0x%x) is already pressed\n", keycode);
+                LOG_ERROR("Keyboard: Key (0x%x %s) is already pressed\n",
+                    keycode, keycode_to_name[keycode]);
                 return false;
             } else {
                 while ( ++i < SKRO_KEYS_SIZE && keys[i] )
@@ -223,12 +230,14 @@ bool usbus_hid_keyboard_t::help_skro_report_key(
         }
 
     if ( !pressed ) {
-        LOG_ERROR("Keyboard: Key (0x%x) is already released\n", keycode);
+        LOG_ERROR("Keyboard: Key (0x%x %s) is already released\n",
+            keycode, keycode_to_name[keycode]);
         return false;
     }
 
     if ( i == SKRO_KEYS_SIZE ) {
-        LOG_WARNING("Keyboard: no room to report key press (0x%x)\n", keycode);
+        LOG_WARNING("Keyboard: no room to report key press (0x%x %s)\n",
+            keycode, keycode_to_name[keycode]);
         return false;
     }
 
@@ -269,10 +278,8 @@ void usbus_hid_keyboard_t::_hdlr_receive_data(
     lamp_state ^= hidx->m_led_lamp_state;
     for ( auto slot = lamp_iter::begin() ; slot != lamp_iter::end() ; ++slot )
         // Notify only those slots whose lamp state is to be changed.
-        if ( lamp_state & (uint8_t(1) << slot->lamp_id()) ) {
-            rgb_thread::obj().signal_lamp_state(&*slot);
+        if ( lamp_state & (uint8_t(1) << slot->lamp_id()) )
             keymap_thread::obj().signal_lamp_state(&*slot);
-        }
 
     // Update m_led_lamp_state with the received data.
     hidx->m_led_lamp_state ^= lamp_state;

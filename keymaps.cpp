@@ -51,7 +51,7 @@ tap_hold_t t_ENT { ENT, FN, HOLD_PREFERRED };
 tap_hold_t t_SPC { SPC, RSFT, BALANCED };  // sizeof = 72
 
 // FN + P = PrtScr
-if_t m_P { FN_pressed, PSCR, P };  // sizeof = 24
+if_t m_P { FN_pressed, PTRSCR, P };  // sizeof = 24
 
 // FN + LBRKT = Break/Pause
 if_t m_LBRKT { FN_pressed, PAUSE, LBRKT };

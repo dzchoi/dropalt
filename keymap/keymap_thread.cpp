@@ -9,6 +9,7 @@
 #include "keymap_thread.hpp"
 #include "manager.hpp"          // for key::manager
 #include "pmap.hpp"             // for lamp_id(), lamp_on_off(), ...
+#include "rgb_thread.hpp"       // for signal_lamp_state()
 
 
 
@@ -99,6 +100,7 @@ void keymap_thread::process_slot_event(key::pmap_t* slot, slot_event_t event)
             break;
 
         case LAMP_CHANGED:
+            rgb_thread::obj().signal_lamp_state(slot);
             slot->lamp_on_off(is_lamp_lit(slot->lamp_id()));
             break;
     }
