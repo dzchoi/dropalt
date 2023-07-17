@@ -42,7 +42,7 @@ public:
 
 protected:
     // To be used only for creating v_5v, v_con1 and v_con2.
-    adc_input(uint8_t line);
+    adc_input(uint8_t line): line(line) { mutex_init(&m_mutex); }
 
     // Start measuring the input (non-blocking). The result will be reported later to
     // adc_thread, calling signal_report_v_5v() or signal_report_v_con().
@@ -80,7 +80,9 @@ private:
     // are already in the event queue when a new event is pushed. As to reporting, we use
     // thread signals instead of events, FLAG_REPORT_V_5V and FLAG_REPORT_V_CON defined in
     // adc_thread.
-    event_ext_t<adc_input*> m_event_periodic_measure;
+    event_ext_t<adc_input*> m_event_periodic_measure = {
+        nullptr, _hdlr_periodic_measure, this
+    };
     static void _hdlr_periodic_measure(event_t* event);
 };
 

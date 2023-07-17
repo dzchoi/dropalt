@@ -1,6 +1,6 @@
 #pragma once
 
-#include <atomic>
+#include <atomic>               // for std::atomic<>
 #include "features.hpp"         // for KEYBOARD_REPORT_INTERVAL_MS
 #include "hid_keycodes.hpp"     // for KC_LCTRL, KC_NO
 #include "usb_descriptor.hpp"
@@ -32,15 +32,17 @@ public:
     // ensure:
     //  - no two presses are made in the same report (for NKRO protocol especially), and
     //  - a press and its release are not reported in the same report.
+    // They return false if USB is not accessible.
     //
-    // Beware: they are assumed to be called from only one thread (keymap_thread).
-    //  Otherwise, we need to serialize the calling of the methods by using e.g. events
-    //  on usb_thread, in order to ensure that report is not accessed simultaneously.
-    //  (We cannot use mutex in this case as we need to acquire the mutex in the context
-    //  of usb_thread and interrupt.)
-    void report_press(uint8_t keycode);
+    // Beware: these methods are supposed to be called from only one thread
+    //  (keymap_thread). Otherwise, we need to serialize the calls of the methods by
+    //  using e.g. events on usb_thread, in order to ensure that report is not updated
+    //  simultaneously. (However, we cannot use mutex in the event handler as it will
+    //  acquire the mutex in the context of usb_thread and interrupt, which can possibly
+    //  cause usb_thread that executes the event handler being stuck.)
+    bool report_press(uint8_t keycode);
 
-    void report_release(uint8_t keycode);
+    bool report_release(uint8_t keycode);
 
     // Called (in usb_thread context) when the report is received by the host.
     void on_transfer_complete();
@@ -51,7 +53,7 @@ public:
 protected:
     using usbus_hid_device_ext_t::usbus_hid_device_ext_t;
 
-    void help_init(usbus_t* usbus, size_t epsize, uint8_t ep_interval_ms);
+    void help_usb_init(usbus_t* usbus, size_t epsize, uint8_t ep_interval_ms);
 
     uint8_t m_led_lamp_state = 0;
 
@@ -64,21 +66,34 @@ protected:
     // (0 = nor submitted, 1 = submitted, 2+ = submitted and updated further)
     std::atomic<uint8_t> m_report_updated = 0;
 
-    // Press that is updated to report but not submitted.
+    // Key press that has been updated to report but not submitted.
     std::atomic<uint8_t> m_press_yet_to_submit = KC_NO;
 
-    // Submit the current report to the host.
-    void submit();
+    // USB is not accessible immediately after USBUS_EVENT_USB_RESUME, or in the case of
+    // Linux even after usbus->state is changed to USBUS_STATE_CONFIGURED. We give a
+    // little delay to allow keymap_thread to send key events.
+    std::atomic<bool> m_is_usb_accessible = false;
 
-    // Used by submit() to copy the report to in_buf.
+    ztimer_t m_delay_usb_accessible = {
+        .base = {},
+        .callback = _tmo_usb_accessible,
+        .arg = this,
+    };
+    static void _tmo_usb_accessible(void* arg);
+
+    // Submit the current report to the host.
+    void submit_report();
+
+    // Used by submit_report() to copy the report to in_buf.
     virtual void fill_in_buf() =0;
 
-    // Update the report, used by report_press() and report_release().
-    virtual bool report_key(uint8_t keycode, bool pressed) =0;
+    // Update the report and return true if successful. This private method is used by
+    // report_press/release().
+    virtual bool update_report(uint8_t keycode, bool is_press) =0;
 
-    bool help_report_bits(uint8_t& bits, uint8_t keycode, bool pressed);
-    bool help_skro_report_key(uint8_t keys[], uint8_t keycode, bool pressed);
-    bool help_nkro_report_key(uint8_t bits[], uint8_t keycode, bool pressed);
+    bool help_update_bits(uint8_t& bits, uint8_t keycode, bool is_press);
+    bool help_update_skro_report(uint8_t keys[], uint8_t keycode, bool is_press);
+    bool help_update_nkro_report(uint8_t bits[], uint8_t keycode, bool is_press);
 
     // Handle (in usb_thread context) the data packet received from the host.
     static void _hdlr_receive_data(usbus_hid_device_t* hid, uint8_t* data, size_t len);
@@ -103,8 +118,8 @@ public:
         usbus, report_desc.data(), report_desc.size(), _hdlr_receive_data)
     {}
 
-    void init(usbus_t* usbus) {
-        help_init(usbus, KEYBOARD_EPSIZE, KEYBOARD_REPORT_INTERVAL_MS);
+    void usb_init(usbus_t* usbus) {
+        help_usb_init(usbus, KEYBOARD_EPSIZE, KEYBOARD_REPORT_INTERVAL_MS);
     }
 
 private:
@@ -120,10 +135,10 @@ private:
 
     void fill_in_buf() { __builtin_memcpy(in_buf, m_report.raw, KEYBOARD_EPSIZE); }
 
-    bool report_key(uint8_t keycode, bool pressed) {
+    bool update_report(uint8_t keycode, bool is_press) {
         return keycode >= KC_LCTRL
-            ? help_report_bits(m_report.mods, keycode, pressed)
-            : help_skro_report_key(m_report.keys, keycode, pressed);
+            ? help_update_bits(m_report.mods, keycode, is_press)
+            : help_update_skro_report(m_report.keys, keycode, is_press);
     }
 };
 
@@ -141,8 +156,8 @@ public:
         usbus, report_desc.data(), report_desc.size(), _hdlr_receive_data)
     {}
 
-    void init(usbus_t* usbus) {
-        help_init(usbus, KEYBOARD_EPSIZE, KEYBOARD_REPORT_INTERVAL_MS);
+    void usb_init(usbus_t* usbus) {
+        help_usb_init(usbus, KEYBOARD_EPSIZE, KEYBOARD_REPORT_INTERVAL_MS);
     }
 
     void set_protocol(uint8_t protocol);
@@ -165,21 +180,21 @@ private:
 
     void fill_in_buf() { __builtin_memcpy(in_buf, m_report.raw, KEYBOARD_EPSIZE); }
 
-    bool report_key(uint8_t keycode, bool pressed) {
+    bool update_report(uint8_t keycode, bool is_press) {
         return keycode >= KC_LCTRL
-            ? help_report_bits(m_report.mods, keycode, pressed)
-            : (this->*xkro_report_key)(keycode, pressed);
+            ? help_update_bits(m_report.mods, keycode, is_press)
+            : (this->*xkro_report_key)(keycode, is_press);
     }
 
     // These pointers-to-methods are changed according to the current protocol.
-    bool (usbus_hid_keyboard_tl::*xkro_report_key)(uint8_t keycode, bool pressed) =
+    bool (usbus_hid_keyboard_tl::*xkro_report_key)(uint8_t keycode, bool is_press) =
         &usbus_hid_keyboard_tl::nkro_report_key;
 
-    bool skro_report_key(uint8_t keycode, bool pressed) {
-        return help_skro_report_key(m_report.keys, keycode, pressed);
+    bool skro_report_key(uint8_t keycode, bool is_press) {
+        return help_update_skro_report(m_report.keys, keycode, is_press);
     }
 
-    bool nkro_report_key(uint8_t keycode, bool pressed) {
-        return help_nkro_report_key(m_report.bits, keycode, pressed);
+    bool nkro_report_key(uint8_t keycode, bool is_press) {
+        return help_update_nkro_report(m_report.bits, keycode, is_press);
     }
 };

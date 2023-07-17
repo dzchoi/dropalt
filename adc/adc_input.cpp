@@ -17,14 +17,6 @@ adc_input_v_con adc_input::v_con2 { ADC_LINE_CON2 };
 
 
 
-adc_input::adc_input(uint8_t line): line(line)
-{
-    mutex_init(&m_mutex);
-
-    m_event_periodic_measure.handler = &_hdlr_periodic_measure;
-    m_event_periodic_measure.arg = this;
-}
-
 void adc_input::async_measure()
 {
     mutex_lock(&m_mutex);

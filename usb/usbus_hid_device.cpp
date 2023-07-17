@@ -78,7 +78,7 @@ void usbus_hid_device_ext_t::_init(usbus_t* usbus, usbus_handler_t* handler)
     hidx->hid_descr.next = nullptr;
     hidx->hid_descr.funcs = &_hid_descriptor;
     hidx->hid_descr.arg = dynamic_cast<usbus_hid_device_t*>(hidx);
-    hidx->init(usbus);
+    hidx->usb_init(usbus);
 }
 
 void usbus_hid_device_ext_t::_event_handler(
@@ -93,8 +93,8 @@ void usbus_hid_device_ext_t::_event_handler(
             // When the host is booting, it first sends SET_PROTOCOL on BIOS screen to set
             // boot protocol, then sends USB_RESET on entering OS to set it back to report
             // protocol.
-            hidx->on_reset();
             LOG_DEBUG("USB_HID: reset event\n");
+            hidx->on_reset();
             break;
 
         // "The Suspend Interrupt bit in the Device Interrupt Flag register (INTFLAG
@@ -106,13 +106,13 @@ void usbus_hid_device_ext_t::_event_handler(
         // DETACH is written to one. It returns to the Active state when CTRLA.ENABLE is
         // written to one and CTRLB.DETACH is written to zero."
         case USBUS_EVENT_USB_SUSPEND:   // USB suspend condition detected
-            hidx->on_suspend();
             LOG_DEBUG("USB_HID: suspend event @%lu\n", ztimer_now(ZTIMER_MSEC));
+            hidx->on_suspend();
             break;
 
         case USBUS_EVENT_USB_RESUME:    // USB resume condition detected
-            hidx->on_resume();
             LOG_DEBUG("USB_HID: resume event @%lu\n", ztimer_now(ZTIMER_MSEC));
+            hidx->on_resume();
             break;
 
         default:

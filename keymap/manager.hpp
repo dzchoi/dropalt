@@ -1,17 +1,57 @@
 #pragma once
 
 #include "assert.h"             // for assert()
+#include "ztimer.h"             // for ztimer_t
 
 #include <vector>               // for std::vector<>
+#include "features.hpp"         // for NUM_KEY_EVENTS_BUFFERED_DURING_SUSPEND
 #include "usb_descriptor.hpp"   // for SKRO_KEYS_SIZE
 
 
+
+class usbus_hid_keyboard_t;
 
 namespace key {
 
 class map_t;
 class pmap_t;
 class observer_t;
+
+
+
+class keys_suspended_t {
+public:
+    void add(uint8_t keycode, bool is_press);
+
+    void release(usbus_hid_keyboard_t* hidx);
+
+    bool empty() const { return m_events_begin == MAX_EVENTS; }
+
+    bool full() const { return m_events_begin == m_events_end; }
+
+private:
+    static constexpr size_t MAX_EVENTS = NUM_KEY_EVENTS_BUFFERED_DURING_SUSPEND;
+    // Implement as a circular array. Or we could use std::vector<> to increase the size
+    // dynamically.
+    struct { uint8_t keycode; bool is_press; } m_events[MAX_EVENTS];
+    static_assert( sizeof(m_events[0]) == 2 );
+
+    // m_events_begin == MAX_EVENTS and m_events_end == 0 indicate that m_events[] is
+    // empty.
+    uint8_t m_events_begin = MAX_EVENTS;
+    uint8_t m_events_end = 0;
+
+    void clear() { m_events_begin = MAX_EVENTS; m_events_end = 0; }
+
+    uint8_t advance(uint8_t& i) const;  // acts like ++i
+
+    ztimer_t m_clear_timer = {
+        .base = {},
+        .callback = _tmo_clear,
+        .arg = this,
+    };
+    static void _tmo_clear(void* arg);
+};
 
 
 
@@ -44,6 +84,15 @@ public:
         // vector will be expanded as needed.
         m_pressing_list.reserve(SKRO_KEYS_SIZE);
     }
+
+    // Send a press event to the host. If USB is not accessible we buffer the events
+    // (up to MAX_AGE_OF_KEY_EVENTS_BUFFERED_DURING_SUSPEND_MS milliseconds), which will
+    // be released when USB becomes accessible.
+    void send_press(uint8_t keycode);
+
+    void send_release(uint8_t keycode);
+
+    void send_any_suspended();
 
     // Handle a physical press.
     void handle_press(pmap_t* slot);
@@ -93,6 +142,9 @@ public:
     bool unenroll_observer(observer_t* observer);
 
 private:
+    // Keycodes that are buffered during USB suspend mode.
+    keys_suspended_t m_keys_suspended;
+
     std::vector<pressing_slot_t> m_pressing_list;
 
     // The start index of deferred presses in the pressing list (We use indexes instead

@@ -1,3 +1,5 @@
+#include "log.h"
+
 #include "usb_thread.hpp"
 
 
@@ -22,7 +24,7 @@ usb_thread::usb_thread()
 static void _send_extrakey(uint8_t report_id, uint16_t data)
 {
     report_extra_t report = { .report_id = report_id, .usage = data };
-    hid_shared.submit((const uint8_t*)&report, sizeof(report_extra_t));
+    hid_shared.submit_report((const uint8_t*)&report, sizeof(report_extra_t));
 }
 #endif
 
@@ -48,9 +50,9 @@ void usb_thread::async_send_mouse(report_mouse_t* report)
 {
 #ifdef MOUSE_ENABLE
 #   ifdef MOUSE_SHARED_EP
-    hid_shared.submit((const uint8_t*)report, sizeof(report_mouse_t));
+    hid_shared.submit_report((const uint8_t*)report, sizeof(report_mouse_t));
 #   else
-    hid_mouse.submit((const uint8_t*)report, sizeof(report_mouse_t));
+    hid_mouse.submit_report((const uint8_t*)report, sizeof(report_mouse_t));
 #   endif
 #else
     (void)report;
@@ -58,7 +60,6 @@ void usb_thread::async_send_mouse(report_mouse_t* report)
 }
 */
 
-// Required to be called only when m_usbus.state == USBUS_STATE_SUSPEND.
 void usb_thread::send_remote_wake_up(void)
 {
     // "First, the USB must have detected a “Suspend” state on the bus, i.e. the remote
@@ -72,6 +73,8 @@ void usb_thread::send_remote_wake_up(void)
 
     UsbDevice* const device = ((sam0_common_usb_t*)m_usbus.dev)->config->device;
 
-    if ( (device->CTRLB.reg & USB_DEVICE_CTRLB_UPRSM) == 0 )
+    if ( is_state_suspended() && (device->CTRLB.reg & USB_DEVICE_CTRLB_UPRSM) == 0 ) {
         device->CTRLB.reg |= USB_DEVICE_CTRLB_UPRSM;
+        LOG_INFO("USB_HID: send remote wakeup request\n");
+    }
 }

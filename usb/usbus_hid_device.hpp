@@ -13,10 +13,10 @@
 class usbus_hid_device_ext_t: public usbus_hid_device_t {
 public:
     // Set up usbus interrupt endpoint(s) for the device.
-    virtual void init(usbus_t* usbus) =0;
+    virtual void usb_init(usbus_t* usbus) =0;
 
     // Note that these will be called on those devices that register the corresponding
-    // events in their init() using usbus_handler_set_flag().
+    // events in their usb_init() using usbus_handler_set_flag().
     virtual void on_reset() {}
     virtual void on_suspend() {}
     virtual void on_resume() {}

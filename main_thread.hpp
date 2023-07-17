@@ -12,9 +12,9 @@ public:
         return obj;
     }
 
-    void signal_usb_reset() { thread_flags_set(m_pthread, FLAG_USB_RESET); };
-    void signal_usb_suspend() { thread_flags_set(m_pthread, FLAG_USB_SUSPEND); };
-    void signal_usb_resume() { thread_flags_set(m_pthread, FLAG_USB_RESUME); };
+    void signal_usb_reset() { thread_flags_set(m_pthread, FLAG_USB_RESET); }
+    void signal_usb_suspend() { thread_flags_set(m_pthread, FLAG_USB_SUSPEND); }
+    void signal_usb_resume() { thread_flags_set(m_pthread, FLAG_USB_RESUME); }
 
     main_thread(const main_thread&) =delete;
     main_thread& operator=(const main_thread&) =delete;

@@ -6,7 +6,6 @@
 #include "adc_thread.hpp"       // for signal_extra_enable_manually(), ...
 #include "keymap_thread.hpp"    // for signal_usbport_switchover()
 #include "manager.hpp"          // for key::manager
-#include "usb_thread.hpp"       // for hid_keyboard.report_press/release()
 
 
 
@@ -41,9 +40,9 @@ public: // User-facing methods
     // Execute on_press/release() of the keymap with the slot who triggers the keymap.
     // Beware to not call `pmap->on_press(slot)` directly, which does not take care of
     // simultaneous presses of the same keymap.
-    void press(pmap_t* slot) { key::manager.execute_press(this, slot); }
+    void press(pmap_t* slot) { manager.execute_press(this, slot); }
 
-    void release(pmap_t* slot) { key::manager.execute_release(this, slot); }
+    void release(pmap_t* slot) { manager.execute_release(this, slot); }
 
     // Indicate if the keymap (not the slot) is being pressed.
     bool is_pressed() const { return m_pressing_count > 0; }
@@ -67,24 +66,16 @@ private: // Methods to be called by key::manager, map_proxy_t and pmap_t
     int8_t m_pressing_count = 0;
 
 protected: // Utility methods that can be used by child classes
-    static void send_press(uint8_t keycode) {
-        usb_thread::obj().hid_keyboard.report_press(keycode);
-    }
+    static void send_press(uint8_t keycode) { manager.send_press(keycode); }
 
-    static void send_release(uint8_t keycode) {
-        usb_thread::obj().hid_keyboard.report_release(keycode);
-    }
+    static void send_release(uint8_t keycode) { manager.send_release(keycode); }
 
     // Start deferring key presses. All presses will be deferred from the next event.
-    static void start_defer_presses() {
-        key::manager.start_defer();
-    }
+    static void start_defer_presses() { manager.start_defer(); }
 
     // Stop deferring key presses. Any deferred presses will be carried out after
     // handling the current event.
-    static void stop_defer_presses() {
-        key::manager.stop_defer();
-    }
+    static void stop_defer_presses() { manager.stop_defer(); }
 
     // Perform usbhub switchover, once all keys are released.
     static void perform_usbport_switchover() {

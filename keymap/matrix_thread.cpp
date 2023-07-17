@@ -44,7 +44,7 @@ bool matrix_thread::_debouncer(unsigned row, unsigned col, bool is_pressed)
     if ( pmap.get_pressing_slot() == nullptr ) {
         if ( is_pressed ) {
             // Note that pressing slots may not be created (or removed) immediately after
-            // signaling the press (or release) event to keymap_thread. And, we can
+            // signaling the press (or release) event to keymap_thread. And we can
             // possibly signal the same event twice (especially for release, as the
             // pressing slot gets removed at the end, not start, of processing the
             // release event), but such duplicate events will be taken care of by
