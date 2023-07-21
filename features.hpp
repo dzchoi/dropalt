@@ -22,9 +22,6 @@ constexpr bool NKRO_ENABLE = true;
 // protocol this value is ignored and fixed to 10 ms.
 constexpr uint8_t KEYBOARD_REPORT_INTERVAL_MS = 10;
 
-// Number of key events that will be buffered during USB suspend mode
-constexpr size_t NUM_KEY_EVENTS_BUFFERED_DURING_SUSPEND = 32;
-
 // Only key events up to this age will be buffered during USB suspend mode. It should be
 // greater than the typical time for switchover (= ~1 second).
 constexpr uint32_t MAX_AGE_OF_KEY_EVENTS_BUFFERED_DURING_SUSPEND_MS = 4 *MS_PER_SEC;

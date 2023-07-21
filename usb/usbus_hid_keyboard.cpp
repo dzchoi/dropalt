@@ -1,18 +1,77 @@
 // Disabling logs will not compile keycode_to_name[] in hid_keycodes.hpp.
 // #define LOCAL_LOG_LEVEL LOG_NONE
 
+#include "assert.h"             // for assert()
+#include "irq.h"                // for irq_disable(), irq_enable(), irq_restore()
 #include "log.h"
-#include "mutex.h"
+#include "mutex.h"              // for mutex_lock(), mutex_unlock(), ...
 #include "ztimer.h"             // for ztimer_set(), ztimer_remove()
 
 #include "adc_thread.hpp"       // for signal_usb_suspend(), signal_usb_resume()
-#include "features.hpp"         // for DELAY_USB_ACCESSIBLE_AFTER_RESUMED_MS
-#include "keymap_thread.hpp"    // for signal_lamp_state(), signal_usb_accessible()
+#include "features.hpp"         // for DELAY_USB_ACCESSIBLE_AFTER_RESUMED_MS, ...
+#include "keymap_thread.hpp"    // for signal_lamp_state()
 #include "main_thread.hpp"      // for signal_usb_suspend(), signal_usb_resume()
 #include "pmap.hpp"             // for lamp_iter, lamp_id()
 #include "rgb_thread.hpp"       // for signal_usb_suspend(), signal_usb_resume()
 #include "usb_thread.hpp"       // for send_remote_wake_up()
 #include "usbus_hid_keyboard.hpp"
+
+
+
+inline const char* press_or_release(bool is_press)
+{
+    return is_press ? "press" : "release";
+}
+
+void key_event_queue_t::push(key_event_t event, bool wait_if_full)
+{
+    LOG_DEBUG("USB_HID: queue %s (0x%x %s)\n",
+        press_or_release(event.is_press), event.keycode, keycode_to_name[event.keycode]);
+
+    if ( mutex_trylock(&m_not_full) == 0 && wait_if_full ) {
+        // The push() is supposed to be called only with interrupt disabled to ensure
+        // thread-safety. However, when waiting for a mutex it has to allow other threads
+        // and interrupts to run. Otherwise it would be stuck. We could use condition
+        // variable for the same purpose, but using interrupt helps for small binary.
+        unsigned state = irq_enable();
+        mutex_lock(&m_not_full);  // wait until it is unlocked.
+        irq_restore(state);
+    }
+
+    m_events[m_end++ & (QUEUE_SIZE - 1)] = event;
+    if ( not_full() )
+        // If queue is full the mutex remains locked.
+        mutex_unlock(&m_not_full);
+    else
+        // This prevents the queue from holding more events than QUEUE_SIZE.
+        m_begin = m_end - QUEUE_SIZE;
+}
+
+bool key_event_queue_t::pop()
+{
+    if ( not_empty() ) {
+        m_begin++;
+        mutex_unlock(&m_not_full);
+        return true;
+    }
+    return false;
+}
+
+void key_event_queue_t::clear()
+{
+    LOG_DEBUG("USB_HID: clear key event queue\n");
+    m_begin = m_end;
+    mutex_unlock(&m_not_full);
+}
+
+bool key_event_queue_t::peek(key_event_t& event) const
+{
+    if ( not_empty() ) {
+        event = m_events[m_begin & (QUEUE_SIZE - 1)];
+        return true;
+    }
+    return false;
+}
 
 
 
@@ -50,10 +109,9 @@ void usbus_hid_keyboard_t::help_usb_init(
 void usbus_hid_keyboard_t::on_reset()
 {
     set_protocol(1);
-    m_report_updated = 0;
-    m_press_yet_to_submit = KC_NO;
-    // However, we do not clear m_led_lamp_state as it will be initialized separately
-    // from host (_hdlr_receive_data()).
+    // The m_report_updated and m_press_yet_to_submit will be reset later when USB is
+    // accessible. m_led_lamp_state will also be reset separately when indicated from host
+    // (_hdlr_receive_data()).
 
     // The main_thread does not monitor the flag yet.
     // main_thread::obj().signal_usb_reset();
@@ -82,102 +140,90 @@ void usbus_hid_keyboard_t::on_resume()
 void usbus_hid_keyboard_t::_tmo_usb_accessible(void* arg)
 {
     usbus_hid_keyboard_t* const hidx = static_cast<usbus_hid_keyboard_t*>(arg);
-    keymap_thread::obj().signal_usb_accessible();
-    // We set m_is_usb_accessible = true after signaling USB being accessible, so that
-    // keymap_thread can finish handling the signal before report_press/release() works
-    // on the accessible USB.
+    ztimer_remove(ZTIMER_MSEC, &hidx->m_timer_clear_queue);
+
+    LOG_DEBUG("USB_HID: USB accessible\n");
     hidx->m_is_usb_accessible = true;
+    usbus_event_post(hidx->usbus, &hidx->m_event_reset_transfer);
 }
 
 // Low-latency key registering algorithm:
-//  Note that Low-latency means that there will be no or little delay between a key event
-//  occurring and sending the event to the host.
+//  Note that Low-latency here means that there will be no or little delay between a key
+//  event occurring and sending the event to the host. The basic idea of this algorithm
+//  is ensuring that
+//   - no two presses are reported in the same packet frame*, and
+//   - a press and its release are not reported in the same packet frame.
+//
 //  1. If it is the first key event (press/release) in current packet frame, we update the
 //     report and submit it to the host now.
-//  2. For a second key event in the current packet frame, we only update the report and
-//     do not submit it. We will submit it at the start of next packet frame instead.
-//  3. For any subsequent events in the current packet frame, we update the report and
-//     overwrite the existing report but again without submitting it, except for the
-//     following events, which shall block the caller thread (keymap_thread) to delay the
-//     processing until next packet frame:
-//       = any press*,
-//       = any modifier release,
-//       = the release whose press was updated in this frame, and
-//  4. At the start of the next packet frame, i.e. when the submission for the first key
-//     event is acknowledged by the host,
-//       = if report has been further updated in step 2 or 3 above, we submit the updated
-//         report now, which is counted as the first event in this packet frame, and
-//       = then resume the blocked thread (if any) to carry out the delayed processing
-//         now.
-// * This condition, however, could be mitigated in 6KRO protocol.
-//   Even in NKRO protocol, we could submit a modifier along with a non-modifier press
-//   in the same report.
+//  2. For a second key event in the current packet frame, we update the report,
+//     overwriting the existing report, but do not submit it. We will submit it at the
+//     start of next packet frame instead.
+//  3. For any subsequent event, we also update the report and do not submit it, except
+//     for the following events, which shall be delayed to process until the current
+//     packet frame ends and any further events shall be delayed too.
+//       = a press,
+//       = the release whose press was updated at step 2 or 3, and
+//       = a modifier release if there was any prior press at step 2 or 3.
+//  4. At the start of the next packet frame, i.e. when the host acknowledges the
+//     submission of the first report at step 1,
+//       = if report has been further updated at step 2 or 3 above, we submit the updated
+//         report now, which will be counted as the first report in the new packet frame,
+//       = then resume processing any delayed events.
 //
-//  Note that `in_lock` mutex is used to wait until the next packet frame (host polling)
-//  rather than to protect `in_buf` from simultaneous accesses, for which m_report_updated
-//  is used instead (See submit_report() below).
+// * This condition, however, could be mitigated in 6KRO protocol. Even in NKRO protocol,
+//   we could report a non-modifier press along with a modifier press in the same frame.
 
-bool usbus_hid_keyboard_t::report_press(uint8_t keycode)
+// This method is not thread-safe, but it will be called either from usb_thread, or from
+// a client thread from report_event(), which ensures thread-safety.
+// It is required that this method is not called again in the same packet frame once it
+// returns false, in order to keep the order of events being sent to the host. Note that
+// `report_event()` and `on_transfer_complete()` satisfy this requirement.
+bool usbus_hid_keyboard_t::try_report_event(uint8_t keycode, bool is_press)
 {
-    if ( !m_is_usb_accessible ) {
-        LOG_DEBUG("USB_HID: press (0x%x %s) in suspend mode\n",
-                keycode, keycode_to_name[keycode]);
-        usb_thread::obj().send_remote_wake_up();
-        return false;
-    }
+    if ( m_report_updated > 1 )
+        if ( is_press || keycode == m_press_yet_to_submit ||
+             ( m_press_yet_to_submit != KC_NO && keycode >= KC_LCTRL ) )
+            return false;
 
-    if ( m_report_updated > 0 )
-        // We acquire mutex lock first time when m_report_updated == 1 if it is not
-        // acquired already by report_release(). Then we always acquire it again for any
-        // press, which will block the caller thread (keymap_thread). Note that the first
-        // time mutex lock does not block the thread but it enables the thread to be
-        // blocked when the mutex lock is acquired again.
-        mutex_lock(&in_lock);
-
-    if ( update_report(keycode, true) ) {
+    if ( update_report(keycode, is_press) ) {
         if ( m_report_updated++ == 0 ) {
-            LOG_DEBUG("USB_HID: register press (0x%x %s)\n",
-                keycode, keycode_to_name[keycode]);
+            LOG_DEBUG("USB_HID: register %s (0x%x %s)\n",
+                press_or_release(is_press), keycode, keycode_to_name[keycode]);
             submit_report();
         }
         else {
-            LOG_DEBUG("USB_HID: defer press (0x%x %s)\n",
-                keycode, keycode_to_name[keycode]);
-            m_press_yet_to_submit = keycode;
+            LOG_DEBUG("USB_HID: defer %s (0x%x %s)\n",
+                press_or_release(is_press), keycode, keycode_to_name[keycode]);
+            if ( is_press )
+                m_press_yet_to_submit = keycode;
         }
     }
 
     return true;
 }
 
-bool usbus_hid_keyboard_t::report_release(uint8_t keycode)
+// This method is supposed to execute from client thread (keymap_thread).
+void usbus_hid_keyboard_t::report_event(uint8_t keycode, bool is_press)
 {
+    unsigned state = irq_disable();  // disable preemption by usb_thread or interrupt.
+
     if ( !m_is_usb_accessible ) {
-        LOG_DEBUG("USB_HID: release (0x%x %s) in suspend mode\n",
-                keycode, keycode_to_name[keycode]);
-        return false;
+        LOG_DEBUG("USB_HID: key event in suspend mode\n");
+        if ( is_press )
+            usb_thread::obj().send_remote_wake_up();
+        m_key_event_queue.push({keycode, is_press});
+
+        // Extend m_timer_clear_queue if it is already running.
+        ztimer_set(ZTIMER_MSEC,
+            &m_timer_clear_queue, MAX_AGE_OF_KEY_EVENTS_BUFFERED_DURING_SUSPEND_MS);
     }
 
-    if ( m_report_updated > 0 )
-    if ( m_report_updated == 1
-      || keycode == m_press_yet_to_submit || keycode >= KC_LCTRL )
-        // We acquire mutex lock first time when m_report_updated == 1 if it is not
-        // acquired already by report_press(). Then we acquire it again only when a
-        // modifier is released or when a key is released whose press is yet to submit.
-        mutex_lock(&in_lock);
+    else if ( m_key_event_queue.not_empty() || !try_report_event(keycode, is_press) )
+        // m_is_usb_accessible is true and we allow push() to block.
+        m_key_event_queue.push({keycode, is_press}, true);
 
-    if ( update_report(keycode, false) ) {
-        if ( m_report_updated++ == 0 ) {
-            LOG_DEBUG("USB_HID: register release (0x%x %s)\n",
-                keycode, keycode_to_name[keycode]);
-            submit_report();
-        }
-        else
-            LOG_DEBUG("USB_HID: defer release (0x%x %s)\n",
-                keycode, keycode_to_name[keycode]);
-    }
-
-    return true;
+    irq_restore(state);
 }
 
 void usbus_hid_keyboard_t::submit_report()
@@ -187,12 +233,14 @@ void usbus_hid_keyboard_t::submit_report()
     usbus_event_post(usbus, &tx_ready);
 }
 
-void usbus_hid_keyboard_t::on_transfer_complete()
+// This method is called from an event handler in usb_thread context. It could be also
+// called from interrupt context, as submit_report() and try_report_event() throws
+// another event along with some memory operations performed.
+void usbus_hid_keyboard_t::on_transfer_complete(bool was_successful)
 {
-    // We are done with current packet frame.
-    LOG_DEBUG("USB_HID: --------\n");
+    assert( m_is_usb_accessible );
 
-    if ( m_report_updated > 1 ) {
+    if ( was_successful && m_report_updated > 1 ) {
         LOG_DEBUG("USB_HID: register deferred events\n");
         // This needs fixing Riot's _usbus_thread() to be able to handle multiple events
         // on event queue, as this submit_report() triggers another event while handling
@@ -200,22 +248,19 @@ void usbus_hid_keyboard_t::on_transfer_complete()
         submit_report();
         m_report_updated = 1;
     }
-    else {  // i.e. if m_report_updated == 1,
-        m_report_updated = 0;
+    else {
         occupied = 0;
+        m_report_updated = 0;
     }
-
     m_press_yet_to_submit = KC_NO;
-    mutex_unlock(&in_lock);
-}
 
-void usbus_hid_keyboard_t::isr_on_transfer_timeout()
-{
-    LOG_WARNING("USB_HID: tx_timer expired!\n");
-    m_report_updated = 0;
-    m_press_yet_to_submit = KC_NO;
-    occupied = 0;
-    mutex_unlock(&in_lock);
+    // Process remaining key events in the queue, pushing them in the new packet frame
+    // as many as possible. When we encounter an event that cannot be pushed we quit,
+    // as we will be invoked again at the next packet frame.
+    key_event_queue_t::key_event_t event;
+    while ( m_key_event_queue.peek(event)
+         && try_report_event(event.keycode, event.is_press) )
+        m_key_event_queue.pop();
 }
 
 

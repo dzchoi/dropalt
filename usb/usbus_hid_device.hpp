@@ -8,6 +8,8 @@
 #include "usb/usbus/hid.h"      // for usbus_hid_device_t, usbus_hid_cb_t
 #include "ztimer.h"             // for ztimer_t and ztimer_remove()
 
+#include "event_ext.hpp"        // for event_ext_t<>
+
 
 
 class usbus_hid_device_ext_t: public usbus_hid_device_t {
@@ -22,10 +24,9 @@ public:
     virtual void on_resume() {}
 
     // When an (interrupt) transfer is made to the host the host may respond with ACK
-    // (on_transfer_complete() is called), or may not respond (isr_on_transfer_timeout()
-    // is called).
-    virtual void on_transfer_complete() =0;
-    virtual void isr_on_transfer_timeout() =0;
+    // (on_transfer_complete(true) is called), or may not respond
+    // (on_transfer_complete(false) is called).
+    virtual void on_transfer_complete(bool was_successful) =0;
 
     // Only Boot protocol is reported unless overridden.
     virtual uint8_t get_protocol() const { return 0; };
@@ -48,8 +49,18 @@ protected:
     usbus_hid_device_ext_t(usbus_t* usbus,
         const uint8_t* report_desc, size_t report_desc_size, usbus_hid_cb_t cb_receive_data);
 
+    event_ext_t<usbus_hid_device_ext_t*> m_event_reset_transfer = {
+        nullptr,  // .list_node
+        [](event_t* pevent) {  // .handler
+            usbus_hid_device_ext_t* const hidx =
+                static_cast<event_ext_t<usbus_hid_device_ext_t*>*>(pevent)->arg;
+            hidx->on_transfer_complete(false);
+        },
+        this  // .arg
+    };
+
     // Will be never used.
-    virtual ~usbus_hid_device_ext_t() { ztimer_remove(ZTIMER_MSEC, &tx_timer); }
+    // virtual ~usbus_hid_device_ext_t() { ztimer_remove(ZTIMER_MSEC, &tx_timer); }
 
 private:
     ztimer_t tx_timer = { .base = {}, .callback = &_tmo_transfer_timeout, .arg = this };

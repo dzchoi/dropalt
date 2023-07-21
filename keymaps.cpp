@@ -220,18 +220,18 @@ private:
 
             // For testing usbus_hid_keyboard_t::report_press/release(),
             // A.press(slot);
-            // A.release(slot);
-            // A.press(slot);
-            // A.release(slot);
-            // A.press(slot);
-            // A.release(slot);
-
-            // A.press(slot);
             // B.press(slot);
             // A.release(slot);
             // C.press(slot);
             // C.release(slot);
             // B.release(slot);
+
+            // A.press(slot);
+            // A.release(slot);
+            // A.press(slot);
+            // A.release(slot);
+            // A.press(slot);
+            // A.release(slot);
         }
     }
 

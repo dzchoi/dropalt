@@ -1,72 +1,15 @@
 #include "log.h"
 
-#include "features.hpp"         // for MAX_AGE_OF_KEY_EVENTS_BUFFERED_DURING_SUSPEND_MS
 #include "manager.hpp"
 #include "map.hpp"
 #include "map_proxy.hpp"        // for on_proxy_press/release()
 #include "observer.hpp"
 #include "pmap.hpp"             // for get/set_pressing_slot()
 #include "rgb_thread.hpp"       // for signal_key_event()
-#include "usb_thread.hpp"       // for hid_keyboard.report_press/release()
 
 
 
 namespace key {
-
-uint8_t keys_suspended_t::advance(uint8_t& i) const
-{
-    if ( ++i == MAX_EVENTS )
-        i = 0;
-    return i;
-}
-
-void keys_suspended_t::add(uint8_t keycode, bool is_press)
-{
-    // Stop the timer if it is running, to avoid changing m_num_events simultaneously.
-    ztimer_remove(ZTIMER_MSEC, &m_clear_timer);
-
-    const bool was_empty = empty();
-    const bool was_full = full();
-
-    m_events[m_events_end] = { keycode, is_press };
-    advance(m_events_end);
-
-    if ( was_empty )
-        m_events_begin = 0;
-    else if ( was_full )
-        // This case should best be avoided as it can cause an old key event to be lost.
-        m_events_begin = m_events_end;
-
-    ztimer_set(ZTIMER_MSEC,
-        &m_clear_timer, MAX_AGE_OF_KEY_EVENTS_BUFFERED_DURING_SUSPEND_MS);
-}
-
-void keys_suspended_t::release(usbus_hid_keyboard_t* hidx)
-{
-    ztimer_remove(ZTIMER_MSEC, &m_clear_timer);
-
-    if ( empty() )
-        return;
-    LOG_DEBUG("Keymap: send suspended key events\n");
-
-    uint8_t i = m_events_begin;
-    do {
-        if ( m_events[i].is_press )
-            hidx->report_press(m_events[i].keycode);
-        else
-            hidx->report_release(m_events[i].keycode);
-    } while ( advance(i) != m_events_end );
-
-    clear();
-}
-
-void keys_suspended_t::_tmo_clear(void* arg)
-{
-    keys_suspended_t* const that = static_cast<keys_suspended_t*>(arg);
-    that->clear();
-}
-
-
 
 inline pressing_slot_t::pressing_slot_t(pmap_t* slot)
 : m_slot(slot), m_when_release_started(0)
@@ -91,23 +34,6 @@ pressing_slot_t& pressing_slot_t::operator=(pressing_slot_t&& other)
 }
 
 
-
-void manager_t::send_press(uint8_t keycode)
-{
-    if ( !usb_thread::obj().hid_keyboard.report_press(keycode) )
-        m_keys_suspended.add(keycode, true);
-}
-
-void manager_t::send_release(uint8_t keycode)
-{
-    if ( !usb_thread::obj().hid_keyboard.report_release(keycode) )
-        m_keys_suspended.add(keycode, false);
-}
-
-void manager_t::send_any_suspended()
-{
-    m_keys_suspended.release(&usb_thread::obj().hid_keyboard);
-}
 
 void manager_t::execute_press(map_t* pmap, pmap_t* slot)
 {

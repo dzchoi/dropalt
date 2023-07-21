@@ -1,15 +1,56 @@
 #pragma once
 
-#include <atomic>               // for std::atomic<>
+#include "mutex.h"              // for mutex_t
+
+#include "event_ext.hpp"        // for event_ext_t<>
 #include "features.hpp"         // for KEYBOARD_REPORT_INTERVAL_MS
 #include "hid_keycodes.hpp"     // for KC_LCTRL, KC_NO
 #include "usb_descriptor.hpp"
 #include "usbus_hid_device.hpp"
 
-// Note that there are two types of key press/release events, those done physically and
-// those done reportedly (to the host). Physical events are received by matrix_thread,
-// mapped by keymap_thread, and finally reported to usbus_hid_keyboard (i.e. usb_thread).
-// The "keys" here in usbus_hid_keyboard refer to the type being reported.
+// Note that physical key press/release events are generated from matrix_thread, sent to
+// keymap_thread, converted into USB keycodes, and finally reported to usb_thread through
+// usbus_hid_keyboard.
+
+
+
+class key_event_queue_t {
+public:
+    key_event_queue_t(mutex_t& mutex): m_not_full(mutex) {}
+
+    struct key_event_t { uint8_t keycode; bool is_press; };
+    static_assert( sizeof(key_event_t) == 2 );
+
+    // All methods are NOT thread-safe, which is ok because the nesting functions ensure
+    // the thread-safety when calling them; push() is called from report_event() from
+    // a client thread (keymap_thread) but with interrupt disabled, and the other methods
+    // are called only from usb_thread, which has the highest priority. So they will not
+    // be preempted while executing.
+
+    void push(key_event_t event, bool wait_if_full =false);
+    bool pop();
+    void clear();
+
+    bool not_empty() const { return m_begin != m_end; }
+    bool not_full() const { return (m_end - m_begin) < QUEUE_SIZE; }
+    bool peek(key_event_t& event) const;
+
+private:
+    // The usbus_hid_device_t::in_lock will be used as m_not_full which is for protecting
+    // the queue from being full (it gets locked when the queue is full), rather than
+    // protecting simultaneous accesses to usbus_hid_device_t::in_buf, which is ensured
+    // by submit_report() being called only from usb_thread, not from other thread or
+    // from interrupt.
+    mutex_t& m_not_full;  // must be initialized already.
+
+    static constexpr size_t QUEUE_SIZE = 32;  // must be a power of two.
+    static_assert( (QUEUE_SIZE > 0) && ((QUEUE_SIZE & (~QUEUE_SIZE + 1)) == QUEUE_SIZE) );
+
+    key_event_t m_events[QUEUE_SIZE];
+
+    size_t m_begin = 0;
+    size_t m_end = 0;
+};
 
 
 
@@ -26,29 +67,17 @@ public:
 
     void set_protocol(uint8_t protocol) { m_keyboard_protocol = protocol; }
 
-    // These two user-facing methods register key press/release to the host. Report is
-    // made in the context of calling thread, before submitting it to the host in the
-    // usb_thread context. While making the report it can block the calling thread to
-    // ensure:
-    //  - no two presses are made in the same report (for NKRO protocol especially), and
-    //  - a press and its release are not reported in the same report.
-    // They return false if USB is not accessible.
-    //
-    // Beware: these methods are supposed to be called from only one thread
-    //  (keymap_thread). Otherwise, we need to serialize the calls of the methods by
-    //  using e.g. events on usb_thread, in order to ensure that report is not updated
-    //  simultaneously. (However, we cannot use mutex in the event handler as it will
-    //  acquire the mutex in the context of usb_thread and interrupt, which can possibly
-    //  cause usb_thread that executes the event handler being stuck.)
-    bool report_press(uint8_t keycode);
-
-    bool report_release(uint8_t keycode);
-
-    // Called (in usb_thread context) when the report is received by the host.
-    void on_transfer_complete();
-
-    // Called (in ISR context) when the report is not received, hence lost, by the host.
-    void isr_on_transfer_timeout();
+    // These two user-facing methods register key press/release event to the host. They
+    // are thread-safe, and they are non-blocking as long as m_key_event_queue is not
+    // full. If it is full, they block the caller thread (keymap_thread) if USB is
+    // accessible. However, if USB is not accessible they still don't block, removing the
+    // oldest event from the queue if the queue is full, or clearing the entire queue if
+    // there is no key event made for MAX_AGE_OF_KEY_EVENTS_BUFFERED_DURING_SUSPEND_MS.
+    // It is not necessary to wait for some period between calls of these methods, as is
+    // taken care of internally. You can call report_press() and report_release() back to
+    // back for the same key.
+    void report_press(uint8_t keycode) { report_event(keycode, true); }
+    void report_release(uint8_t keycode) { report_event(keycode, false); }
 
 protected:
     using usbus_hid_device_ext_t::usbus_hid_device_ext_t;
@@ -62,17 +91,10 @@ protected:
     // USB_HID_REQUEST_SET_PROTOCOL; Keyboard device cannot set it to 0 on its own.
     uint8_t m_keyboard_protocol = 1;
 
-    // Indicator if the report is submitted to the host
-    // (0 = nor submitted, 1 = submitted, 2+ = submitted and updated further)
-    std::atomic<uint8_t> m_report_updated = 0;
-
-    // Key press that has been updated to report but not submitted.
-    std::atomic<uint8_t> m_press_yet_to_submit = KC_NO;
-
-    // USB is not accessible immediately after USBUS_EVENT_USB_RESUME, or in the case of
-    // Linux even after usbus->state is changed to USBUS_STATE_CONFIGURED. We give a
-    // little delay to allow keymap_thread to send key events.
-    std::atomic<bool> m_is_usb_accessible = false;
+    // In Linux, USB is not accessible immediately after usbus->state turns to
+    // USBUS_STATE_CONFIGURED (i.e. usbus_is_active() becomes true). We give a little
+    // delay before starting to use USB.
+    bool m_is_usb_accessible = false;
 
     ztimer_t m_delay_usb_accessible = {
         .base = {},
@@ -81,8 +103,51 @@ protected:
     };
     static void _tmo_usb_accessible(void* arg);
 
+    // Indicator if the report is submitted to the host in the current packet frame.
+    // (0 = not updated nor submitted, 1 = submitted, 2+ = submitted but updated further)
+    uint8_t m_report_updated = 0;
+
+    // Key press that has been updated in the report but not submitted.
+    uint8_t m_press_yet_to_submit = KC_NO;
+
+    // Queue to buffer the key events received from client thread as necessary.
+    key_event_queue_t m_key_event_queue { in_lock };
+
+    // Try to report a key event in current packet frame, return false if not possible.
+    bool try_report_event(uint8_t keycode, bool is_press);
+
+    // Report a key event in current packet frame if possible. Otherwise put it in the
+    // queue so that it can be reported in next packet frame(s).
+    void report_event(uint8_t keycode, bool is_press);
+
+    // Timer to clear m_key_event_queue. Event (event_ext_t) is used to actually clear
+    // the queue from usb_thread context. If we cleared the queue directly from interrupt
+    // context, we would need to wrap every function that is affected by the clear
+    // operation with irq_disable() and irq_enable().
+    ztimer_t m_timer_clear_queue = {
+        .base = {},
+        .callback = [](void* arg) {
+            usbus_hid_keyboard_t* const hidx = static_cast<usbus_hid_keyboard_t*>(arg);
+            usbus_event_post(hidx->usbus, &hidx->m_event_clear_queue);
+        },
+        .arg = this,
+    };
+    event_ext_t<usbus_hid_keyboard_t*> m_event_clear_queue = {
+        nullptr,  // .list_node
+        [](event_t* pevent) {  // .handler
+            usbus_hid_keyboard_t* const hidx =
+                static_cast<event_ext_t<usbus_hid_keyboard_t*>*>(pevent)->arg;
+            hidx->m_key_event_queue.clear();
+        },
+        this  // .arg
+    };
+
     // Submit the current report to the host.
     void submit_report();
+
+    // Called when the current packet frame is delivered to the host successfully, or
+    // when it failed, or when USB becomes accessible.
+    void on_transfer_complete(bool was_successful);
 
     // Used by submit_report() to copy the report to in_buf.
     virtual void fill_in_buf() =0;

@@ -82,14 +82,6 @@ void* keymap_thread::_keymap_thread(void* arg)
     return nullptr;
 }
 
-void keymap_thread::_hdlr_usb_accessible(event_t*)
-{
-    // This operation is expensive and can cause keymap_thread unresponsive for a while,
-    // depending on how many key events are buffered. In the meantime external key events
-    // will pause processing and will be pushed onto m_msg_queue.
-    manager.send_any_suspended();
-}
-
 void keymap_thread::process_slot_event(key::pmap_t* slot, slot_event_t event)
 {
     switch ( event ) {

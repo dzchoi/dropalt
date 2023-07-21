@@ -194,6 +194,25 @@ static inline void system_reset(void) { __NVIC_SystemReset(); }
 
 
 /**
+ * @brief   Enable or disable the system timer for ZTIMER_MSEC.
+ */
+static inline void ztimer_irq_disable(void)
+{
+    if ( !irq_is_in() )
+        NVIC_DisableIRQ(RTC_IRQn);
+        // NVIC_DisableIRQ(timer_config[0].irq);  // for ZTIMER_USEC
+}
+
+static inline void ztimer_irq_enable(void)
+{
+    if ( !irq_is_in() )
+        NVIC_EnableIRQ(RTC_IRQn);
+        // NVIC_EnableIRQ(timer_config[0].irq);  // for ZTIMER_USEC
+}
+
+
+
+/**
  * @brief   Initialize board specific hardware, including clock, LEDs and std-IO
  */
 void board_init(void);

@@ -50,7 +50,5 @@ private:
         mutex_unlock(&in_lock);
     }
 
-    void on_transfer_complete();
-
-    void isr_on_transfer_timeout();
+    void on_transfer_complete(bool was_successful);
 };

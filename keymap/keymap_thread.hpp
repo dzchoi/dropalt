@@ -32,10 +32,6 @@ public:
         signal_slot_event(slot, LAMP_CHANGED);
     }
 
-    // Signal that USB is accessible now so that any buffered keys while USB was not
-    // accessible can be sent.
-    void signal_usb_accessible() { signal_event(&m_event_usb_accessible); }
-
     // Signal a (generic) event to keymap_thread.
     void signal_event(event_t* event) { event_post(&m_event_queue, event); }
 
@@ -65,9 +61,6 @@ private:
     static void* _keymap_thread(void* arg);
 
     std::atomic<bool> m_switchover_requested = false;
-
-    event_t m_event_usb_accessible = { nullptr, _hdlr_usb_accessible };
-    static void _hdlr_usb_accessible(event_t*);
 
     enum : uint16_t {
         FLAG_EVENT          = THREAD_FLAG_EVENT,       // 0x1
