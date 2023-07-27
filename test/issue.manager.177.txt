@@ -1,0 +1,153 @@
+Assert (manager.cpp:177)
+
+Typed:
+The
+// `report_event()
+but, "()" not displayed and died.
+
+2023-07-25 19:44:29,232 # Matrix: press (0x20000e00)
+2023-07-25 19:44:29,233 # Keymap: handle press (0x20000e00)
+2023-07-25 19:44:29,233 # Keymap: start defer
+2023-07-25 19:44:29,431 # TapHold: decide hold on timeout
+2023-07-25 19:44:29,432 # Keymap: stop defer
+2023-07-25 19:44:29,432 # USB_HID: register press (0xe5 RSHIFT)
+2023-07-25 19:44:29,433 # USB_HID: --------
+2023-07-25 19:44:29,567 # Matrix: press (0x20000c90)
+2023-07-25 19:44:29,568 # Keymap: handle press (0x20000c90)
+2023-07-25 19:44:29,568 # USB_HID: register press (0x17 T)
+2023-07-25 19:44:29,569 # USB_HID: --------
+2023-07-25 19:44:29,571 # Matrix: press debounced (0x20000c90)
+2023-07-25 19:44:29,678 # Matrix: release (0x20000e00)
+2023-07-25 19:44:29,678 # Keymap: handle release (0x20000e00)
+2023-07-25 19:44:29,679 # USB_HID: register release (0xe5 RSHIFT)
+2023-07-25 19:44:29,682 # USB_HID: --------
+2023-07-25 19:44:29,685 # Matrix: release (0x20000c90)
+2023-07-25 19:44:29,686 # Matrix: ---- sleep
+2023-07-25 19:44:29,686 # Keymap: handle release (0x20000c90)
+2023-07-25 19:44:29,687 # USB_HID: register release (0x17 T)
+2023-07-25 19:44:29,688 # Keymap: ---- all handled
+2023-07-25 19:44:29,689 # USB_HID: --------
+2023-07-25 19:44:29,808 # Matrix: press (0x20000d10)
+2023-07-25 19:44:29,809 # Keymap: handle press (0x20000d10)
+2023-07-25 19:44:29,809 # USB_HID: register press (0xb H)
+2023-07-25 19:44:29,809 # USB_HID: --------
+2023-07-25 19:44:29,899 # Matrix: press (0x20000c80)
+2023-07-25 19:44:29,900 # Keymap: handle press (0x20000c80)
+2023-07-25 19:44:29,901 # USB_HID: register press (0x8 E)
+2023-07-25 19:44:29,902 # Matrix: release (0x20000d10)
+2023-07-25 19:44:29,902 # Keymap: handle release (0x20000d10)
+2023-07-25 19:44:29,903 # USB_HID: defer release (0xb H)
+2023-07-25 19:44:29,905 # USB_HID: --------
+2023-07-25 19:44:29,906 # USB_HID: register deferred events
+2023-07-25 19:44:29,914 # USB_HID: --------
+2023-07-25 19:44:30,003 # Matrix: release (0x20000c80)
+2023-07-25 19:44:30,003 # Matrix: ---- sleep
+2023-07-25 19:44:30,004 # Keymap: handle release (0x20000c80)
+2023-07-25 19:44:30,004 # USB_HID: register release (0x8 E)
+2023-07-25 19:44:30,005 # Keymap: ---- all handled
+2023-07-25 19:44:30,009 # USB_HID: --------
+2023-07-25 19:44:30,538 # Matrix: press (0x20000d48)
+2023-07-25 19:44:30,539 # Keymap: handle press (0x20000d48)
+2023-07-25 19:44:30,636 # Matrix: release (0x20000d48)
+2023-07-25 19:44:30,637 # Matrix: ---- sleep
+2023-07-25 19:44:30,637 # Keymap: handle release (0x20000d48)
+2023-07-25 19:44:30,638 # TapHold: decide tap on release
+2023-07-25 19:44:30,639 # USB_HID: register press (0x28 ENTER)
+2023-07-25 19:44:30,639 # USB_HID: defer release (0x28 ENTER)
+2023-07-25 19:44:30,640 # Keymap: ---- all handled
+2023-07-25 19:44:30,641 # USB_HID: --------
+2023-07-25 19:44:30,643 # USB_HID: register deferred events
+2023-07-25 19:44:30,649 # USB_HID: --------
+2023-07-25 19:44:31,083 # Matrix: press (0x20000db0)
+2023-07-25 19:44:31,083 # Keymap: handle press (0x20000db0)
+2023-07-25 19:44:31,084 # USB_HID: register press (0x38 /)
+2023-07-25 19:44:31,090 # USB_HID: --------
+2023-07-25 19:44:31,146 # Matrix: release (0x20000db0)
+2023-07-25 19:44:31,146 # Matrix: ---- sleep
+2023-07-25 19:44:31,147 # Keymap: handle release (0x20000db0)
+2023-07-25 19:44:31,148 # USB_HID: register release (0x38 /)
+2023-07-25 19:44:31,148 # Keymap: ---- all handled
+2023-07-25 19:44:31,154 # USB_HID: --------
+2023-07-25 19:44:31,263 # Matrix: press (0x20000db0)
+2023-07-25 19:44:31,264 # Keymap: handle press (0x20000db0)
+2023-07-25 19:44:31,264 # USB_HID: register press (0x38 /)
+2023-07-25 19:44:31,265 # USB_HID: --------
+2023-07-25 19:44:31,331 # Matrix: release (0x20000db0)
+2023-07-25 19:44:31,332 # Matrix: ---- sleep
+2023-07-25 19:44:31,332 # Keymap: handle release (0x20000db0)
+2023-07-25 19:44:31,333 # USB_HID: register release (0x38 /)
+2023-07-25 19:44:31,334 # Keymap: ---- all handled
+2023-07-25 19:44:31,338 # USB_HID: --------
+2023-07-25 19:44:31,465 # Matrix: press (0x20000e00)
+2023-07-25 19:44:31,465 # Keymap: handle press (0x20000e00)
+2023-07-25 19:44:31,466 # Keymap: start defer
+2023-07-25 19:44:31,570 # Matrix: release (0x20000e00)
+2023-07-25 19:44:31,570 # Matrix: ---- sleep
+2023-07-25 19:44:31,571 # Keymap: handle release (0x20000e00)
+2023-07-25 19:44:31,571 # TapHold: decide tap on release
+2023-07-25 19:44:31,572 # Keymap: stop defer
+2023-07-25 19:44:31,573 # USB_HID: register press (0x2c SPACE)
+2023-07-25 19:44:31,573 # USB_HID: defer release (0x2c SPACE)
+2023-07-25 19:44:31,574 # Keymap: ---- all handled
+2023-07-25 19:44:31,579 # USB_HID: --------
+2023-07-25 19:44:31,579 # USB_HID: register deferred events
+2023-07-25 19:44:31,586 # USB_HID: --------
+2023-07-25 19:44:31,731 # Matrix: press (0x20000bf0)
+2023-07-25 19:44:31,732 # Keymap: handle press (0x20000bf0)
+2023-07-25 19:44:31,732 # USB_HID: register press (0x35 `)
+2023-07-25 19:44:31,737 # USB_HID: --------
+2023-07-25 19:44:31,825 # Matrix: release (0x20000bf0)
+2023-07-25 19:44:31,826 # Matrix: ---- sleep
+2023-07-25 19:44:31,826 # Keymap: handle release (0x20000bf0)
+2023-07-25 19:44:31,827 # USB_HID: register release (0x35 `)
+2023-07-25 19:44:31,828 # Keymap: ---- all handled
+2023-07-25 19:44:31,828 # USB_HID: --------
+2023-07-25 19:44:32,019 # Matrix: press (0x20000ce0)
+2023-07-25 19:44:32,020 # Keymap: handle press (0x20000ce0)
+2023-07-25 19:44:32,219 # TapHold: decide hold on timeout
+2023-07-25 19:44:32,220 # USB_HID: register press (0xe0 LCTRL)
+2023-07-25 19:44:32,225 # USB_HID: --------
+2023-07-25 19:44:32,328 # Matrix: press (0x20000d80)
+2023-07-25 19:44:32,328 # Keymap: handle press (0x20000d80)
+2023-07-25 19:44:32,329 # USB_HID: register press (0x19 V)
+2023-07-25 19:44:32,330 # USB_HID: --------
+2023-07-25 19:44:32,470 # Matrix: release (0x20000ce0)
+2023-07-25 19:44:32,471 # Keymap: handle release (0x20000ce0)
+2023-07-25 19:44:32,471 # USB_HID: register release (0xe0 LCTRL)
+2023-07-25 19:44:32,472 # Matrix: release (0x20000d80)
+2023-07-25 19:44:32,472 # Matrix: ---- sleep
+2023-07-25 19:44:32,473 # Keymap: handle release (0x20000d80)
+2023-07-25 19:44:32,474 # USB_HID: defer release (0x19 V)
+2023-07-25 19:44:32,475 # Keymap: ---- all handled
+2023-07-25 19:44:32,475 # USB_HID: --------
+2023-07-25 19:44:32,476 # USB_HID: register deferred events
+2023-07-25 19:44:32,481 # USB_HID: --------
+
+2023-07-25 19:44:32,712 # Matrix: press (0x20000e00)
+2023-07-25 19:44:32,712 # Keymap: handle press (0x20000e00)
+2023-07-25 19:44:32,713 # Keymap: start defer
+2023-07-25 19:44:32,871 # Matrix: press (0x20000c38)		<-- '('
+2023-07-25 19:44:32,871 # Keymap: defer press (0x20000c38)
+2023-07-25 19:44:32,911 # Matrix: press (0x20000c40)		<-- ')'
+2023-07-25 19:44:32,912 # TapHold: decide hold on timeout
+2023-07-25 19:44:32,912 # Keymap: stop defer
+2023-07-25 19:44:32,913 # USB_HID: register press (0xe5 RSHIFT)
+2023-07-25 19:44:32,966 # USB_HID: tx_timer expired!		<-- Why?
+2023-07-25 19:44:32,966 # USB_HID: --------
+2023-07-25 19:44:32,967 # Matrix: press (0x20000c40)		<-- How is keymap_thread doing?
+2023-07-25 19:44:32,967 # Matrix: press (0x20000c40)
+2023-07-25 19:44:32,968 # Matrix: press (0x20000c40)
+2023-07-25 19:44:33,024 # Matrix: press (0x20000c40)
+2023-07-25 19:44:33,025 # Matrix: press (0x20000c40)
+2023-07-25 19:44:33,080 # Matrix: release (0x20000c38)
+2023-07-25 19:44:33,137 # Matrix: release (0x20000c38)
+2023-07-25 19:44:33,193 # Matrix: release (0x20000e00)
+2023-07-25 19:44:33,194 # Matrix: release (0x20000c38)
+2023-07-25 19:44:33,194 # Matrix: ---- sleep
+2023-07-25 19:44:33,195 # *** Assert failed: /home/stem/projects/dropalt/keymap/manager.cpp, 177
+2023-07-25 19:44:33,310 # *** RIOT kernel panic (3): FAILED ASSERTION.
+2023-07-25 19:44:33,369 # *** halted.
+2023-07-25 19:44:37,077 # Serial port disconnected, waiting to get reconnected...
+2023-07-25 19:44:38,078 # Try to reconnect to /dev/ttyACM1 again...
+2023-07-25 19:44:38,080 # Reconnected to serial port /dev/ttyACM1
+

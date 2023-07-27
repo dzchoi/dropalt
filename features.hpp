@@ -30,6 +30,12 @@ constexpr uint32_t MAX_AGE_OF_KEY_EVENTS_BUFFERED_DURING_SUSPEND_MS = 4 *MS_PER_
 // some key events that were buffered during USB suspend mode, when USB is resumed.
 constexpr uint32_t DELAY_USB_ACCESSIBLE_AFTER_RESUMED_MS = 500;
 
+// Enable keyboard emulator to automate key events.
+constexpr bool ENABLE_EMULATOR = true;
+
+// Magic word to start emulator.
+constexpr uint16_t EMULATOR_MAGIC_WORD = ('[' | '}' << 8);
+
 // Hid Raw device
 constexpr bool RAW_ENABLE = false;
 constexpr uint8_t RAW_REPORT_INTERVAL_MS = 1;
