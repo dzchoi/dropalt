@@ -1,8 +1,12 @@
-# `sudo pip install keyboard` is needed
-import keyboard  # https://github.com/boppreh/keyboard#api
+# Usage: sudo python test.py
+
+# Required:
+#  - sudo pip install keyboard  # https://github.com/boppreh/keyboard#api
+#  - sudo pip install pyserial  # https://pyserial.readthedocs.io/en/latest/pyserial_api.html
+
+import keyboard
 import random
-# `sudo pip install pyserial` is needed
-from serial import Serial  # https://pyserial.readthedocs.io/en/latest/pyserial_api.html
+from serial import Serial
 import time
 
 
@@ -191,20 +195,20 @@ class Keyboard_emulator:
         self.serial = Serial(port, 9600)
         # self.serial.reset_input_buffer()
 
-        self.gathered_events = []
+        self.sent_events = []
+
+        self.observed_events = []
         # Todo: `suppress=True` is not working on Linux.
         # (https://github.com/boppreh/keyboard/issues/22)
-        keyboard.hook(lambda event: self.gathered_events.append(event), suppress=True)
+        keyboard.hook(lambda e: self.observed_events.append(e), suppress=True)
 
     def __del__(self):
         keyboard.unhook_all()
 
-    def get_events(self, wait_secs: float =0.5) -> list[keyboard.KeyboardEvent]:
+    def get_events(self, wait_secs: float =1) -> list[keyboard.KeyboardEvent]:
         # Retrieve gathered events from keyboard.hook().
         time.sleep(wait_secs)
-        result = self.gathered_events.copy()
-        self.gathered_events.clear()
-        return result
+        return self.observed_events
 
     @staticmethod
     def release(key_name: str) -> bytes:
@@ -219,17 +223,16 @@ class Keyboard_emulator:
         assert len(data) < 256
         self.serial.write(b'[}\x0f' + len(data).to_bytes(1, 'little') + data)
 
-    def send_events(self, events):
-        # Send the given events over serial. The `events` can be either a list or a
-        # string.
+    def send_events(self, events: str|list[str]):
+        # Send the given events over serial. The events can be either a string or a list.
         if isinstance(events, str):
-            events = [event.strip() for event in events.split(',')]
+            events = [e.strip() for e in events.split(',')]
 
-        self.sent_events = events
+        self.sent_events += events
         byte_events = bytes()
 
-        for event in events:
-            key_name, event_type = event.split()
+        for e in events:
+            key_name, event_type = e.split()
             if event_type == "down":
                 byte_events += self.press(key_name)
             else:
@@ -237,42 +240,46 @@ class Keyboard_emulator:
 
         self.send_bytes(byte_events)
 
-    def build_expected_events(self, events) -> list[list[str]]:
-        # Build expected events from the given events, based on the Low-latency key
-        # registering algorithm in usbus_hid_keyboard.cpp.
-        if isinstance(events, str):
-            events = [event.strip() for event in events.split(',')]
+    def build_expected_events(self, events: None|str|list[str] =None) -> list[list[str]]:
+        # Build expected events from the given events or from the events that have been
+        # sent using send_events(), based on the Low-latency key registering algorithm in
+        # usbus_hid_keyboard.cpp.
+
+        if events is None:
+            events = self.sent_events
+        elif isinstance(events, str):
+            events = [e.strip() for e in events.split(',')]
 
         expected_events = []
         last_key_press = None
 
-        for event in events:
-            key_name, event_type = event.split()
+        for e in events:
+            key_name, event_type = e.split()
 
             if event_type == "down":
-                expected_events.append([event])
+                expected_events.append([e])
                 last_key_press = key_name
             elif key_name == last_key_press:
-                expected_events.append([event])
+                expected_events.append([e])
                 last_key_press = None
             else:
-                expected_events[-1].append(event)
+                expected_events[-1].append(e)
 
         return expected_events
 
-    def verify_expected_events(self, expected_events =None):
+    def verify(self, expected_events: None|str|list[list[str]] =None):
         # Verify that the device behaves as expected according to the sent events.
 
-        # Example of expected_events: "A down, B down|A up, C down, C up|B up"
-        #   "<event_1>|<event_2>|..." means those events can come in any order.
+        # Example of expected_events str: "A down, B down|A up, C down, C up|B up"
+        #  where "<event_1>|<event_2>|..." means those events can come in any order.
 
         def parse(events: str) -> list[list[str]]:
             # Will return [["A down"], ["B down", "A up"], ["C down"], ["C up", "B up"]].
-            return [[pair.strip() for pair in pairs.split('|')]
+            return [[e.strip() for e in pairs.split('|')]
                         for pairs in events.split(',')]
 
         if expected_events is None:
-            expected_events = self.build_expected_events(self.sent_events)
+            expected_events = self.build_expected_events()
         elif isinstance(expected_events, str):
             expected_events = parse(expected_events)
 
@@ -281,7 +288,8 @@ class Keyboard_emulator:
 
             assert expected_events, "More events observed than expected"
             assert actual_event in expected_events[0],\
-                f"'{actual_event}' not expected in {expected_events[0]}"
+                f"'{actual_event}' not expected in {expected_events[0]}\n" +\
+                f"sent_events: {self.sent_events}"
 
             expected_events[0].remove(actual_event)
             if not expected_events[0]:
@@ -289,90 +297,74 @@ class Keyboard_emulator:
 
         assert not expected_events, "Less events observed than expected"
 
+        # Prepare for next test
+        print(" ok")
+        self.sent_events.clear()
+        self.observed_events.clear()
+
 
 
 # Test cases
     def test_AAA(self):
         self.send_events("A down, A up, A down, A up, A down, A up")
-        self.verify_expected_events()
-        print(" ok")
+        self.verify()
 
     def test_ABC(self):
         self.send_events("A down, B down, A up, C down, C up, B up")
-        self.verify_expected_events()
-        print(" ok")
-
-    def test_nkro(self):
-        self.send_events("A down, B down, C down, D down, 1 down, 2 down, 3 down,"
-                         + "A up, B up, C up, D up, 1 up, 2 up, 3 up")
-        self.verify_expected_events()
-        print(" ok")
+        self.verify()
 
     def test_9f(self):
         self.send_events("9 down, F down, 9 up, F up")
-        self.verify_expected_events()
-        print(" ok")
+        self.verify()
 
-    def test_90(self):
+    def test_SHIFT_90(self):
         # Double tap_holds
         self.send_events("SPACE down, 9 down")
         time.sleep(0.199)
         self.send_events("0 down, 9 up, 0 up, SPACE up")
-        self.verify_expected_events("SHIFT down, 9 down, 0 down| 9 up, 0 up| SHIFT up")
-        print(" ok")
+        self.verify("SHIFT down, 9 down, 0 down| 9 up, 0 up| SHIFT up")
 
     def test_random(self, keys_to_test: str):
-        # keys_to_test is a string that contains one-letter key names.
-        # Todo: Rewrite it using build_expected_events() and verify_expected_events().
+        # Random test from the given keys_to_test, which is a string that contains
+        # (possibly duplicate) one-letter key names.
 
-        remaining_events = [key_name + " down" for key_name in keys_to_test]
+        events_remaining = [key_name + " down" for key_name in keys_to_test]
         events_to_send: list[str] = []
-        events_expected: list[list[str]] = []
-        pressed_keys: list[str] = []
-        last_key_press = None
+        keys_pressed: list[str] = []
 
-        while remaining_events:
-            event = random.choice(remaining_events)
-            key_name, event_type = event.split()
-            is_press = True if event_type == "down" else False
-            if is_press and key_name in pressed_keys:
+        while events_remaining:
+            e = random.choice(events_remaining)
+            key_name, event_type = e.split()
+            if event_type == "down" and key_name in keys_pressed:
                 continue
 
-            remaining_events.remove(event)
-            events_to_send.append(event)
+            events_remaining.remove(e)
+            events_to_send.append(e)
 
-            if is_press:
-                remaining_events.append(key_name + " up")
-                events_expected.append([event])
-                pressed_keys.append(key_name)
-                last_key_press = key_name
-            elif key_name == last_key_press:
-                events_expected.append([event])
-                pressed_keys.remove(key_name)
-                last_key_press = None
+            if event_type == "down":
+                events_remaining.append(key_name + " up")
+                keys_pressed.append(key_name)
             else:
-                events_expected[-1].append(event)
-                pressed_keys.remove(key_name)
+                keys_pressed.remove(key_name)
 
-        # print(events_to_send)
-        # print(events_expected)
         self.send_events(events_to_send)
-        self.should_have(events_expected)
-        print(" ok")
+        self.verify()
+
+
+
+def repeat(test, count=10):
+    # Repeat an existing test.
+    for i in range(0, count):
+        test()
 
 
 
 device = Keyboard_emulator("/dev/ttyACM1")
 device.test_AAA()
 device.test_ABC()
-device.test_nkro()
-device.test_90()
 device.test_9f()
-# device.test_random("ABCDEFGHIJ1234567890")
+repeat(lambda: device.test_SHIFT_90())  # Or repeat(device.test_SHIFT_90)
 
-# device.send_events(
-#     ['J down', 'E down', '9 down', '3 down', '1 down', 'F down', '1 up', '4 down', '2 down', '8 down', 'F up', '0 down', '5 down', '7 down', '4 up', '8 up', 'A down', '5 up', 'D down', 'J up', 'H down', 'I down', '2 up', 'C down', 'C up', 'H up', '0 up', 'E up', 'B down', '7 up', 'G down', '3 up', 'G up', '9 up', 'B up', 'A up', 'D up', '6 down', 'I up', '6 up']
-# )
-# device.should_have(
-#     [['J down'], ['E down'], ['9 down'], ['3 down'], ['1 down'], ['F down', '1 up'], ['4 down'], ['2 down'], ['8 down', 'F up'], ['0 down'], ['5 down'], ['7 down', '4 up', '8 up'], ['A down', '5 up'], ['D down', 'J up'], ['H down'], ['I down', '2 up'], ['C down'], ['C up', 'H up', '0 up', 'E up'], ['B down', '7 up'], ['G down', '3 up'], ['G up', '9 up', 'B up', 'A up', 'D up'], ['6 down', 'I up'], ['6 up']]
-# )
+# stress test for NKRO
+device.test_random("AAAAAAAAAA,BBBBBBBBBB,1111111111")
+device.test_random("ABCDEFGHIJ,KLMNOPQRST,1234567890,1234567890")

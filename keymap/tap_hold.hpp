@@ -73,12 +73,71 @@ private: // Methods to be called by key::manager
     } m_state = NEITHER;
 };
 
+template <class K, class L>
+void tap_hold_t<hold_preferred_t, K, L>::decide_hold(pmap_t* slot, bool to_hold)
+{
+    // The executions of stop_timer(), stop_observe() and .press() can come in any order.
+    stop_timer();
+    stop_observe();
+    if ( to_hold ) {
+        m_state = HOLDING;
+        m_key_hold.press(slot);
+    }
+    else {
+        m_state = TAPPING;
+        m_key_tap.press(slot);
+    }
+}
+
+template <class K, class L>
+void tap_hold_t<hold_preferred_t, K, L>::on_press(pmap_t* slot)
+{
+    assert( m_state == NEITHER );
+    start_timer(slot);
+    start_observe(slot);
+}
+
+template <class K, class L>
+void tap_hold_t<hold_preferred_t, K, L>::on_release(pmap_t* slot)
+{
+    switch ( m_state ) {
+        case NEITHER:
+            LOG_DEBUG("TapHold: decide tap on release\n");
+            decide_hold(slot, false);
+            // Intentional fall-through
+
+        case TAPPING:
+            m_key_tap.release(slot);
+            break;
+
+        case HOLDING:
+            m_key_hold.release(slot);
+            break;
+    }
+
+    m_state = NEITHER;
+}
+
+template <class K, class L>
+void tap_hold_t<hold_preferred_t, K, L>::on_timeout(pmap_t* slot)
+{
+    LOG_DEBUG("TapHold: decide hold on timeout\n");
+    decide_hold(slot, true);
+}
+
+template <class K, class L>
+void tap_hold_t<hold_preferred_t, K, L>::on_other_press(pmap_t* slot)
+{
+    LOG_DEBUG("TapHold: decide hold on other press\n");
+    decide_hold(slot, true);
+}
+
 
 
 // The 'tap-preferred' flavor (or 'default' mode): the hold behavior is triggered when
-// the tapping_term_ms has expired. If a key (including the tapping key itself) is
-// released within this period the tapping behavior is triggered. Pressing another key
-// during the period does not affect the decision.
+// the tapping_term_ms has expired. If a key is pressed or released (including the
+// tapping key itself being released) within this period the tapping behavior is
+// triggered.
 template <class K, class L>
 class tap_hold_t<tap_preferred_t, K, L>: public tap_hold_t<hold_preferred_t, K, L> {
 public:
@@ -92,10 +151,24 @@ public:
 private:
     using tap_hold_t<hold_preferred_t, K, L>::decide_hold;
 
-    void on_other_press(pmap_t*) {}
+    void on_other_press(pmap_t* slot);
 
     void on_other_release(pmap_t* slot);
 };
+
+template <class K, class L>
+void tap_hold_t<tap_preferred_t, K, L>::on_other_press(pmap_t* slot)
+{
+    LOG_DEBUG("TapHold: decide tap on other press\n");
+    decide_hold(slot, false);
+}
+
+template <class K, class L>
+void tap_hold_t<tap_preferred_t, K, L>::on_other_release(pmap_t* slot)
+{
+    LOG_DEBUG("TapHold: decide tap on other release\n");
+    decide_hold(slot, false);
+}
 
 
 
@@ -128,74 +201,6 @@ private:
         map_t::stop_defer_presses();
     }
 };
-
-
-
-template <class K, class L>
-void tap_hold_t<hold_preferred_t, K, L>::on_press(pmap_t* slot)
-{
-    assert( m_state == NEITHER );
-    start_timer(slot);
-    start_observe(slot);
-}
-
-template <class K, class L>
-void tap_hold_t<hold_preferred_t, K, L>::on_release(pmap_t* slot)
-{
-    switch ( m_state ) {
-        case NEITHER:
-            LOG_DEBUG("TapHold: decide tap on release\n");
-            decide_hold(slot, false);
-            // Intentional fall-through
-
-        case TAPPING:
-            m_key_tap.release(slot);
-            break;
-
-        case HOLDING:
-            m_key_hold.release(slot);
-            break;
-    }
-
-    m_state = NEITHER;
-}
-
-template <class K, class L>
-void tap_hold_t<hold_preferred_t, K, L>::decide_hold(pmap_t* slot, bool to_hold)
-{
-    // The executions of stop_timer(), stop_observe() and .press() can come in any order.
-    stop_timer();
-    stop_observe();
-    if ( to_hold ) {
-        m_state = HOLDING;
-        m_key_hold.press(slot);
-    }
-    else {
-        m_state = TAPPING;
-        m_key_tap.press(slot);
-    }
-}
-
-template <class K, class L>
-void tap_hold_t<hold_preferred_t, K, L>::on_timeout(pmap_t* slot)
-{
-    LOG_DEBUG("TapHold: decide hold on timeout\n");
-    decide_hold(slot, true);
-}
-
-template <class K, class L>
-void tap_hold_t<hold_preferred_t, K, L>::on_other_press(pmap_t* slot)
-{
-    LOG_DEBUG("TapHold: decide hold on other press\n");
-    decide_hold(slot, true);
-}
-
-template <class K, class L>
-void tap_hold_t<tap_preferred_t, K, L>::on_other_release(pmap_t* slot)
-{
-    LOG_DEBUG("TapHold: decide tap on other release\n");
-    decide_hold(slot, false);
-}
 
 template <class K, class L>
 void tap_hold_t<balanced_t, K, L>::on_other_press(pmap_t* slot)
