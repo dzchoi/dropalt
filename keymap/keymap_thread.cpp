@@ -56,24 +56,28 @@ void* keymap_thread::_keymap_thread(void* arg)
         // which is used for buffering key inputs. See the note below.
         if ( flags & FLAG_EVENT ) {
             event_t* event;
-            while ( (event = event_get(&that->m_event_queue)) != nullptr )
+            while ( (event = event_get(&that->m_event_queue)) != nullptr ) {
                 event->handler(event);
+
+                // Complete any deferred key presses if we are no longer deferring.
+                // Note that in the meanwhile presses can be deferred again.
+                manager.complete_if_not_deferring();
+            }
         }
 
         if ( flags & FLAG_MSG_WAITING ) {
-            if ( msg_try_receive(&msg) > 0 )
+            if ( msg_try_receive(&msg) > 0 ) {
                 that->process_slot_event(
                     static_cast<key::pmap_t*>(msg.content.ptr), slot_event_t(msg.type));
+
+                manager.complete_if_not_deferring();
+            }
 
             // Key events are processed one at a time in order to process internal events
             // with higher priority.
             if ( msg_avail() > 0 )
                 thread_flags_set(that->m_pthread, FLAG_MSG_WAITING);
         }
-
-        // Complete any deferred key presses if we are no longer deferring. Note that in
-        // the meanwhile presses can be deferred again.
-        manager.complete_if_not_deferring();
 
         if ( !manager.is_any_pressing() )
             LOG_DEBUG("Keymap: ---- all handled\n");

@@ -315,12 +315,15 @@ class Keyboard_emulator:
 
     def test_90(self):
         # Double tap_holds
-        self.send_events("SPACE down, 9 down, 0 down, 9 up, 0 up, SPACE up")
+        self.send_events("SPACE down, 9 down")
+        time.sleep(0.199)
+        self.send_events("0 down, 9 up, 0 up, SPACE up")
         self.verify_expected_events("SHIFT down, 9 down, 0 down| 9 up, 0 up| SHIFT up")
         print(" ok")
 
     def test_random(self, keys_to_test: str):
         # keys_to_test is a string that contains one-letter key names.
+        # Todo: Rewrite it using build_expected_events() and verify_expected_events().
 
         remaining_events = [key_name + " down" for key_name in keys_to_test]
         events_to_send: list[str] = []

@@ -130,24 +130,75 @@ but, "()" not displayed and died.
 2023-07-25 19:44:32,871 # Keymap: defer press (0x20000c38)
 2023-07-25 19:44:32,911 # Matrix: press (0x20000c40)		<-- ')'
 2023-07-25 19:44:32,912 # TapHold: decide hold on timeout
+    <-- Timeout event occurred before handling ')'. No pressing_slot reserved yet.
 2023-07-25 19:44:32,912 # Keymap: stop defer
+    <-- keymap_thread processes the timeout event.
 2023-07-25 19:44:32,913 # USB_HID: register press (0xe5 RSHIFT)
-2023-07-25 19:44:32,966 # USB_HID: tx_timer expired!		<-- Why?
+2023-07-25 19:44:32,966 # USB_HID: tx_timer expired!
+    <-- Why tx_timer expired?
+    <-- Why does not keymap_thread process ')' at this point? Is keymap_thread stuck?
+        Maybe the keymap_thread already hit the ASSERT failure?
 2023-07-25 19:44:32,966 # USB_HID: --------
-2023-07-25 19:44:32,967 # Matrix: press (0x20000c40)		<-- How is keymap_thread doing?
+    <-- [1] "tx_timer expired?" and on_transfer_complete() at the same time? Why?
+2023-07-25 19:44:32,967 # Matrix: press (0x20000c40)
 2023-07-25 19:44:32,967 # Matrix: press (0x20000c40)
 2023-07-25 19:44:32,968 # Matrix: press (0x20000c40)
 2023-07-25 19:44:33,024 # Matrix: press (0x20000c40)
 2023-07-25 19:44:33,025 # Matrix: press (0x20000c40)
+    <-- But matrix_thread was running during the 10(?) ms of keymap_thread holding.
+    <-- Keymap_thread now starts to work on ')', creating its pressing_slot.
 2023-07-25 19:44:33,080 # Matrix: release (0x20000c38)
 2023-07-25 19:44:33,137 # Matrix: release (0x20000c38)
 2023-07-25 19:44:33,193 # Matrix: release (0x20000e00)
 2023-07-25 19:44:33,194 # Matrix: release (0x20000c38)
 2023-07-25 19:44:33,194 # Matrix: ---- sleep
+    <-- Releases are also handled, but how?
 2023-07-25 19:44:33,195 # *** Assert failed: /home/stem/projects/dropalt/keymap/manager.cpp, 177
+    <-- [2] Assert is because "Keymap: complete the deferred press (0x20000c38)" is not completed before working on 0x20000c40.
 2023-07-25 19:44:33,310 # *** RIOT kernel panic (3): FAILED ASSERTION.
 2023-07-25 19:44:33,369 # *** halted.
 2023-07-25 19:44:37,077 # Serial port disconnected, waiting to get reconnected...
 2023-07-25 19:44:38,078 # Try to reconnect to /dev/ttyACM1 again...
 2023-07-25 19:44:38,080 # Reconnected to serial port /dev/ttyACM1
 
+
+
+[2] Assert is now resolved by fix:
+2023-07-27 22:46:14,576 # Emulate (row,col)=(4,6) is_press=1
+2023-07-27 22:46:14,577 # Keymap: handle press (0x20000e00)
+2023-07-27 22:46:14,578 # Keymap: start defer
+2023-07-27 22:46:14,578 # Emulate (row,col)=(0,9) is_press=1
+2023-07-27 22:46:14,579 # Keymap: defer press (0x20000c38)
+2023-07-27 22:46:14,778 # Emulate (row,col)=(0,10) is_press=1
+2023-07-27 22:46:14,779 # TapHold: decide hold on timeout
+2023-07-27 22:46:14,780 # Keymap: stop defer
+2023-07-27 22:46:14,782 # USB_HID: register press (0xe5 RSHIFT)
+2023-07-27 22:46:14,785 # Keymap: complete the deferred press (0x20000c38)
+2023-07-27 22:46:14,792 # Keymap: handle press (0x20000c40)
+2023-07-27 22:46:14,796 # Emulate (row,col)=(0,9) is_press=0
+2023-07-27 22:46:14,803 # Keymap: handle release (0x20000c38)
+2023-07-27 22:46:14,806 # TapHold: decide tap on release
+2023-07-27 22:46:14,810 # USB_HID: defer press (0x26 9)
+2023-07-27 22:46:14,824 # USB_HID: queue release (0x26 9)
+2023-07-27 22:46:14,827 # TapHold: decide tap on other release
+2023-07-27 22:46:14,830 # USB_HID: queue press (0x27 0)
+2023-07-27 22:46:14,833 # Emulate (row,col)=(0,10) is_press=0
+2023-07-27 22:46:14,837 # Keymap: handle release (0x20000c40)
+2023-07-27 22:46:14,839 # USB_HID: queue release (0x27 0)
+2023-07-27 22:46:14,841 # Emulate (row,col)=(4,6) is_press=0
+2023-07-27 22:46:14,844 # Keymap: handle release (0x20000e00)
+2023-07-27 22:46:14,847 # USB_HID: queue release (0xe5 RSHIFT)
+2023-07-27 22:46:14,851 # Keymap: ---- all handled
+2023-07-27 22:46:14,858 # USB_HID: --------
+2023-07-27 22:46:14,860 # USB_HID: register deferred events
+2023-07-27 22:46:14,861 # USB_HID: defer release (0x26 9)
+2023-07-27 22:46:14,862 # USB_HID: --------
+2023-07-27 22:46:14,863 # USB_HID: register deferred events
+2023-07-27 22:46:14,864 # USB_HID: defer press (0x27 0)
+2023-07-27 22:46:14,865 # USB_HID: --------
+2023-07-27 22:46:14,868 # USB_HID: register deferred events
+2023-07-27 22:46:14,870 # USB_HID: defer release (0x27 0)
+2023-07-27 22:46:14,872 # USB_HID: defer release (0xe5 RSHIFT)
+2023-07-27 22:46:14,872 # USB_HID: --------
+2023-07-27 22:46:14,874 # USB_HID: register deferred events
+2023-07-27 22:46:14,874 # USB_HID: --------

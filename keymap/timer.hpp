@@ -16,6 +16,7 @@ class pmap_t;
 class timer_t: public ztimer_t {
 protected: // Methods to be used by child classes
     constexpr timer_t(uint32_t timeout_ms)
+    // `.arg = this` would be desirable but it would break the constexpr constructor.
     : ztimer_t { .base = {}, .callback = _tmo_key_timer, .arg = nullptr }
     , m_timeout_ms(timeout_ms) {}
 
