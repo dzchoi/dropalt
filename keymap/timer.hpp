@@ -67,10 +67,13 @@ private: // Methods to be called by key::manager
     // Will be called when the timer is expired.
     virtual void on_timeout(pmap_t*) =0;
 
-    // Inherent problem with stopping a timer is that it is not an atomic operation and
-    // we can still have a "spurious" timeout interrupt before/during the operation. To
-    // deal with the problem, after a timeout interrupt occurred, we can check if it is
-    // legitimate and expected timeout, discarding it if not.
+    // The ztimer_t is designed so well that a ztimer's callback function will never be
+    // invoked once ztimer_remove() is called on the ztimer, even if the ztimer happens
+    // to expire in the middle of executing ztimer_remove(). However, it is still
+    // possible to have our timer_t expired ("spurious timeout") between the entry of
+    // e.g. on_release() and the execution of stop_timer(). We want on_timeout() to not
+    // be invoked in that case. To deal with this problem, when a timeout occurs, we
+    // check if the timeout is expected (hence not spurious), and discards if not.
     pmap_t* timeout_expected();
 
     event_ext_t<timer_t*> m_event_timeout = { nullptr, _hdlr_timeout, this };

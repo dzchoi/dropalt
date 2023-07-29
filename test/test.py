@@ -270,7 +270,7 @@ class Keyboard_emulator:
     def verify(self, expected_events: None|str|list[list[str]] =None):
         # Verify that the device behaves as expected according to the sent events.
 
-        # Example of expected_events str: "A down, B down|A up, C down, C up|B up"
+        # Example of str expected_events: "A down, B down|A up, C down, C up|B up"
         #  where "<event_1>|<event_2>|..." means those events can come in any order.
 
         def parse(events: str) -> list[list[str]]:
@@ -330,12 +330,12 @@ class Keyboard_emulator:
 
         events_remaining = [key_name + " down" for key_name in keys_to_test]
         events_to_send: list[str] = []
-        keys_pressed: list[str] = []
+        already_pressed: list[str] = []
 
         while events_remaining:
             e = random.choice(events_remaining)
             key_name, event_type = e.split()
-            if event_type == "down" and key_name in keys_pressed:
+            if event_type == "down" and key_name in already_pressed:
                 continue
 
             events_remaining.remove(e)
@@ -343,9 +343,9 @@ class Keyboard_emulator:
 
             if event_type == "down":
                 events_remaining.append(key_name + " up")
-                keys_pressed.append(key_name)
+                already_pressed.append(key_name)
             else:
-                keys_pressed.remove(key_name)
+                already_pressed.remove(key_name)
 
         self.send_events(events_to_send)
         self.verify()
