@@ -37,7 +37,8 @@ tap_hold_t(K&&, L&&, F, uint32_t) ->
 
 // The 'hold-preferred' flavor (or 'hold on other key press' mode): the hold behavior is
 // triggered when tapping_term_ms has expired or another key is pressed within this
-// period.
+// period. If a key that has been pressed previously is released during the period it does
+// not affect the decision.
 template <class K, class L>
 class tap_hold_t<hold_preferred_t, K, L>: public map_t, public timer_t, public observer_t {
 public: // User-facing methods
@@ -102,7 +103,7 @@ void tap_hold_t<hold_preferred_t, K, L>::on_release(pmap_t* slot)
 {
     switch ( m_state ) {
         case NEITHER:
-            LOG_DEBUG("TapHold: decide tap on release\n");
+            LOG_DEBUG("TapHold: [%u] decide tap on release\n", slot->index());
             decide_hold(slot, false);
             // Intentional fall-through
 
@@ -121,14 +122,14 @@ void tap_hold_t<hold_preferred_t, K, L>::on_release(pmap_t* slot)
 template <class K, class L>
 void tap_hold_t<hold_preferred_t, K, L>::on_timeout(pmap_t* slot)
 {
-    LOG_DEBUG("TapHold: decide hold on timeout\n");
+    LOG_DEBUG("TapHold: [%u] decide hold on timeout\n", slot->index());
     decide_hold(slot, true);
 }
 
 template <class K, class L>
 void tap_hold_t<hold_preferred_t, K, L>::on_other_press(pmap_t* slot)
 {
-    LOG_DEBUG("TapHold: decide hold on other press\n");
+    LOG_DEBUG("TapHold: decide hold on other press [%u]\n", slot->index());
     decide_hold(slot, true);
 }
 
@@ -159,14 +160,14 @@ private:
 template <class K, class L>
 void tap_hold_t<tap_preferred_t, K, L>::on_other_press(pmap_t* slot)
 {
-    LOG_DEBUG("TapHold: decide tap on other press\n");
+    LOG_DEBUG("TapHold: decide tap on other press [%u]\n", slot->index());
     decide_hold(slot, false);
 }
 
 template <class K, class L>
 void tap_hold_t<tap_preferred_t, K, L>::on_other_release(pmap_t* slot)
 {
-    LOG_DEBUG("TapHold: decide tap on other release\n");
+    LOG_DEBUG("TapHold: decide tap on other release [%u]\n", slot->index());
     decide_hold(slot, false);
 }
 
@@ -205,7 +206,7 @@ private:
 template <class K, class L>
 void tap_hold_t<balanced_t, K, L>::on_other_press(pmap_t* slot)
 {
-    LOG_DEBUG("TapHold: decide hold on other press and release\n");
+    LOG_DEBUG("TapHold: decide hold on other press and release [%u]\n", slot->index());
     decide_hold(slot, true);
 }
 

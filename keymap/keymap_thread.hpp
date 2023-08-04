@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdint.h>             // for uint16_t, uint32_t
 #include "event.h"              // for event_t, event_queue_t, event_post(), ...
 #include "msg.h"                // for msg_t
 #include "thread.h"             // for thread_t
@@ -24,9 +25,9 @@ public:
         return obj;
     }
 
-    void signal_key_event(key::pmap_t* slot, bool pressed) {
-        signal_slot_event(slot, slot_event_t(pressed));
-    }
+    // For non-zero timeout_us it returns an indicator of whether or not it has signaled
+    // successfully. If timeout_us is zero it waits indefinitely to always return true.
+    bool signal_key_event(size_t index, bool is_press, uint32_t timout_us =0u);
 
     void signal_lamp_state(key::pmap_t* slot) {
         signal_slot_event(slot, LAMP_CHANGED);
@@ -76,3 +77,11 @@ private:
     void signal_slot_event(key::pmap_t* slot, slot_event_t event);
     void process_slot_event(key::pmap_t* slot, slot_event_t event);
 };
+
+
+
+// Helper function
+inline const char* press_or_release(bool is_press)
+{
+    return is_press ? "press" : "release";
+}

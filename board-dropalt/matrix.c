@@ -29,10 +29,8 @@ static inline unsigned _pin_mask(gpio_t pin) {
     return 1u << (pin & 0x1fu);
 }
 
-static inline bool read_rows_on_col(unsigned col)
+static inline void read_rows_on_col(unsigned col)
 {
-    bool any_pressed = false;
-
     // Select col
     select_col(col);
     matrix_output_select_delay();  // gives a small delay after select.
@@ -42,32 +40,24 @@ static inline bool read_rows_on_col(unsigned col)
     const uint32_t in_reg = port->IN.reg;
 
     for ( unsigned row = 0 ; row < MATRIX_ROWS ; row++ )
-        if ( _debouncer(row, col, (in_reg & _pin_mask(row_pins[row])) != 0u) )
-            any_pressed = true;
+        _debouncer(row, col, (in_reg & _pin_mask(row_pins[row])) != 0u);
 
     // Unselect col
     unselect_col(col);
-
-    return any_pressed;
 }
 #else
-static inline bool read_rows_on_col(unsigned col)
+static inline void read_rows_on_col(unsigned col)
 {
-    bool any_pressed = false;
-
     // Select col
     select_col(col);
     matrix_output_select_delay();  // gives a small delay after select.
 
     // For each row...
     for ( unsigned row = 0 ; row < MATRIX_ROWS ; row++ )
-        if ( _debouncer(row, col, gpio_read(row_pins[row]) != 0) )
-            any_pressed = true;
+        _debouncer(row, col, gpio_read(row_pins[row]) != 0);
 
     // Unselect col
     unselect_col(col);
-
-    return any_pressed;
 }
 #endif
 
@@ -101,14 +91,9 @@ void matrix_disable_interrupts(void)
         unselect_col(col);
 }
 
-bool matrix_scan(void)
+void matrix_scan(void)
 {
-    bool any_pressed = false;
-
     // Set col and read rows.
     for ( unsigned col = 0 ; col < MATRIX_COLS ; col++ )
-        if ( read_rows_on_col(col) )
-            any_pressed = true;
-
-    return any_pressed;
+        read_rows_on_col(col);
 }

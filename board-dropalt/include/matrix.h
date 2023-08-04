@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-typedef bool (*debouncer_t)(unsigned row, unsigned col, bool is_pressed);
+typedef void (*debouncer_t)(unsigned row, unsigned col, bool is_press);
 
 // Intialize matrix for scaning.
 void matrix_init(debouncer_t debouncer, gpio_cb_t cb, void* arg);
@@ -18,7 +18,7 @@ void matrix_disable_interrupts(void);
 // Scan all key states on matrix.
 // Note that it can be used only after executing matrix_disable_interrupts(), so that
 // gpio output select pins are unlocked to be able to select input pins.
-bool matrix_scan(void);
+void matrix_scan(void);
 
 #ifdef __cplusplus
 }

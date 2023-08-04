@@ -10,11 +10,10 @@
 #include "adc_thread.hpp"       // for adc_thread::obj()
 #include "effects.hpp"          // for default effect
 #include "features.hpp"         // for ENABLE_EMULATOR, RGB_LED_ENABLE, ...
-#include "keymap_thread.hpp"    // for keymap_thread::obj(), signal_key_event()
+#include "keymap_thread.hpp"    // for keymap_thread::obj(), signal_key_event(), ...
 #include "main_thread.hpp"
 #include "matrix_thread.hpp"    // for matrix_thread::obj()
 #include "persistent.hpp"       // for persistent::obj(), init(), get_log(), ...
-#include "pmap.hpp"             // for key::maps_2d[]
 #include "rgb_thread.hpp"       // for rgb_thread::obj(), set_effect()
 #include "usb_thread.hpp"       // for usb_thread::obj()
 
@@ -147,16 +146,12 @@ void main_thread::execute_emulator()
             header.magic == EMULATOR_MAGIC_WORD && header.command == 0x0f ) )
         return;  // Go back to sleep.
 
-    struct { uint8_t col: 4; uint8_t row: 4; uint8_t is_press; } event;
+    struct { uint8_t index; uint8_t is_press; } event;
     static_assert( sizeof(event) == 2 );
     for ( int n = header.len ; n > 0 ; n -= sizeof(event)) {
         const ssize_t len = stdio_read(&event, sizeof(event));
         if ( len != sizeof(event) )
             return;
-
-        LOG_INFO("Emulate (row,col)=(%d,%d) is_press=%d\n",
-            event.row, event.col, event.is_press);
-        keymap_thread::obj().signal_key_event(
-            &key::maps_2d[event.row][event.col], event.is_press);
+        (void)keymap_thread::obj().signal_key_event(event.index, event.is_press);
     }
 }

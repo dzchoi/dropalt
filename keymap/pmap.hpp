@@ -25,8 +25,8 @@ class pressing_slot_t;
 extern pmap_t maps[NUM_SLOTS];
 
 // Two-dimensional version of key::maps.
-inline pmap_t (&maps_2d)[MATRIX_ROWS][MATRIX_COLS] =
-    reinterpret_cast<pmap_t (&)[MATRIX_ROWS][MATRIX_COLS]>(maps);
+// inline pmap_t (&maps_2d)[MATRIX_ROWS][MATRIX_COLS] =
+//     reinterpret_cast<pmap_t (&)[MATRIX_ROWS][MATRIX_COLS]>(maps);
 
 
 
@@ -37,6 +37,9 @@ public:
     map_t& operator*() { return *m_pmap; }
 
     operator map_t*() { return m_pmap; }
+
+    // `index()` assumes that instances of pmap_t be created only in maps[].
+    size_t index() const { return this - &maps[0]; }
 
     // Return led_id corresponding to the slot.
     uint8_t led_id() const { return LED_ID[index()]; }
@@ -65,9 +68,6 @@ private:
     pressing_slot_t* m_pressing_slot = nullptr;
 
     friend keymap_thread;  // for lamp_on() and lamp_off()
-
-    // `index()` assumes that instances of pmap_t will be created only in maps[].
-    size_t index() const { return this - &maps[0]; }
 
     void lamp_on_off(bool on_off);
 };

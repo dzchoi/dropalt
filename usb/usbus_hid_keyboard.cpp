@@ -9,7 +9,7 @@
 
 #include "adc_thread.hpp"       // for signal_usb_suspend(), signal_usb_resume()
 #include "features.hpp"         // for DELAY_USB_ACCESSIBLE_AFTER_RESUMED_MS, ...
-#include "keymap_thread.hpp"    // for signal_lamp_state()
+#include "keymap_thread.hpp"    // for press_or_release(), signal_lamp_state()
 #include "main_thread.hpp"      // for signal_usb_suspend(), signal_usb_resume()
 #include "pmap.hpp"             // for lamp_iter, lamp_id()
 #include "rgb_thread.hpp"       // for signal_usb_suspend(), signal_usb_resume()
@@ -17,11 +17,6 @@
 #include "usbus_hid_keyboard.hpp"
 
 
-
-inline const char* press_or_release(bool is_press)
-{
-    return is_press ? "press" : "release";
-}
 
 void key_event_queue_t::push(key_event_t event, bool wait_if_full)
 {

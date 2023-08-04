@@ -8,12 +8,24 @@
 #include "adc_thread.hpp"       // for signal_usbport_switchover()
 #include "keymap_thread.hpp"
 #include "manager.hpp"          // for key::manager
-#include "pmap.hpp"             // for lamp_id(), lamp_on_off(), ...
+#include "pmap.hpp"             // for key::maps[], lamp_id(), lamp_on_off(), ...
 #include "rgb_thread.hpp"       // for signal_lamp_state()
 
 
 
 using key::manager;
+
+bool keymap_thread::signal_key_event(size_t index, bool is_press, uint32_t timeout_us)
+{
+    (void)timeout_us;
+    if ( timeout_us )
+        LOG_DEBUG("Matrix: %s [%u]\n", press_or_release(is_press), index);
+    else
+        LOG_INFO("Emulate %s [%u]\n", press_or_release(is_press), index);
+
+    signal_slot_event(&key::maps[index], slot_event_t(is_press));
+    return true;
+}
 
 void keymap_thread::signal_slot_event(key::pmap_t* slot, slot_event_t event)
 {

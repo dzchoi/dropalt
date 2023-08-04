@@ -38,7 +38,7 @@ void timer_t::_hdlr_timeout(event_t* event)
         // on_timeout() to be able to call e.g. .press/release(slot).
         that->on_timeout(slot);
     else
-        LOG_WARNING("Keymap: spurious timeout (slot=%p)\n", slot);
+        LOG_WARNING("Keymap: spurious timeout\n");
 }
 
 void timer_t::_tmo_key_timer(void* arg)

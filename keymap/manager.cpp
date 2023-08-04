@@ -48,24 +48,17 @@ void manager_t::execute_press(map_t* pmap, pmap_t* slot)
 
 void manager_t::notify_and_execute_press(pmap_t* slot)
 {
-    bool executed = false;
-
     for ( observer_t* observer = m_observers ; observer ; observer = observer->next )
-        if ( observer->who == slot ) {
-            execute_press(*slot, slot);
-            executed = true;
-        }
-        else
+        if ( observer->who != slot )
             observer->on_other_press(slot);
 
-    if ( !executed )
-        execute_press(*slot, slot);
+    execute_press(*slot, slot);
 }
 
 void manager_t::handle_press(pmap_t* slot)
 {
     if ( slot->get_pressing_slot() != nullptr ) {
-        LOG_WARNING("Keymap: duplicate press event (%p)\n", slot);
+        LOG_WARNING("Keymap: [%u] duplicate press event\n", slot->index());
         return;
     }
 
@@ -74,11 +67,11 @@ void manager_t::handle_press(pmap_t* slot)
     add_pressing_slot(slot);
 
     if ( !is_deferring() ) {
-        LOG_DEBUG("Keymap: handle press (%p)\n", slot);
+        LOG_DEBUG("Keymap: [%u] handle press\n", slot->index());
         notify_and_execute_press(slot);
     }
     else
-        LOG_DEBUG("Keymap: defer press (%p)\n", slot);
+        LOG_DEBUG("Keymap: [%u] defer press\n", slot->index());
 }
 
 void manager_t::execute_release(map_t* pmap, pmap_t* slot)
@@ -94,30 +87,23 @@ void manager_t::execute_release(map_t* pmap, pmap_t* slot)
 
 void manager_t::notify_and_execute_release(pmap_t* slot)
 {
-    bool executed = false;
-
     for ( observer_t* observer = m_observers ; observer ; observer = observer->next )
-        if ( observer->who == slot ) {
-            execute_release(*slot, slot);
-            executed = true;
-        }
-        else
+        if ( observer->who != slot )
             observer->on_other_release(slot);
 
-    if ( !executed )
-        execute_release(*slot, slot);
+    execute_release(*slot, slot);
 }
 
 void manager_t::handle_release(pmap_t* slot)
 {
     if ( slot->get_pressing_slot() == nullptr ) {
-        LOG_WARNING("Keymap: duplicate release event (%p)\n", slot);
+        LOG_WARNING("Keymap: [%u] duplicate release event\n", slot->index());
         return;
     }
 
     rgb_thread::obj().signal_key_event(slot, false);
 
-    LOG_DEBUG("Keymap: handle release (%p)\n", slot);
+    LOG_DEBUG("Keymap: [%u] handle release\n", slot->index());
     if ( is_deferred(slot) )
         complete_on_release(slot);
 
@@ -132,7 +118,7 @@ inline void manager_t::complete_on_release(pmap_t* slot)
     pmap_t* ppmap;
     do {
         ppmap = m_pressing_list[m_index_deferred++].m_slot;
-        LOG_DEBUG("Keymap: complete the deferred press (%p)\n", ppmap);
+        LOG_DEBUG("Keymap: [%u] complete the deferred press\n", ppmap->index());
         notify_and_execute_press(ppmap);
         // We do not take care of start/stop_defer() here that could be possibly called
         // from notify_and_execute_press() above, as the release whose press has been has
@@ -145,7 +131,7 @@ void manager_t::complete_if_not_deferring()
 {
     while ( !is_deferring() && m_index_deferred < m_pressing_list.size() ) {
         pmap_t* const ppmap = m_pressing_list[m_index_deferred++].m_slot;
-        LOG_DEBUG("Keymap: complete the deferred press (%p)\n", ppmap);
+        LOG_DEBUG("Keymap: [%u] complete the deferred press\n", ppmap->index());
         notify_and_execute_press(ppmap);
     }
 }
