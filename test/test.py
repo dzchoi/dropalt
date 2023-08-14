@@ -309,10 +309,11 @@ device.test_aaa()
 device.test_abc()
 device.test_9f()
 
+repeat(device.test_shift90)  # Or repeat(lambda: device.test_shift90())
+repeat(device.test_shift7890)
+
 # stress test for NKRO
 device.test_random("1234567890")
 device.test_random("aaaaaaaaaa,bbbbbbbbbb,1111111111")
-device.test_random("abcdefghij,klmnopqrst,1234567890,1234567890")
-
-repeat(device.test_shift90)  # Or repeat(lambda: device.test_shift90())
-repeat(device.test_shift7890)
+device.test_random("abcdefghij,klmnopqrst,uvwxyz;'[]")
+# device.test_random("abcdefghij,klmnopqrst,1234567890,1234567890")

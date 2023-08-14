@@ -5,9 +5,9 @@
 #include "literal.hpp"
 #include "map.hpp"
 #include "map_lamp.hpp"
+#include "matrix_thread.hpp"    // for is_any_pressed()
 #include "norepeat.hpp"
 #include "persistent.hpp"       // for persistent::obj()
-#include "pmap.hpp"
 #include "tap_dance.hpp"
 #include "tap_hold.hpp"
 #include "timer.hpp"
@@ -15,6 +15,10 @@
 
 
 namespace key {
+
+class pmap_t;
+
+
 
 /*
 // Default keymap for reference
@@ -82,7 +86,7 @@ private:
     // Timer keeps running while SCRLOCK_LAMP is lit.
     void on_timeout(pmap_t* slot) {
         start_timer(slot);
-        if ( false == manager.is_any_pressing() ) {
+        if ( !matrix_thread::obj().is_any_pressed() ) {
             m_jiggler.press(slot);
             m_jiggler.release(slot);
         }
@@ -91,11 +95,11 @@ private:
 
 scrlock_t l_DOWN { LSFT, 259 *MS_PER_SEC };  // 4 min 59 sec
 
-// FN + H/J/K/L = Arrow keys, FN2 + H/J/K/L = Home/PgDn/PgUp/End
-if_t m_H { FN_pressed, LEFT, if_t(FN2_pressed, HOME, H) };  // sizeof = 44
-if_t m_J { FN_pressed, DOWN, if_t(FN2_pressed, PGDN, J) };
-if_t m_K { FN_pressed, UP, if_t(FN2_pressed, PGUP, K) };
-if_t m_L { FN_pressed, RIGHT, if_t(FN2_pressed, END, L) };
+// FN2 + H/J/K/L = Arrow keys, FN2 + FN + H/J/K/L = Home/PgDn/PgUp/End
+if_t m_H { FN2_pressed, if_t(FN_pressed, HOME, LEFT), H };
+if_t m_J { FN2_pressed, if_t(FN_pressed, PGDN, DOWN), J };
+if_t m_K { FN2_pressed, if_t(FN_pressed, PGUP, UP), K };
+if_t m_L { FN2_pressed, if_t(FN_pressed, END, RIGHT), L };
 
 // FN + BkSp = DEL
 if_t m_BKSP { FN_pressed, DEL, BKSP };
@@ -180,7 +184,6 @@ public:
 private:
     void on_press(pmap_t* slot) {
         start_timer(slot);
-        // start_defer_presses();
     }
 
     void on_release(pmap_t*) {
@@ -188,7 +191,6 @@ private:
             return;
 
         stop_timer();
-        // stop_defer_presses();
 
         if ( FN.is_pressed() ) {
             if ( t_LCTL.is_pressed() )

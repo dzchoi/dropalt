@@ -6,7 +6,6 @@
 
 #include "features.hpp"         // for MATRIX_SCAN_PERIOD_US, DEBOUNCE_*
 #include "keymap_thread.hpp"    // for signal_key_event()
-#include "manager.hpp"          // for pressing_slot_t::m_when_release_started
 #include "matrix_thread.hpp"
 
 

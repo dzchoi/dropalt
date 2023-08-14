@@ -13,7 +13,7 @@ public: // User-facing methods
 
     uint8_t keycode() const { return m_code; }
 
-private: // Methods to be called by key::manager
+private: // Methods to be called through map_t
     void on_press(pmap_t*) { send_press(m_code); }
 
     void on_release(pmap_t*) { send_release(m_code); }

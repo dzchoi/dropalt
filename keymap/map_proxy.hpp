@@ -14,8 +14,8 @@ protected: // Methods to be used by child classes
     using map_t::on_press;
     using map_t::on_release;
 
-private: // Methods to be called by key::manager
-    friend class manager_t;
+private: // Methods to be called by map_t
+    friend class map_t;
 
     map_proxy_t* get_proxy() { return this; }
 

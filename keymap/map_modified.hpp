@@ -1,7 +1,7 @@
-#pragma once
-
 // [OBSOLETE] mod_morph_t and map_modified_t can be replaced with if_t.
 // mod_morph_t(key1, key2, key3) == if_t( [](){ return key3.is_pressed(); }, key2, key1 )
+
+#pragma once
 
 #include "map_proxy.hpp"
 
@@ -21,7 +21,7 @@ protected: // Methods to be used by child classes
 
     K m_modifier;
 
-private: // Methods to be called by key::manager
+private: // Methods to be called through map_t
     void on_proxy_press(pmap_t* slot);
 
     void on_proxy_release(pmap_t* slot);

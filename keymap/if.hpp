@@ -1,5 +1,7 @@
 #pragma once
 
+#include "assert.h"             // for assert()
+
 #include "map.hpp"
 
 namespace key {
@@ -14,7 +16,7 @@ public: // User-facing methods
     , m_key_true(std::forward<K>(key_true))
     , m_key_false(std::forward<L>(key_false)) {}
 
-private: // Methods to be called by key::manager
+private: // Methods to be called through map_t
     bool (*const m_cond)();
     K m_key_true;
     L m_key_false;

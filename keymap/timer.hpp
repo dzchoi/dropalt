@@ -61,9 +61,7 @@ protected: // Methods to be used by child classes
     timer_t(const timer_t&) =delete;
     timer_t& operator=(const timer_t&) =delete;
 
-private: // Methods to be called by key::manager
-    friend class manager_t;
-
+private:
     // Will be called when the timer is expired.
     virtual void on_timeout(pmap_t*) =0;
 

@@ -9,7 +9,7 @@ class norepeat_t: public map_t {
 public: // User-facing methods
     constexpr norepeat_t(K&& key): m_key(std::forward<K>(key)) {}
 
-private: // Methods to be called by key::manager
+private: // Methods to be called through map_t
     K m_key;
 
     void on_press(pmap_t* slot) {

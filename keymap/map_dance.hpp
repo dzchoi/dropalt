@@ -1,7 +1,7 @@
 #pragma once
 
+#include "defer.hpp"
 #include "map_proxy.hpp"
-#include "observer.hpp"
 #include "timer.hpp"
 
 
@@ -9,19 +9,18 @@
 namespace key {
 
 // Similar to QMK's ACTION_TAP_DANCE_FN_ADVANCED(), only function names differ.
-//  - on_press() gets called every time you tap the tap dance key.
-//  - on_finish() gets called when the tap dance has finished (when either a timespan
-//    longer than tapping_term_ms has elapsed, or a key other than the tap dance key was
-//    pressed within the tapping_term_ms.)
-//  - on_release() gets called when the tap dance key is released (if the tap dance has
-//    finished before), or when the tap dance is finished after the key is released.
-//  - the tap count can be referenced in on_press/finish/release() using .get_step(),
-//    which will always be >= 1.
-//  - the tap dance can also be finished by calling finish() in on_press(). Then,
-//    on_finish() will be skipped and on_release() will be called when the key is
-//    released.
-//  - So, the call sequence is on_press(), on_press(), ..., [on_finish()], on_release().
-class map_dance_t: public map_proxy_t, public timer_t, public observer_t {
+//  - on_press() is called every time you press the tap dance key.
+//  - on_finish() gets called when the tap dance finishes (either when tapping_term_ms
+//    has elapsed since the tap dance key was PRESSED last time, or when any other key is
+//    pressed within the tapping_term_ms.) Then on_release() is called immediately after.
+//  - However, the tap dance can also be finished by explicitly calling finish() (from
+//    on_press()). In this case on_finish() will be skipped to call and on_release() will
+//    be called when the key is released later.
+//  - So on_release() is called when the tap dance key is released if the tap dance was
+//    finished explicitly, or when the tap dance finishes after the key is released.
+//  - The call sequence is on_press(), on_press(), ..., [on_finish()], on_release().
+//  - The tap count can be referenced in on_press/finish/release() using .get_step().
+class map_dance_t: public defer_t, public map_proxy_t, public timer_t {
 protected: // Methods to be used by child classes
     constexpr map_dance_t(uint32_t tapping_term_ms): timer_t(tapping_term_ms) {}
 
@@ -36,7 +35,7 @@ private: // Methods to be called by key::manager
 
     void on_timeout(pmap_t* slot);
 
-    void on_other_press(pmap_t* slot);
+    bool on_other_press(pmap_t* slot);
 
     // Todo: Do we need a parameter to on_finish that will indicate whether on_finish()
     //  is called from on_timeout() or from on_other_press() (i.e. interrupted by other

@@ -1,11 +1,9 @@
 #pragma once
 
-#include "assert.h"             // for assert()
-
-#include <type_traits>          // for std::is_base_of<>
+#include <type_traits>          // for std::is_base_of_v<>
 #include "adc_thread.hpp"       // for signal_extra_enable_manually(), ...
 #include "keymap_thread.hpp"    // for signal_usbport_switchover()
-#include "manager.hpp"          // for key::manager
+#include "usb_thread.hpp"       // for hid_keyboard.report_press/release()
 
 
 
@@ -21,8 +19,8 @@ class pmap_t;
 // be only checked for its pressing.
 class map_t {
 public: // User-facing methods
-    // Instances of map_t are not supposed to be const or constexpr since they contain the
-    // mutable member, m_pressing_count. However, the constexpr contructor (especially
+    // Instances of map_t are not supposed to be const or constexpr since they contain
+    // the mutable member, m_press_count. However, the constexpr contructor (especially
     // that in literal_t) still helps them to be created in .relocate section instead of
     // .bss section, which means their initialization is done at compile-time rather than
     // from __libc_init_array() at run-time.
@@ -37,45 +35,39 @@ public: // User-facing methods
     map_t(const map_t&) =delete;
     map_t& operator=(const map_t&) =delete;
 
-    // Execute on_press/release() of the keymap with the slot who triggers the keymap.
-    // Beware to not call `pmap->on_press(slot)` directly, which does not take care of
-    // simultaneous presses of the same keymap.
-    void press(pmap_t* slot) { manager.execute_press(this, slot); }
-
-    void release(pmap_t* slot) { manager.execute_release(this, slot); }
+    // Execute on_press/release() of the keymap with the given slot number that indicates
+    // who has triggered the keymap. Beware to not call `pmap->on_press(slot)` directly,
+    // which does not take care of simultaneous presses of the same keymap.
+    void press(pmap_t* slot);
+    void release(pmap_t* slot);
 
     // Indicate if the keymap (not the slot) is being pressed.
-    bool is_pressed() const { return m_pressing_count > 0; }
+    bool is_pressed() const { return m_press_count > 0; }
 
-private: // Methods to be called by key::manager, map_proxy_t and pmap_t
-    friend class manager_t;
-    friend class map_proxy_t;
-    friend class pmap_t;
+private:
+    int8_t m_press_count = 0;
 
     // Proxy keymaps will return their `map_proxy_t*` through this virtual method.
     virtual map_proxy_t* get_proxy() { return nullptr; }
 
-    // Keymaps that implements map_lamp_t will return their map_lamp_t* through this
+    friend class map_proxy_t;  // for on_press/release()
+    friend class pmap_t;  // for get_lamp()
+
+    // Keymaps that implement map_lamp_t will return their map_lamp_t* through this
     // virtual method.
     virtual map_lamp_t* get_lamp() { return nullptr; }
 
     virtual void on_press(pmap_t*) {}
-
     virtual void on_release(pmap_t*) {}
 
-    int8_t m_pressing_count = 0;
-
 protected: // Utility methods that can be used by child classes
-    static void send_press(uint8_t keycode) { manager.send_press(keycode); }
+    static void send_press(uint8_t keycode) {
+        usb_thread::obj().hid_keyboard.report_press(keycode);
+    }
 
-    static void send_release(uint8_t keycode) { manager.send_release(keycode); }
-
-    // Start deferring key presses. All presses will be deferred from the next event.
-    static void start_defer_presses() { manager.start_defer(); }
-
-    // Stop deferring key presses. Any deferred presses will be carried out after
-    // handling the current event.
-    static void stop_defer_presses() { manager.stop_defer(); }
+    static void send_release(uint8_t keycode) {
+        usb_thread::obj().hid_keyboard.report_release(keycode);
+    }
 
     // Perform usbhub switchover, once all keys are released.
     static void perform_usbport_switchover() {

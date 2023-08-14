@@ -1,39 +1,56 @@
-#include "board.h"              // for THREAD_PRIO_KEYMAP
+#include "board.h"              // for THREAD_PRIO_KEYMAP, system_reset()
 #include "event.h"              // for event_queue_init(), event_get(), ...
 #include "log.h"
-#include "msg.h"                // for msg_send(), msg_try_receive(), 
 #include "thread.h"             // for thread_create(), thread_get_unchecked(), ...
-#include "thread_flags.h"       // for thread_flags_set(), thread_flags_wait_any(),
+#include "thread_flags.h"       // for thread_flags_set(), thread_flags_wait_any(), ...
 
 #include "adc_thread.hpp"       // for signal_usbport_switchover()
+#include "defer.hpp"            // for on_other_press/release()
+#include "key_events.hpp"       // for push(), next_event(), ...
 #include "keymap_thread.hpp"
-#include "manager.hpp"          // for key::manager
-#include "pmap.hpp"             // for key::maps[], lamp_id(), lamp_on_off(), ...
-#include "rgb_thread.hpp"       // for signal_lamp_state()
+#include "matrix_thread.hpp"    // for is_any_pressed()
+#include "map.hpp"              // for map_t::press/release()
+#include "pmap.hpp"             // for key::maps[], refresh_lamp(), ...
+#include "rgb_thread.hpp"       // for signal_lamp_state(), signal_key_event()
 
 
 
-using key::manager;
+using namespace key;
 
 bool keymap_thread::signal_key_event(size_t index, bool is_press, uint32_t timeout_us)
 {
-    (void)timeout_us;
     if ( timeout_us )
         LOG_DEBUG("Matrix: %s [%u]\n", press_or_release(is_press), index);
     else
         LOG_INFO("Emulate %s [%u]\n", press_or_release(is_press), index);
 
-    signal_slot_event(&key::maps[index], slot_event_t(is_press));
-    return true;
+    if ( m_key_events.push(index, is_press, timeout_us) ) {
+        thread_flags_set(m_pthread, FLAG_KEY_EVENT);
+        return true;
+    }
+
+    // The failure from m_key_events.push() means that the key event buffer is full with
+    // all deferred events. We have no way to recover it but to reboot our keyboard, as
+    // keymap_thread cannot take care of this case. (See comment in key_events.hpp).
+    // Todo: LOG_ERROR() just before system_reset() seems not working alwways. Might it
+    //  need some wait?
+    LOG_ERROR("Keymap: m_key_events.push() failed\n");
+    system_reset();
+    return false;
 }
 
-void keymap_thread::signal_slot_event(key::pmap_t* slot, slot_event_t event)
+void keymap_thread::signal_lamp_state(pmap_t* slot)
 {
-    msg_t msg;
-    msg.type = event;
-    msg.content.ptr = slot;
-    // will block the caller (matrix_thread) until m_msg_queue has a room if it is full.
-    msg_send(&msg, m_pid);  // will always return 1.
+    m_event_lamp_state.arg = slot;
+    signal_event(&m_event_lamp_state);
+}
+
+// _hdlr_timeout() will execute in the context of keymap_thread.
+void keymap_thread::_hdlr_lamp_state(event_t* event)
+{
+    pmap_t* const slot = static_cast<event_ext_t<pmap_t*>*>(event)->arg;
+    rgb_thread::obj().signal_lamp_state(slot);
+    slot->refresh_lamp();
 }
 
 keymap_thread::keymap_thread()
@@ -42,98 +59,81 @@ keymap_thread::keymap_thread()
         m_stack, sizeof(m_stack),
         THREAD_PRIO_KEYMAP,
         THREAD_CREATE_STACKTEST,
-        _keymap_thread, this, "keymap_thread");
+        [](void* arg) { return static_cast<keymap_thread*>(arg)->_keymap_thread(); },
+        this, "keymap_thread");
 
     m_pthread = thread_get_unchecked(m_pid);
 }
 
-void* keymap_thread::_keymap_thread(void* arg)
+void* keymap_thread::_keymap_thread()
 {
-    keymap_thread* const that = static_cast<keymap_thread*>(arg);
-
     // The event_queue_init() should be called from the queue-owning thread.
-    event_queue_init(&that->m_event_queue);
+    event_queue_init(&m_event_queue);
 
-    // The msg_init_queue() should be called from the queue-owning thread.
-    msg_init_queue(that->m_msg_queue, KEY_EVENT_QUEUE_SIZE);
-
-    msg_t msg;
     while ( true ) {
         // Zzz
-        thread_flags_t flags = thread_flags_wait_any(
-            FLAG_EVENT
-            | FLAG_MSG_WAITING );
+        thread_flags_t flags = (
+            m_key_events.next_event()
+            ? thread_flags_clear
+            : thread_flags_wait_any )(FLAG_EVENT | FLAG_KEY_EVENT);
 
-        // Timeout event is handled through Event queue, rather than using m_msg_queue
-        // which is used for buffering key inputs. See the note below.
+        // Timeout event and lamp state event are handled through m_event_queue.
         if ( flags & FLAG_EVENT ) {
-            event_t* event;
-            while ( (event = event_get(&that->m_event_queue)) != nullptr ) {
+            while ( event_t* event = event_get(&m_event_queue) )
                 event->handler(event);
-
-                // Complete any deferred key presses if we are no longer deferring.
-                // Note that in the meanwhile presses can be deferred again.
-                manager.complete_if_not_deferring();
-            }
         }
 
-        if ( flags & FLAG_MSG_WAITING ) {
-            if ( msg_try_receive(&msg) > 0 ) {
-                that->process_slot_event(
-                    static_cast<key::pmap_t*>(msg.content.ptr), slot_event_t(msg.type));
+        // Key events, as having lower priority, are processed one at a time.
+        events_t::key_event_t event;
+        if ( m_key_events.next_event(&event) ) {
+            handle_key_event(&maps[event.index], event.is_press);
 
-                manager.complete_if_not_deferring();
+            // Execute switchover if everyone is idle.
+            if ( m_switchover_requested &&
+                 !event.is_press &&
+                 !matrix_thread::obj().is_any_pressed() &&
+                 !m_key_events.deferrer() &&
+                 !m_key_events.next_event() ) {
+                adc_thread::obj().signal_usbport_switchover();
+                m_switchover_requested = false;
             }
-
-            // Key events are processed one at a time in order to process internal events
-            // with higher priority.
-            if ( msg_avail() > 0 )
-                thread_flags_set(that->m_pthread, FLAG_MSG_WAITING);
         }
-
-        if ( !manager.is_any_pressing() )
-            LOG_DEBUG("Keymap: ---- all handled\n");
     }
 
     return nullptr;
 }
 
-void keymap_thread::process_slot_event(key::pmap_t* slot, slot_event_t event)
+void keymap_thread::handle_key_event(pmap_t* slot, bool is_press)
 {
-    switch ( event ) {
-        case KEY_RELEASED:
-            manager.handle_release(slot);
+    const char* const press_or_release = ::press_or_release(is_press);
 
-            // Execute switchover.
-            if ( m_switchover_requested && !manager.is_any_pressing() ) {
-                adc_thread::obj().signal_usbport_switchover();
-                m_switchover_requested = false;
-            }
-            break;
-
-        case KEY_PRESSED:
-            manager.handle_press(slot);
-            break;
-
-        case LAMP_CHANGED:
-            rgb_thread::obj().signal_lamp_state(slot);
-            slot->lamp_on_off(is_lamp_lit(slot->lamp_id()));
-            break;
+    // Execute the event if in normal mode.
+    if ( !m_key_events.deferrer() ) {
+        LOG_DEBUG("Keymap: [%u] handle %s\n", slot->index(), press_or_release);
+        rgb_thread::obj().signal_key_event(slot, is_press);
+        is_press ? (*slot)->press(slot) : (*slot)->release(slot);
+        return;
     }
-}
 
-// Note about Msg queue vs Event queue.
-//  - Msg queue can be full but event queue cannot.
-//  - When Msg queue is full msg_send() blocks. However, if msg_send() is called from
-//    the context of the thread that owns the Msg queue (in this case msg_send_to_self()
-//    is called), or if msg_send() is called from an interrupt context (msg_send_int() is
-//    called), it does not block but returns an error (0). In those cases msg_send() is
-//    the same as msg_try_send().
-//  - So, Msg queue is mostly for interfacing to other threads and can make them wait
-//    until the queue is available.
-//  - Avoid mixing external events (where queue full is acceptable) with internal events
-//    (queue full is not acceptable).
-//  - Event is just like a thread signal but can be accompanied by argument(s). There
-//    is no reason to use event with no argument over a thread signal. However, beware of
-//    using the same Event struct with different arguments. Previous event will be
-//    overwritten when a new event only with different argument is pushed.
+    // In Defer mode, if the event is the deferrer's own event, execute it now.
+    if ( slot == m_key_events.deferrer()->m_slot )
+        LOG_DEBUG("Keymap: [%u] handle deferrer %s\n", slot->index(), press_or_release);
+
+    // In Defer mode, if the event is an other key event, notify the deferrer first.
+    else {
+        LOG_DEBUG("Keymap: [%u] handle other %s [%u]\n",
+            m_key_events.deferrer()->m_slot->index(), press_or_release, slot->index());
+        if ( is_press
+             ? !m_key_events.deferrer()->on_other_press(slot)
+             : !m_key_events.deferrer()->on_other_release(slot) )
+            return;
+
+        // If the deferrer has decided to no longer defer it, execute it now.
+        LOG_DEBUG("Keymap: [%u] execute immediate %s\n", slot->index(), press_or_release);
+    }
+
+    rgb_thread::obj().signal_key_event(slot, is_press);
+    is_press ? (*slot)->press(slot) : (*slot)->release(slot);
+    //  Remove the deferred event from the event buffer.
+    m_key_events.discard_last_deferred();
+}

@@ -202,3 +202,19 @@ void rgb_thread_tl<true>::refresh_effect()
     is31_refresh_colors();
     m_peffect->update_done();
 }
+
+// Note about Msg (msg_t) queue vs Event (event_t) queue.
+//  - Msg queue has limited size but event queue is unlimited.
+//  - When Msg queue is full msg_send() blocks. However, if msg_send() is called from
+//    the context of the thread that owns the Msg queue (in this case msg_send_to_self()
+//    is called), or if msg_send() is called from an interrupt context (msg_send_int() is
+//    called), it does not block but returns an error (0). In those cases msg_send() is
+//    the same as msg_try_send().
+//  - So, Msg queue is mostly for interfacing to other threads and can make them wait
+//    until the queue is available.
+//  - Avoid mixing external events (where queue full is acceptable) with internal events
+//    (queue full is not acceptable).
+//  - Event is just like a thread signal but can be accompanied by argument(s). So there
+//    is no reason to use event with no arguments over a thread signal. However, beware
+//    of using the same event_t struct with different arguments. Previous event will be
+//    overwritten when a new event only with different argument is pushed.

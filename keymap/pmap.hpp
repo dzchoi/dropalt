@@ -4,16 +4,14 @@
 #include "color.hpp"            // for ohsv_t
 #include "led_conf.hpp"         // for LED_ID[]
 #include "lamp_id.hpp"          // for lamp_id_t
-#include "map.hpp"              // for get_lamp()
-#include "map_lamp.hpp"         // for lamp_id(), is_lamp_lit()
-#include "periph_conf.h"        // for MATRIX_ROWS, MATRIX_COLS, NUM_SLOTS
+#include "periph_conf.h"        // for NUM_SLOTS
 
 
 
 namespace key {
 
+class map_t;
 class pmap_t;
-class pressing_slot_t;
 
 
 
@@ -47,7 +45,7 @@ public:
     // Return lamp_id corresponding to the slot if its led is used for an indicator lamp.
     // Note that we could better isolate lamp_t from pmap_t by defining `lamp_t*` as an
     // additional data member in pmap_t and accessing lamp_id(), is_lamp_lit() and
-    // lamp_on_off() through it. We would also need to change the constructor as
+    // refresh_lamp() through it. We would also need to change the constructor as
     // `constexpr pmap_t(map_t& map, lamp_t& lamp =no_lamp): m_pmap(&map), m_lamp(lamp)
     // {}`. However, it requires more space than the current implementation does.
     lamp_id_t lamp_id() const;
@@ -56,8 +54,8 @@ public:
     // on.
     ohsv_t is_lamp_lit() const;
 
-    pressing_slot_t* get_pressing_slot() const { return m_pressing_slot; }
-    void set_pressing_slot(pressing_slot_t* slot) { m_pressing_slot = slot; }
+    // Refresh the lamp led according to the current state.
+    void refresh_lamp();
 
     // Not copyable nor movable. `pmap_t` will be instantiated within `maps[]` table.
     pmap_t(const pmap_t&) =delete;
@@ -65,11 +63,6 @@ public:
 
 private:
     map_t* const m_pmap;
-    pressing_slot_t* m_pressing_slot = nullptr;
-
-    friend keymap_thread;  // for lamp_on() and lamp_off()
-
-    void lamp_on_off(bool on_off);
 };
 
 }  // namespace key

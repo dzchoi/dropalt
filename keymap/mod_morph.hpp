@@ -1,7 +1,7 @@
-#pragma once
-
 // [OBSOLETE] mod_morph_t and map_modified_t can be replaced with if_t.
 // mod_morph_t(key1, key2, key3) == if_t( [](){ return key3.is_pressed(); }, key2, key1 )
+
+#pragma once
 
 #include "map_modified.hpp"
 
@@ -74,7 +74,7 @@ private:
 
     void on_modified_release(pmap_t* slot) {
         m_modified.release(slot);
-        // Due to map_t::m_pressing_count being a signed integer this will not press the
+        // Due to map_t::m_press_count being a signed integer this will not press the
         // modifier actually if it is already released physically.
         m_modifier.press(slot);
     }
