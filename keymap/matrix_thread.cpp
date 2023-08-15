@@ -42,32 +42,44 @@ void matrix_thread::_debouncer(unsigned row, unsigned col, bool is_press)
     state.history = (state.history << 1) | is_press;
 }
 
+inline bool matrix_thread::state_needs_changing(int8_t state)
+{
+    if constexpr ( DEBOUNCE_PATTERN_TO_PRESS == 1 ) {
+        return state == DEBOUNCE_PATTERN_TO_RELEASE
+            || state == DEBOUNCE_PATTERN_TO_PRESS;
+    }
+    else {
+        constexpr int8_t MASK = DEBOUNCE_PATTERN_TO_PRESS | 0x80;
+        return state == DEBOUNCE_PATTERN_TO_RELEASE
+            || (state & MASK) == DEBOUNCE_PATTERN_TO_PRESS;
+    }
+}
+
 void matrix_thread::perform_scan()
 {
     matrix_scan();
 
-    bool any_pressed = false;
+    uint8_t any_pressed = 0u;
 
     // Notify keymap_thread for each key that has changed its state.
     for ( size_t index = 0 ; index < NUM_SLOTS ; ++index ) {
         auto& state = m_states[index];
-        if ( (state.data == DEBOUNCE_PATTERN_FOR_RELEASE) ||
-             ((state.data & DEBOUNCE_MASK_FOR_PRESS) == DEBOUNCE_PATTERN_FOR_PRESS) ) {
-            const bool to_press = (state.data >= 0);  // == (state.data & 1)
+        if ( state_needs_changing(state.data) ) {
+            const bool to_press = (state.data >= 0);  // == !state.is_press
             if ( !keymap_thread::obj().signal_key_event(
                     index, to_press, MATRIX_SCAN_PERIOD_US) ) {
                 // A previous press is about to be released or a new press is about to be
                 // made but it has failed, retaining its previous state. In either case
                 // we can assume that it is (still or yet to be) pressed, which will also
                 // prevent matrix_thread from going to sleep.
-                any_pressed = true;
+                any_pressed = 1u;
                 break;
             }
             // Change the state (press or release) only when successfully signaled.
             state.is_press = to_press;
         }
 
-        any_pressed |= (state.data < 0);  // Is it pressed now?
+        any_pressed |= state.data;
     }
 
     if ( any_pressed ) {
@@ -85,8 +97,8 @@ void matrix_thread::perform_scan()
             &m_scan_timer, MATRIX_SCAN_PERIOD_US / 4 - TYPICAL_SCAN_TIME_US);
     }
 
-    // When all keys are released we go back to sleep, setting up the interrupt to take
-    // over the following detection.
+    // When all keys are released for 8 ms we go back to sleep, setting up the interrupt
+    // to take over the following detection.
     else {
         m_any_pressed = false;
         matrix_enable_interrupts();

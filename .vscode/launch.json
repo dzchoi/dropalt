@@ -8,7 +8,7 @@
             "type": "cppdbg",
             "request": "launch",
 
-            "program": "${workspaceRoot}/.build/board-dropalt/dropalt-0.9.0.elf",
+            "program": "${workspaceRoot}/.build/board-dropalt/dropalt-0.9.1.elf",
             "args": [],
             "stopAtEntry": true,
             "targetArchitecture": "arm",
@@ -24,14 +24,14 @@
 
             "MIMode": "gdb",
             "miDebuggerPath": "gdb-multiarch",
-            "miDebuggerArgs": "${workspaceRoot}/.build/board-dropalt/dropalt-0.9.0.elf",
+            "miDebuggerArgs": "${workspaceRoot}/.build/board-dropalt/dropalt-0.9.1.elf",
             // miDebuggerServerAddress is more desirable than using "-iex \"target
             // extended-remote localhost:3333\"" in miDebuggerArgs.
             // See https://github.com/microsoft/vscode-cpptools/issues/833#issuecomment-806848488
             "miDebuggerServerAddress": "localhost:3333",
             "useExtendedRemote": true,
             "setupCommands": [
-                // { "text": "file ${workspaceRoot}/.build/board-dropalt/dropalt-0.9.0.elf",
+                // { "text": "file ${workspaceRoot}/.build/board-dropalt/dropalt-0.9.1.elf",
                 //   "description": "load file" },
                 // { "text": "load", "description": "flash target" },
                 { "text": "set output-radix 16",

@@ -50,6 +50,7 @@ private:
     static_assert( sizeof(m_states[0]) == 1 );
 
     static void _debouncer(unsigned row, unsigned col, bool is_press);
+    static inline bool state_needs_changing(int8_t state);
 
     void perform_scan();
 
