@@ -4,7 +4,7 @@
 #include "thread_flags.h"       // for thread_flags_wait_any(), thread_flags_set()
 #include "ztimer.h"             // for ztimer_set_timeout_flag()
 
-#include "features.hpp"         // for MATRIX_SCAN_PERIOD_US, DEBOUNCE_*
+#include "features.hpp"         // for MATRIX_SCAN_PERIOD_US, DEBOUNCE_*, ...
 #include "keymap_thread.hpp"    // for signal_key_event()
 #include "matrix_thread.hpp"
 
@@ -83,18 +83,21 @@ void matrix_thread::perform_scan()
     }
 
     if ( any_pressed ) {
-        m_first_scan.stop();
+        m_first_scan = 0;
         ztimer_set_timeout_flag(ZTIMER_USEC,
             &m_scan_timer, MATRIX_SCAN_PERIOD_US - TYPICAL_SCAN_TIME_US);
     }
 
-    // Stay in first_scan until press is detected, performing scans with reduced period.
-    // (We know that something has triggered the interrupt though it might be spurious
-    // noise.)
-    else if ( m_first_scan.in_progress() ) {
-        static_assert( MATRIX_SCAN_PERIOD_US / 4 > TYPICAL_SCAN_TIME_US );
-        ztimer_set_timeout_flag(ZTIMER_USEC,
-            &m_scan_timer, MATRIX_SCAN_PERIOD_US / 4 - TYPICAL_SCAN_TIME_US);
+    // Stay in first scan until press is detected, scanning the matrix continuously
+    // rather than periodically. (We know that something has triggered the interrupt
+    // although it might be a spurious noise.)
+    else if ( m_first_scan ) {
+        --m_first_scan;
+        // Change m_pthread->flags directly instead calling thread_flags_set(), since we
+        // don't need to yield to other threads at this moment and there is no other
+        // threads or interrupt that can change it simultaneously (So irq_disable() is not
+        // necessary).
+        m_pthread->flags |= FLAG_SCAN;
     }
 
     // When all keys are released for 8 ms we go back to sleep, setting up the interrupt
@@ -112,6 +115,6 @@ void matrix_thread::_isr_detect_any_key_down(void* arg)
     matrix_disable_interrupts();
     matrix_thread* const that = static_cast<matrix_thread*>(arg);
     that->m_any_pressed = true;
-    that->m_first_scan.start();
+    that->m_first_scan = MATRIX_FIRST_SCAN_MAX_COUNT;
     thread_flags_set(that->m_pthread, FLAG_SCAN);
 }

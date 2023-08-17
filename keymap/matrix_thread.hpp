@@ -5,8 +5,6 @@
 #include "thread_flags.h"       // for THREAD_FLAG_TIMEOUT
 #include "ztimer.h"             // for ztimer_t, ztimer_now()
 
-#include "features.hpp"         // for FIRST_SCAN_DURATION_MS
-
 
 
 class matrix_thread {
@@ -62,26 +60,7 @@ private:
 
     ztimer_t m_scan_timer = {};
 
-    class {
-        uint32_t m_since;
-        bool m_started = false;
-
-    public:
-        void start() {
-            m_started = true;
-            m_since = ztimer_now(ZTIMER_MSEC);
-        }
-
-        void stop() {
-            m_started = false;
-        }
-
-        bool in_progress() const {
-            return m_started &&
-                int32_t(ztimer_now(ZTIMER_MSEC) - m_since) <
-                    int32_t(FIRST_SCAN_DURATION_MS);
-        }
-    } m_first_scan;
+    unsigned m_first_scan = 0;
 
     bool m_any_pressed = false;
 

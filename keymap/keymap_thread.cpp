@@ -1,5 +1,6 @@
 #include "board.h"              // for THREAD_PRIO_KEYMAP, system_reset()
 #include "event.h"              // for event_queue_init(), event_get(), ...
+#include "irq.h"                // for irq_disable(), irq_restore()
 #include "log.h"
 #include "thread.h"             // for thread_create(), thread_get_unchecked(), ...
 #include "thread_flags.h"       // for thread_flags_set(), thread_flags_wait_any(), ...
@@ -72,10 +73,8 @@ void* keymap_thread::_keymap_thread()
 
     while ( true ) {
         // Zzz
-        thread_flags_t flags = (
-            m_key_events.next_event()
-            ? thread_flags_clear
-            : thread_flags_wait_any )(FLAG_EVENT | FLAG_KEY_EVENT);
+        thread_flags_t flags = thread_flags_wait_any(
+            FLAG_EVENT | FLAG_KEY_EVENT);
 
         // Timeout event and lamp state event are handled through m_event_queue.
         if ( flags & FLAG_EVENT ) {
@@ -85,18 +84,22 @@ void* keymap_thread::_keymap_thread()
 
         // Key events, as having lower priority, are processed one at a time.
         events_t::key_event_t event;
-        if ( m_key_events.next_event(&event) ) {
+        if ( m_key_events.next_event(&event) )
             handle_key_event(&maps[event.index], event.is_press);
 
-            // Execute switchover if everyone is idle.
-            if ( m_switchover_requested &&
-                 !event.is_press &&
-                 !matrix_thread::obj().is_any_pressed() &&
-                 !m_key_events.deferrer() &&
-                 !m_key_events.next_event() ) {
-                adc_thread::obj().signal_usbport_switchover();
-                m_switchover_requested = false;
-            }
+        if ( m_key_events.next_event() ) {
+            unsigned state = irq_disable();
+            m_pthread->flags |= FLAG_KEY_EVENT;
+            irq_restore(state);
+            // Or we could use `atomic_fetch_or_u16(&m_pthread->flags, FLAG_KEY_EVENT)`.
+        }
+
+        // Execute switchover if everything is idle.
+        else if ( m_switchover_requested &&
+                  !m_key_events.deferrer() &&
+                  !matrix_thread::obj().is_any_pressed() ) {
+            adc_thread::obj().signal_usbport_switchover();
+            m_switchover_requested = false;
         }
     }
 
