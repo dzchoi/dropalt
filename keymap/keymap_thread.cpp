@@ -9,9 +9,10 @@
 #include "defer.hpp"            // for on_other_press/release()
 #include "key_events.hpp"       // for push(), next_event(), ...
 #include "keymap_thread.hpp"
-#include "matrix_thread.hpp"    // for is_any_pressed()
+#include "lamp.hpp"             // for lamp_t::slot(), execute_lamp()
 #include "map.hpp"              // for map_t::press/release()
-#include "pmap.hpp"             // for key::maps[], refresh_lamp(), ...
+#include "matrix_thread.hpp"    // for is_any_pressed()
+#include "pmap.hpp"             // for key::maps[], on_press/release(), ...
 #include "rgb_thread.hpp"       // for signal_lamp_state(), signal_key_event()
 
 
@@ -40,18 +41,20 @@ bool keymap_thread::signal_key_event(size_t index, bool is_press, uint32_t timeo
     return false;
 }
 
-void keymap_thread::signal_lamp_state(pmap_t* slot)
+void keymap_thread::signal_lamp_state(lamp_t* plamp)
 {
-    m_event_lamp_state.arg = slot;
+    m_event_lamp_state.arg = plamp;
     signal_event(&m_event_lamp_state);
 }
 
 // _hdlr_timeout() will execute in the context of keymap_thread.
 void keymap_thread::_hdlr_lamp_state(event_t* event)
 {
-    pmap_t* const slot = static_cast<event_ext_t<pmap_t*>*>(event)->arg;
-    rgb_thread::obj().signal_lamp_state(slot);
-    slot->refresh_lamp();
+    lamp_t* const plamp = static_cast<event_ext_t<lamp_t*>*>(event)->arg;
+    // Turn on/off the indicator lamp first.
+    rgb_thread::obj().signal_lamp_state(plamp);
+    // Then execute when_lamp_on/off().
+    plamp->execute_lamp();
 }
 
 keymap_thread::keymap_thread()

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "msg.h"                // for msg_t
-#include "thread.h"
 #include "thread_flags.h"       // for thread_flags_set()
 #include "ztimer.h"             // for ztimer_t
 
@@ -14,6 +13,7 @@ class pmap_t;
 }
 
 class effect_t;
+class lamp_t;
 
 
 
@@ -29,7 +29,7 @@ public:
     void signal_usb_resume() {}
     void signal_report_v_5v() {}
     void signal_key_event(key::pmap_t*, bool) {}
-    void signal_lamp_state(key::pmap_t*) {}
+    void signal_lamp_state(lamp_t*) {}
 
     // Todo: Change attributes of the current effect.
     void set_effect(const effect_t&) {}
@@ -54,11 +54,11 @@ public:
     void signal_usb_suspend() { thread_flags_set(m_pthread, FLAG_USB_SUSPEND); }
     void signal_usb_resume() { thread_flags_set(m_pthread, FLAG_USB_RESUME); }
     void signal_report_v_5v();
-    void signal_key_event(key::pmap_t* slot, bool pressed) {
-        signal_slot_event(slot, slot_event_t(pressed));
+    void signal_key_event(key::pmap_t* slot, bool is_press) {
+        send_msg_event(slot, msg_event_t(is_press));
     }
     // Indicator lamps will work even if no effect is active.
-    void signal_lamp_state(key::pmap_t* slot) { signal_slot_event(slot, LAMP_CHANGED); }
+    void signal_lamp_state(lamp_t* plamp) { send_msg_event(plamp, LAMP_CHANGED); }
 
     // Todo: Effect for underglow leds?
     void set_effect(effect_t&);
@@ -113,19 +113,19 @@ private:
         FLAG_ADJUST_GCR         = 0x0008,
         FLAG_SET_EFFECT         = 0x0010,
         FLAG_TIMEOUT            = THREAD_FLAG_TIMEOUT,     // (1u << 14)
-        FLAG_SLOT_EVENT         = THREAD_FLAG_MSG_WAITING  // (1u << 15)
+        FLAG_MSG_EVENT          = THREAD_FLAG_MSG_WAITING  // (1u << 15)
     };
 
     effect_t* m_peffect = nullptr;
 
-    enum slot_event_t: uint16_t {
+    enum msg_event_t: uint16_t {
         KEY_RELEASED    = 0,
         KEY_PRESSED     = 1,
         LAMP_CHANGED    = 2
     };
 
-    void signal_slot_event(key::pmap_t* slot, slot_event_t event);
-    void process_slot_event(key::pmap_t* slot, slot_event_t event);
+    void send_msg_event(void* ptr, msg_event_t event);
+    void process_msg_event(void* ptr, msg_event_t event);
 
     void initialize_effect();
     void refresh_effect();

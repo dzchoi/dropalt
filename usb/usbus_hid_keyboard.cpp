@@ -11,7 +11,7 @@
 #include "features.hpp"         // for DELAY_USB_ACCESSIBLE_AFTER_RESUMED_MS, ...
 #include "keymap_thread.hpp"    // for press_or_release(), signal_lamp_state()
 #include "main_thread.hpp"      // for signal_usb_suspend(), signal_usb_resume()
-#include "pmap.hpp"             // for lamp_iter, lamp_id()
+#include "lamp.hpp"             // for lamp_iter, lamp_id()
 #include "rgb_thread.hpp"       // for signal_usb_suspend(), signal_usb_resume()
 #include "usb_thread.hpp"       // for send_remote_wake_up()
 #include "usbus_hid_keyboard.hpp"
@@ -357,13 +357,12 @@ void usbus_hid_keyboard_t::_hdlr_receive_data(
         lamp_state, ztimer_now(ZTIMER_MSEC));
 
     lamp_state ^= hidx->m_led_lamp_state;
-    for ( auto slot = lamp_iter::begin() ; slot != lamp_iter::end() ; ++slot )
-        // Notify only those slots whose lamp state is to be changed.
-        if ( lamp_state & (uint8_t(1) << slot->lamp_id()) )
-            keymap_thread::obj().signal_lamp_state(&*slot);
-
     // Update m_led_lamp_state with the received data.
     hidx->m_led_lamp_state ^= lamp_state;
+
+    for ( auto it = lamp_iter::begin() ; it != lamp_iter::end() ; ++it )
+        if ( lamp_state & (uint8_t(1) << it->lamp_id()) )
+            keymap_thread::obj().signal_lamp_state(&*it);
 
     // Start the m_delay_usb_accessible timer now if USB is not accessible.
     if ( !hidx->m_is_usb_accessible )

@@ -4,10 +4,11 @@
 #include "if.hpp"
 #include "literal.hpp"
 #include "map.hpp"
-#include "map_lamp.hpp"
+#include "lamp.hpp"
 #include "matrix_thread.hpp"    // for is_any_pressed()
 #include "norepeat.hpp"
 #include "persistent.hpp"       // for persistent::obj()
+#include "pmap.hpp"             // for pmap_t, maps[]
 #include "tap_dance.hpp"
 #include "tap_hold.hpp"
 #include "timer.hpp"
@@ -64,26 +65,25 @@ if_t m_LBRKT { FN_pressed, PAUSE, LBRKT };
 // Most Linux Desktop Environments do not handle SCRLOCK but Windows does.
 if_t m_DOWN { FN_pressed, SCRLOCK, DOWN };
 
-class scrlock_t: public lamp_t<map_t&>, public timer_t {
-// Note that `lamp_t<map_t&>` equals `decltype(lamp_t(SCRLOCK_LAMP, m_DOWN))` which is
-// defined in the constructor initialization list below. If we used rvalue reference,
-// e.g. `lamp_t(SCRLOCK_LAMP, if_t(...))`, it should be `lamp_t<if_t>`, which is the
-// decltype of it.
+// Custom lamp_t that enables a jiggler while SCRLOCK lamp is on.
+class scrlock_t: public lamp_t, public timer_t {
 public:
     constexpr scrlock_t(map_t& jiggler, uint32_t jiggle_timeout_ms)
-    : lamp_t(SCRLOCK_LAMP, m_DOWN), timer_t(jiggle_timeout_ms), m_jiggler(jiggler) {}
+    : lamp_t(SCRLOCK_LAMP), timer_t(jiggle_timeout_ms), m_jiggler(jiggler) {}
 
 private:
     map_t& m_jiggler;
 
-    // It will not jiggle mostly when lamp is turned on by pressing SCRLOCK, because the
-    // lamp is turned on most likely before SCRLOCK is released. However, it will jiggle
-    // when the lamp is turned on due to switchover.
-    void lamp_on(pmap_t* slot) { on_timeout(slot); }
+    // It will not usually jiggle immediately when lamp is turned on by pressing SCRLOCK,
+    // as the lamp is turned on most likely before SCRLOCK is released. So it will jiggle
+    // at next timeout in this case. However, it will when the lamp is turned on due to
+    // switchover. This can be verified on Windows on
+    // https://w3c.github.io/uievents/tools/key-event-viewer.html.
+    void when_lamp_on(pmap_t* slot) { on_timeout(slot); }
 
-    void lamp_off(pmap_t*) { stop_timer(); }
+    void when_lamp_off(pmap_t*) { stop_timer(); }
 
-    // Timer keeps running while SCRLOCK_LAMP is lit.
+    // Timer keeps running while SCRLOCK_LAMP is on.
     void on_timeout(pmap_t* slot) {
         start_timer(slot);
         if ( !matrix_thread::obj().is_any_pressed() ) {
@@ -93,7 +93,7 @@ private:
     }
 };
 
-scrlock_t l_DOWN { LSFT, 259 *MS_PER_SEC };  // 4 min 59 sec
+scrlock_t l_SCRLOCK { LSFT, 259 *MS_PER_SEC };  // 4 min 59 sec
 
 // FN2 + H/J/K/L = Arrow keys, FN2 + FN + H/J/K/L = Home/PgDn/PgUp/End
 if_t m_H { FN2_pressed, if_t(FN_pressed, HOME, LEFT), H };
@@ -113,17 +113,17 @@ if_t m_BKSP { FN_pressed, DEL, BKSP };
 if_t m_GRV { FN_pressed, POWER, GRV };
 
 // t_SPC + LSFT = SPC, Double LSFT = CapsLock, LSFT (when CapsLock on) = CapsLock
-lamp_t l_LSFT { CAPSLOCK_LAMP,
+if_t m_LSFT {
+    [](){ return t_SPC.is_pressed(); },
+    SPC,
     if_t (
-        [](){ return t_SPC.is_pressed(); },
-        SPC,
-        if_t (
-            [](){ return is_lamp_lit(CAPSLOCK_LAMP); },
-            CAPSLOCK,
-            tap_dance_double_t(LSFT, CAPSLOCK)
-        )
+        [](){ return is_lamp_lit(CAPSLOCK_LAMP); },
+        CAPSLOCK,
+        tap_dance_double_t(LSFT, CAPSLOCK)
     )
 };
+
+lamp_t l_CAPSLOCK { CAPSLOCK_LAMP };
 
 // FN + 1 = F1 or Hold 1 = F1
 if_t m_1 { FN_pressed, F1, tap_hold_t(_1, norepeat_t(F1)) };  // sizeof = 100
@@ -250,17 +250,17 @@ private:
 
 
 
-pmap_t maps[NUM_SLOTS] = {
+pmap_t maps[] = {
     m_GRV, m_1, m_2, m_3, m_4, m_5, m_6, m_7, m_8, m_9, m_0, m_MINUS, m_EQL, m_BKSP, HOME,
 
     t_TAB, Q, W, E, R, T, Y, U, I, O, m_P, m_LBRKT, RBRKT, BSLASH, END,
 
     t_LCTL, A, S, D, F, G, m_H, m_J, m_K, m_L, COLON, QUOTE, ___, t_ENT, PGUP,
 
-    l_LSFT, ___, Z, X, C, V, B, N, M, COMMA, DOT, SLASH, RSFT, UP, PGDN,
+    {m_LSFT, l_CAPSLOCK}, ___, Z, X, C, V, B, N, M, COMMA, DOT, SLASH, RSFT, UP, PGDN,
 
     LALT, LGUI, FN, ___, ___, ___, t_SPC, ___, ___, ___,
-        RCTL, TEST /*RALT*/, LEFT, l_DOWN, RIGHT,
+        RCTL, TEST /*RALT*/, LEFT, {m_DOWN, l_SCRLOCK}, RIGHT,
 };
 
 }  // namespace key

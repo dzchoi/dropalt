@@ -2,9 +2,8 @@
 
 #include <iterator>             // for std::input_iterator_tag
 #include "color.hpp"            // for ohsv_t
-#include "led_conf.hpp"         // for LED_ID[]
-#include "lamp_id.hpp"          // for lamp_id_t
-#include "periph_conf.h"        // for NUM_SLOTS
+#include "lamp.hpp"             // for lamp_t, lamp_iter
+#include "led_conf.hpp"         // for LED_ID[], NUM_SLOTS
 
 
 
@@ -30,107 +29,85 @@ extern pmap_t maps[NUM_SLOTS];
 
 class pmap_t {
 public:
+    // Constructor that assigns a slot in maps[] to the given keymap.
     constexpr pmap_t(map_t& map): m_pmap(&map) {}
+
+    // Second constructor that also assigns a slot (led) to the given indicator lamp.
+    // For example, defining `pmap_t { a_keymap, l_CAPSLOCK }` within `pmap_t maps[]`
+    // would assign a slot to `a_keymap` and the slot's led to l_CAPSLOCK, where
+    // l_CAPSLOCK can be defined as `lamp_t l_CAPSLOCK { CAPSLOCK_LAMP }`. Be aware that
+    // `a_keymap` and l_CAPSLOCK do not interact with each other though they sit on the
+    // same slot; `a_keymap` is driven by user's key events (presses and releases),
+    // whereas l_CAPSLOCK is driven by the host's led_lamp_state report in response to
+    // the corresponding key event (CAPSLOCK key in this case).
+    pmap_t(map_t& map, lamp_t& lamp);
+
     map_t* operator->() { return m_pmap; }
     map_t& operator*() { return *m_pmap; }
 
-    operator map_t*() { return m_pmap; }
-
-    // `index()` assumes that instances of pmap_t be created only in maps[].
+    // `index()` assumes that instances of pmap_t be created only within maps[].
     size_t index() const { return this - &maps[0]; }
 
     // Return led_id corresponding to the slot.
     uint8_t led_id() const { return LED_ID[index()]; }
 
-    // Return lamp_id corresponding to the slot if its led is used for an indicator lamp.
-    // Note that we could better isolate lamp_t from pmap_t by defining `lamp_t*` as an
-    // additional data member in pmap_t and accessing lamp_id(), is_lamp_lit() and
-    // refresh_lamp() through it. We would also need to change the constructor as
-    // `constexpr pmap_t(map_t& map, lamp_t& lamp =no_lamp): m_pmap(&map), m_lamp(lamp)
-    // {}`. However, it requires more space than the current implementation does.
-    lamp_id_t lamp_id() const;
-
-    // Return hsv if the slot's led is used for an indicator lamp and if its lamp state is
-    // on.
+    // Return hsv if the slot's led is used for an indicator lamp and if the lamp is lit.
+    // It is expensive as it walks through all the indicator lamps. Note that lamp_id()
+    // is not provided from pmap_t, but from lamp_t.
     ohsv_t is_lamp_lit() const;
 
-    // Refresh the lamp led according to the current state.
-    void refresh_lamp();
-
-    // Not copyable nor movable. `pmap_t` will be instantiated within `maps[]` table.
+    // Not copyable nor movable. `pmap_t` will be instantiated within maps[] table.
     pmap_t(const pmap_t&) =delete;
     pmap_t& operator=(const pmap_t&) =delete;
 
 private:
     map_t* const m_pmap;
 };
+static_assert( sizeof(pmap_t) == sizeof(map_t*) );
 
 }  // namespace key
 
 
 
-class slot_iter {
+// Iterator over those slots that have
+//  - valid led assigned and
+//  - either no indicator lamp assigned or its indicator lamp turned off.
+class led_iter {
 public:
     using iterator_category = std::input_iterator_tag;
     using value_type = key::pmap_t;
     using pointer = value_type*;
     using reference = value_type&;
 
-    slot_iter(pointer slot): m_slot(slot) {}
+    led_iter(pointer slot): m_pslot(slot), m_plamp(nullptr) {}
+    led_iter(pointer slot, lamp_iter plamp): m_pslot(slot), m_plamp(plamp) {}
 
-    reference operator*() const { return *m_slot; }
-    pointer operator->() const { return m_slot; }
+    // Not copyable but movable.
+    led_iter(led_iter&&) =default;
+    led_iter(const led_iter&) =delete;
+    led_iter& operator=(const led_iter&) =delete;
+
+    reference operator*() const { return *m_pslot; }
+    pointer operator->() const { return m_pslot; }
 
     // prefix increment
-    slot_iter& operator++() { ++m_slot; return *this; }
+    led_iter& operator++() { ++m_pslot; return advance_if_invalid(); }
 
-    static inline slot_iter begin() { return slot_iter(&key::maps[0]); }
-
-    static inline slot_iter end() { return slot_iter(&key::maps[NUM_SLOTS]); }
-
-    friend bool operator==(const slot_iter& a, const slot_iter& b) {
-        return a.m_slot == b.m_slot;
+    friend bool operator==(const led_iter& a, const led_iter& b) {
+        return a.m_pslot == b.m_pslot;
     }
 
-    friend bool operator!=(const slot_iter& a, const slot_iter& b) {
+    friend bool operator!=(const led_iter& a, const led_iter& b) {
         return !(a == b);
     }
 
-protected:
-    pointer m_slot;
-};
+    static led_iter begin();
 
-class led_iter: public slot_iter {
-public:
-    using slot_iter::slot_iter;
-
-    led_iter& operator++() { ++m_slot; return advance_if_invalid(); }
-
-    static inline led_iter begin() {
-        return led_iter(&key::maps[0]).advance_if_invalid();
-    }
-
-    static inline led_iter end() { return led_iter(&key::maps[NUM_SLOTS]); }
+    static led_iter end() { return led_iter(&key::maps[NUM_SLOTS]); }
 
 private:
+    pointer m_pslot;
+    lamp_iter m_plamp;
+
     led_iter& advance_if_invalid();
-};
-
-class lamp_iter: public slot_iter {
-public:
-    using slot_iter::slot_iter;
-
-    // Note that instead of walking through all maps[] we could have a separate table
-    // that lists only led_ids that are associated with an indicator lamp. But we assume
-    // that lamp_iter is not used very often.
-    lamp_iter& operator++() { ++m_slot; return advance_if_invalid(); }
-
-    static inline lamp_iter begin() {
-        return lamp_iter(&key::maps[0]).advance_if_invalid();
-    }
-
-    static inline lamp_iter end() { return lamp_iter(&key::maps[NUM_SLOTS]); }
-
-private:
-    lamp_iter& advance_if_invalid();
 };

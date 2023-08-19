@@ -11,8 +11,9 @@
 #include "color.hpp"            // for CIE1931_CURVE[]
 #include "effects.hpp"
 #include "features.hpp"         // for RGB_DISABLE_WHEN_USB_SUSPENDS
+#include "lamp.hpp"             // for lamp_t, slot(), is_lit()
 #include "led_conf.hpp"         // for IS31_LEDS[]
-#include "pmap.hpp"             // for led_id(), lamp_id(), is_lamp_lit()
+#include "pmap.hpp"             // for led_id(), is_lamp_lit(), led_iter
 #include "rgb_thread.hpp"
 
 
@@ -46,7 +47,7 @@ void* rgb_thread_tl<true>::_rgb_thread(void* arg)
     while ( true ) {
         // Zzz
         thread_flags_t flags = thread_flags_wait_any(
-            FLAG_SLOT_EVENT
+            FLAG_MSG_EVENT
             | FLAG_USB_SUSPEND
             | FLAG_USB_RESUME
             | FLAG_ADJUST_GCR
@@ -71,10 +72,9 @@ void* rgb_thread_tl<true>::_rgb_thread(void* arg)
         if ( flags & FLAG_TIMEOUT )
             that->refresh_effect();
 
-        if ( flags & FLAG_SLOT_EVENT )
+        if ( flags & FLAG_MSG_EVENT )
             while ( msg_try_receive(&msg) == 1 )
-                that->process_slot_event(
-                    static_cast<key::pmap_t*>(msg.content.ptr), slot_event_t(msg.type));
+                that->process_msg_event(msg.content.ptr, msg_event_t(msg.type));
     }
 
     return nullptr;
@@ -130,33 +130,35 @@ void rgb_thread_tl<true>::initialize_effect()
     m_peffect->initial_update_done();
 }
 
-void rgb_thread_tl<true>::signal_slot_event(key::pmap_t* slot, slot_event_t event)
+void rgb_thread_tl<true>::send_msg_event(void* ptr, msg_event_t event)
 {
     if ( m_peffect ) {
         msg_t msg;
         msg.type = event;
-        msg.content.ptr = slot;
+        msg.content.ptr = ptr;
         // will block the caller (matrix_thread) if m_queue if full.
         msg_send(&msg, m_pid);
     }
 }
 
-void rgb_thread_tl<true>::process_slot_event(key::pmap_t* slot, slot_event_t event)
+void rgb_thread_tl<true>::process_msg_event(void* ptr, msg_event_t event)
 {
-    const uint8_t led_id = slot->led_id();
-    assert( led_id != NO_LED );
+    uint8_t led_id;
     rgb_t rgb { 0, 0, 0 };  // black (i.e. turn it off)
 
     switch ( event ) {
         case KEY_RELEASED:
         case KEY_PRESSED: {
+            const key::pmap_t* const slot = static_cast<key::pmap_t*>(ptr);
+            led_id = slot->led_id();
+            assert( led_id != NO_LED );
+
             const ohsv_t ohsv =
                 m_peffect->process_key_event(led_id, ztimer_now(ZTIMER_MSEC), event);
 
-            if ( ohsv && !slot->is_lamp_lit() )
-                rgb = *ohsv;
-            else
+            if ( !ohsv || slot->is_lamp_lit() )
                 return;
+            rgb = *ohsv;
 
             // Todo: We could do is31_refresh_colors() only if m_gcr.is_set() is true,
             //  which then means we should do it on FLAG_USB_RESUME, but instead we would
@@ -167,7 +169,11 @@ void rgb_thread_tl<true>::process_slot_event(key::pmap_t* slot, slot_event_t eve
         }
 
         case LAMP_CHANGED: {
-            if ( const ohsv_t ohsv = slot->is_lamp_lit() )
+            const lamp_t* const lamp = static_cast<lamp_t*>(ptr);
+            led_id = lamp->slot()->led_id();
+            assert( led_id != NO_LED );
+
+            if ( const ohsv_t ohsv = lamp->is_lit() )
                 rgb = *ohsv;
 
             else if ( m_peffect ) {
@@ -178,6 +184,9 @@ void rgb_thread_tl<true>::process_slot_event(key::pmap_t* slot, slot_event_t eve
 
             break;
         }
+
+        default:
+            assert( false );
     }
 
     is31_set_color(IS31_LEDS[led_id], rgb.r, rgb.g, rgb.b);
@@ -188,20 +197,56 @@ void rgb_thread_tl<true>::refresh_effect()
 {
     const uint32_t now = ztimer_now(ZTIMER_MSEC);
 
-    for ( auto slot = led_iter::begin() ; slot != led_iter::end() ; ++slot ) {
-        const uint8_t led_id = slot->led_id();
-        // If slot has an indicator lamp and if it is lit we skip refreshing the effect
-        // on it, leaving it unchanged.
-        if ( !slot->is_lamp_lit() )
-            if ( const ohsv_t ohsv = m_peffect->update(led_id, now) ) {
-                const rgb_t rgb = *ohsv;
-                is31_set_color(IS31_LEDS[led_id], rgb.r, rgb.g, rgb.b);
-            }
+    // `led_iter` will skip over those slots that have an indicator lamp lit.
+    for ( auto pslot = led_iter::begin() ; pslot != led_iter::end() ; ++pslot ) {
+        const uint8_t led_id = pslot->led_id();
+        if ( const ohsv_t ohsv = m_peffect->update(led_id, now) ) {
+            const rgb_t rgb = *ohsv;
+            is31_set_color(IS31_LEDS[led_id], rgb.r, rgb.g, rgb.b);
+        }
     }
 
     is31_refresh_colors();
     m_peffect->update_done();
 }
+
+/*
+// If `led_iter` does not skip over the lamp-lit slots, we can go with this code.
+
+void rgb_thread_tl<true>::refresh_effect(uint8_t led_id, uint32_t now)
+{
+    if ( const ohsv_t ohsv = m_peffect->update(led_id, now) ) {
+        const rgb_t rgb = *ohsv;
+        is31_set_color(IS31_LEDS[led_id], rgb.r, rgb.g, rgb.b);
+    }
+}
+
+void rgb_thread_tl<true>::refresh_effect()
+{
+    auto plamp = lamp_iter::begin();
+    auto pslot = led_iter::begin();
+    const uint32_t now = ztimer_now(ZTIMER_MSEC);
+
+    // Instead of simply walking through all slots and testing is_lamp_lit() on each slot,
+    // we split the slots into groups that are not associated with an indicator lamp and
+    // we can skip the test, which will reduce the complexity from O(m*n) to O(m+n).
+    for ( ; plamp != lamp_iter::end() ; ++plamp, ++pslot ) {
+        for ( ; pslot != plamp->slot() ; ++pslot )
+            refresh_effect(pslot->led_id(), now);
+
+        // If slot has an indicator lamp and if it is lit we skip refreshing its effect,
+        // leaving it unchanged.
+        if ( !is_lamp_lit(plamp->lamp_id()) )
+            refresh_effect(pslot->led_id(), now);
+    }
+
+    for ( ; pslot != led_iter::end() ; ++pslot )
+        refresh_effect(pslot->led_id(), now);
+
+    is31_refresh_colors();
+    m_peffect->update_done();
+}
+*/
 
 // Note about Msg (msg_t) queue vs Event (event_t) queue.
 //  - Msg queue has limited size but event queue is unlimited.

@@ -9,7 +9,6 @@
 
 namespace key {
 
-class map_lamp_t;
 class map_proxy_t;
 class pmap_t;
 
@@ -51,11 +50,6 @@ private:
     virtual map_proxy_t* get_proxy() { return nullptr; }
 
     friend class map_proxy_t;  // for on_press/release()
-    friend class pmap_t;  // for get_lamp()
-
-    // Keymaps that implement map_lamp_t will return their map_lamp_t* through this
-    // virtual method.
-    virtual map_lamp_t* get_lamp() { return nullptr; }
 
     virtual void on_press(pmap_t*) {}
     virtual void on_release(pmap_t*) {}

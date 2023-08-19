@@ -9,6 +9,8 @@
 
 
 
+class lamp_t;
+
 namespace key {
 class pmap_t;
 }
@@ -35,7 +37,7 @@ public:
     // successfully. If timeout_us is zero it waits indefinitely and returns true.
     bool signal_key_event(size_t index, bool is_press, uint32_t timout_us =0u);
 
-    void signal_lamp_state(key::pmap_t* slot);
+    void signal_lamp_state(lamp_t* plamp);
 
     // Signal a (generic) event to keymap_thread.
     void signal_event(event_t* event) { event_post(&m_event_queue, event); }
@@ -59,8 +61,7 @@ private:
     // event_t queue for internal events
     event_queue_t m_event_queue;
 
-    event_ext_t<key::pmap_t*> m_event_lamp_state = {
-        nullptr, _hdlr_lamp_state, nullptr };
+    event_ext_t<lamp_t*> m_event_lamp_state = { nullptr, _hdlr_lamp_state, nullptr };
     static void _hdlr_lamp_state(event_t* event);
 
     // Constructor
