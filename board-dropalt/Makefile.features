@@ -1,0 +1,15 @@
+CPU = samd5x
+CPU_MODEL = samd51j18a
+
+# Put defined MCU peripherals here (in alphabetical order)
+FEATURES_PROVIDED += periph_adc         # supported but adc_sample() can be stuck.
+FEATURES_PROVIDED += periph_dma
+FEATURES_PROVIDED += periph_flashpage   # for internal flash (NVM main array)
+FEATURES_PROVIDED += periph_i2c         # for USB2422 HUB and IS31FL3733 LED driver
+#FEATURES_PROVIDED += periph_pwm
+FEATURES_PROVIDED += periph_rtc
+FEATURES_PROVIDED += periph_rtt
+FEATURES_PROVIDED += periph_spi         # for 595 shift register
+FEATURES_PROVIDED += periph_timer       # provided using peripheral configuration
+FEATURES_PROVIDED += periph_usbdev
+FEATURES_PROVIDED += riotboot

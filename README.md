@@ -1,2 +1,2 @@
 # dropalt
-Drop Alt firmware based on Lua and Zephyr
+Firmware for the Drop Alt keyboard, built using RIOT and Lua

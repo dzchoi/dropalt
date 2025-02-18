@@ -1,0 +1,3 @@
+PROGRAMMERS_SUPPORTED += dfu-util
+
+include $(RIOTMAKE)/boards/sam0.inc.mk
