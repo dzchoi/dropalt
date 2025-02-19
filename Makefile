@@ -86,6 +86,6 @@ endif
 # BACKUP_RAM_LEN  = 0x00002000  # 8K
 
 PROGRAMMER = dfu-util
-# PROGRAMMER = edbg  # uses edbg (CMSIS-DAP) for flashing
+# PROGRAMMER = edbg  # uses EDBG (CMSIS-DAP) for flashing
 
 include $(RIOTBASE)/Makefile.include

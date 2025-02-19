@@ -56,8 +56,6 @@ https://learn.adafruit.com/introducing-adafruit-itsybitsy-m4/pinouts#other-pins-
 #### Booting sequence
 A power reset or system reset will immediately boot from slot 0. Any other reset, such as an external reset or watchdog reset, will enter the bootloader (DFU mode). However, a reset with the RIOTBOOT_MAGIC_NUMBER set at the end of RAM will enter the bootloader.
 
-Any reset occurring during DFU mode will boot from slot 0 without re-entering DFU mode.
-
 Executing reboot_to_bootloader() from firmware will jump to the bootloader.
 
 #### Serial number

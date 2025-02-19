@@ -19,41 +19,6 @@
 
 
 
-#define DFU_FORCED  RIOTBOOT_MAGIC_NUMBER  // "RIOT"
-#define DFU_ACTIVE  0x55464449  // "IDFU"
-
-static bool stay_in_dfu(void)
-{
-    const uint32_t magic_number = *(uint32_t*)RIOTBOOT_MAGIC_ADDR;
-
-    // If magic word was set to DFU_FORCED at the end of RAM, stay in DFU mode.
-    if ( magic_number == DFU_FORCED )
-        return true;
-
-    // External reset (pressing Reset pin) while in DFU mode will not re-enter DFU mode.
-    if ( magic_number == DFU_ACTIVE )
-        return false;
-
-#if defined(BTN_BOOTLOADER_PIN) && defined(BTN_BOOTLOADER_MODE)
-    bool state;
-
-    gpio_init(BTN_BOOTLOADER_PIN, BTN_BOOTLOADER_MODE);
-    state = gpio_read(BTN_BOOTLOADER_PIN);
-    /* If button configures w/ internal or external pullup, then it is an
-    active-low, thus reverts the logic */
-    if (BTN_BOOTLOADER_EXT_PULLUP || BTN_BOOTLOADER_MODE == GPIO_IN_PU ||
-        BTN_BOOTLOADER_MODE == GPIO_OD_PU ) {
-        return !state;
-    } else {
-        return state;
-    }
-#else
-    // Resets other than power reset and system reset (e.g. external reset or watchdog
-    // reset) will stay in DFU mode.
-    return (RSTC->RCAUSE.bit.POR == 0) && (RSTC->RCAUSE.bit.SYST == 0);
-#endif
-}
-
 // Create the usbus thread for DFU, replacing riotboot_usb_dfu_init() in
 // riot/sys/riotboot/usb_dfu.c.
 static void riotboot_usb_init(void)
@@ -113,26 +78,36 @@ NORETURN static void* _main(void* arg)
     sched_task_exit();
 }
 
-NORETURN void kernel_init(void)
-{
-    uint32_t* const magic_addr = (uint32_t*)RIOTBOOT_MAGIC_ADDR;
 
-    if ( !stay_in_dfu() ) {
-        const unsigned SLOT0 = 0;
-        if ( (riotboot_slot_validate(SLOT0) == 0)
-          && (riotboot_slot_get_hdr(SLOT0)->start_addr ==
-                riotboot_slot_get_image_startaddr(SLOT0)) ) {
-            *magic_addr = 0u;
-            // Calling riotboot_slot_jump() from within a thread context can lead to a
-            // crash, particularly when reset_handler_default() initializes static memory
-            // that may overlap with the memory region allocated for a bootloader thread
-            // (e.g., main_stack[]).
-            riotboot_slot_jump(SLOT0);
-        }
+
+// Override the weak pre_startup() function in riot/cpu/cortexm_common/vectors_cortexm.c.
+// This function is called before cpu_init(), board_init() and kernel_init(), and jumps
+// immediately to the application in slot 0 if needed.
+void pre_startup(void)
+{
+    static const unsigned SLOT0 = 0;
+    static uint32_t* const MAGIC_ADDR = (uint32_t*)RIOTBOOT_MAGIC_ADDR;
+
+    // If *MAGIC_ADDR equals RIOTBOOT_MAGIC_NUMBER, stay in DFU mode.
+    if ( *MAGIC_ADDR == RIOTBOOT_MAGIC_NUMBER ) {
+        *MAGIC_ADDR = 0u;
+        return;
     }
 
-    // Enter DFU mode from now on!
-    *magic_addr = DFU_ACTIVE;
+    // If we are rebooting due to a system reset or power reset, jump to the application
+    // in slot 0 if it is valid.
+    if ( (RSTC->RCAUSE.bit.SYST != 0) || (RSTC->RCAUSE.bit.POR != 0) ) {
+        if ( riotboot_slot_validate(SLOT0) == 0 )
+            riotboot_slot_jump(SLOT0);
+    }
+
+    // Any other resets, such as an external reset or watchdog reset, will stay in DFU
+    // mode.
+}
+
+NORETURN void kernel_init(void)
+{
+    // Welcome to the DFU mode!
     irq_disable();
 
     static char _main_stack[THREAD_STACKSIZE_MAIN];

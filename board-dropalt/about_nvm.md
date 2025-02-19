@@ -63,7 +63,7 @@ The entire NVM main address space except the BOOTPROT section (not Auxiliary spa
 #### Page buffer
 When writing data to the NVM main address space or USER page, it passes through the AHB bus and is initially written to an internal buffer called the page buffer. Once the write is complete, you can commit the data to the NVM either automatically or manually. The page buffer is the same size as an NVM page. When the page buffer is written it will be reflected in the address space(?).
 
-An AHB write (i.e. writing to the address space) automatically updates the ADDR register. ADDR is write-locked by NVMCTRL until the page buffer is committed.Writes (i.e. loads) to the page buffer must be 32 bits. 16-bit or 8-bit writes to the page buffer is not allowed, and will cause a PAC error.  
+An AHB write (i.e. writing to the address space) automatically updates the ADDR register. ADDR is write-locked by NVMCTRL until the page buffer is committed. Writes (i.e. loads) to the page buffer must be 32 bits. 16-bit or 8-bit writes to the page buffer is not allowed, and will cause a PAC error.  
 (So, ADDR gets the address of the initial AHB write and should be word-aligned. Subsequent writes will go into the page buffer until the page buffer is committed.)
 
 The page buffer is automatically cleared to all-ones after any page write operation (WP or WQW command).
