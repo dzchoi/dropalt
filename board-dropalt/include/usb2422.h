@@ -17,6 +17,12 @@ void usbhub_init(void);
 
 bool usbhub_configure(void);
 
+// Note that signal_usb_resume() (i.e. usb active) could be called by an interrupt
+// when detecting GPIO_RISING on the USB2422_ACTIVE pin (= GPIO_PIN(PA, 18)) instead.
+// However, Riot's gpio_init_int() seems assigning the same _exti (i.e. EXTINTx) to
+// the gpio pin as with row_pins[2] (= GPIO_PIN(PA, 2)), causing one of them not
+// working. The signal_usb_resume() is instead triggered by usb_thread (on
+// USBUS_EVENT_USB_RESUME). See usbus_hid_keyboard_t::on_resume().
 static inline bool usbhub_is_active(void) {
     return gpio_read(USB2422_ACTIVE) != 0;
 }
@@ -32,10 +38,10 @@ enum {
 void usbhub_disable_all_ports(void);
 
 // Set the host port to the specified port.
-void usbhub_set_host_port(uint8_t port);
+void usbhub_select_host_port(uint8_t port);
 
 // Enable or disable VBUS for the specified extra port.
-void usbhub_set_extra_port(uint8_t port, bool enable);
+void usbhub_enable_extra_port(uint8_t port, bool enable);
 
 // Retrieve the host port based on the value from the most recent call to
 // sr_exp_writedata().

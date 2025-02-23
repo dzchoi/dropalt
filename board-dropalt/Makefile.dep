@@ -19,3 +19,7 @@ endif
     # flash bank swap.
     FEATURES_REQUIRED += periph_flashpage
 # endif
+
+USEMODULE += ztimer
+USEMODULE += ztimer_msec
+USEMODULE += ztimer_usec

@@ -1,0 +1,9 @@
+USEMODULE += event
+USEMODULE += core_thread
+USEMODULE += core_thread_flags
+USEMODULE += ztimer
+USEMODULE += ztimer_msec
+
+USEMODULE += dropalt_adc_get
+USEMODULE += dropalt_sr_595
+USEMODULE += dropalt_usb2422

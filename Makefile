@@ -11,7 +11,7 @@ APPLICATION := dropalt-fw
 FEATURES_HPP := features.hpp
 
 # Version numbers encoded in USB device descriptor
-DEVICE_VER = $(shell grep -oP '(?<=DEVICE_VER = )[^;]*' $(FEATURES_HPP))
+DEVICE_VER := 0x0060            # bcdDevice =  0.60 for the firmware
 HUB_DEVICE_VER := 0x2410        # bcdDevice = 24.10 for Hub
 CFLAGS += -DDEVICE_VER=$(DEVICE_VER) -DHUB_DEVICE_VER=$(HUB_DEVICE_VER)
 
@@ -45,45 +45,26 @@ CXXEXFLAGS += -fno-use-cxa-atexit
 FEATURES_REQUIRED += cpp  # "cpp libstdcpp" ???
 FEATURES_REQUIRED += riotboot
 
-# RIOT modules
+# RIOT modules for the main thread
+USEMODULE += core_thread
+USEMODULE += core_thread_flags
 # USEMODULE += newlib_nano          # used by default
-USEMODULE += ztimer
-USEMODULE += ztimer_msec
 
 # Subdirectory modules
 EXTERNAL_MODULE_DIRS += $(CURDIR)
-USEMODULE += dropalt_sr_595
-USEMODULE += dropalt_usb2422
+USEMODULE += log_write
+USEMODULE += usbhub
+USEMODULE += usb
 
-$(shell grep -q 'VIRTSER_ENABLE = true' $(FEATURES_HPP))
-ifeq ($(.SHELLSTATUS),0)
-    USEMODULE += stdio_cdc_acm      # Use CDC ACM as default STDIO.
-    VERBOSE_ASSERT := 1
-    # Enabling VERBOSE_ASSERT will set:
-    #  - DEVELHELP := 1                    # Enable assert() and SCHED_TEST_STACK.
-    #  - CFLAGS += -DDEBUG_ASSERT_VERBOSE  # assert() will print the filename and line number.
+VERBOSE_ASSERT := 1
+# Enabling VERBOSE_ASSERT will set:
+#  - DEVELHELP := 1                    # Enable assert() and SCHED_TEST_STACK.
+#  - CFLAGS += -DDEBUG_ASSERT_VERBOSE  # assert() will print the filename and line number.
+QUIET ?= 1
 
-    QUIET ?= 1
-
-    # LOG_LEVEL = LOG_INFO by default, which filters out LOG_DEBUG.
-    # Note also that LOG_ERROR() will save the log messages in NVM, if not filtered out.
-    LOG_LEVEL = LOG_DEBUG
-else
-    USEMODULE += stdio_null         # Or, avoid using stdio and UART at all.
-endif
-
-# Configure linker script (See Table 9-1. Physical Memory Map in SAM D5x data sheet.)
-# ROM_START_ADDR  = 0x00000000
-# Total NVM size = NVMCTRL->PARAM.bit.NVMP * 512 (= 256KB)
-# SmartEEPROM raw space size = 2 * NVMCTRL->SEESTAT.bit.SBLK * 8K (= 16KB)
-# ROM_LEN         = 0x0003C000  # 256K - 16K
-# ROM_OFFSET      = 0x00004000  # The first 16K is occupied by bootloader.
-# RAM_START_ADDR  = 0x20000000
-# RAM_LEN         = 0x00020000  # 128K
-# We can still access the backup RAM (BBRAM) though Drop Alt does not connect it to
-# a battery.
-# BACKUP_RAM_ADDR = 0x47000000
-# BACKUP_RAM_LEN  = 0x00002000  # 8K
+# LOG_LEVEL = LOG_INFO by default, which filters out LOG_DEBUG.
+# Note also that LOG_ERROR() will save the log messages in NVM, if not filtered out.
+LOG_LEVEL = LOG_DEBUG
 
 PROGRAMMER = dfu-util
 # PROGRAMMER = edbg  # uses EDBG (CMSIS-DAP) for flashing

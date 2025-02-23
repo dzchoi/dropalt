@@ -7,6 +7,7 @@
 #include "riotboot/bootloader_selection.h"  // for BTN_BOOTLOADER_PIN
 #include "riotboot/magic.h"     // for RIOTBOOT_MAGIC_ADDR, RIOTBOOT_MAGIC_NUMBER
 #include "riotboot/slot.h"      // for riotboot_slot_jump(), ...
+#include "sr_exp.h"             // for sr_exp_init()
 #include "thread.h"             // for thread_create(), sched_task_exit(), ...
 #include "usb/usbus.h"          // for usbus_init(), usbus_create(), ...
 #include "usb/usbus/dfu.h"      // for usbus_dfu_init(), ...
@@ -40,13 +41,13 @@ static void wait_for_host_connection(uint8_t starting_port)
     uint32_t then_ms = now_ms;
 
     // Start with starting_port.
-    usbhub_set_host_port(starting_port);
+    usbhub_select_host_port(starting_port);
 
     while ( !usbhub_is_active() ) {
         // Switch to the other port after 1 sec.
         if ( (now_ms - then_ms) >= 1000u ) {
             then_ms = now_ms;
-            usbhub_set_host_port(usbhub_extra_port());
+            usbhub_select_host_port(usbhub_extra_port());
         }
         // Take a catnap for 10 ms.
         ztimer_periodic_wakeup(ZTIMER_MSEC, &now_ms, 10);
@@ -60,6 +61,9 @@ static void wait_for_host_connection(uint8_t starting_port)
 NORETURN static void* _main(void* arg)
 {
     (void)arg;
+
+    // Initialize Shift Register.
+    sr_exp_init();
 
     // Initialize ztimer before starting DFU mode.
     ztimer_init();

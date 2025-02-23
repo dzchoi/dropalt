@@ -123,35 +123,35 @@ extern "C" {
  * @{
  */
 #define ADC_LINE(x) (x)
-#define ADC_LINE_5V                     ADC_LINE(0)
-#define ADC_LINE_CON1                   ADC_LINE(1)
-#define ADC_LINE_CON2                   ADC_LINE(2)
+static const uint8_t ADC_LINE_5V   = ADC_LINE(0);
+static const uint8_t ADC_LINE_CON1 = ADC_LINE(1);
+static const uint8_t ADC_LINE_CON2 = ADC_LINE(2);
 
-#define ADC_5V_START_LEVEL              2365
+static const uint16_t ADC_5V_START_LEVEL = 2365;
 
 // Automatic power rollback and recovery
 // 5V high level (After low power detect, point at which LEDs are allowed to use more power)
-#define ADC_5V_HIGH                     2540
+static const uint16_t ADC_5V_HIGH = 2540;
 
 // 5V low level (LED power rolled back to stay above this limit)
-#define ADC_5V_LOW                      2480
+static const uint16_t ADC_5V_LOW = 2480;
 
 // 5V panic level (Host USB port potential to shut down)
-#define ADC_5V_PANIC                    2200
+static const uint16_t ADC_5V_PANIC = 2200;
 
 // Nominal level of the extra port with no device attached.
 // Todo: Adjust these values when LEDs are enabled.
-#define ADC_CON1_NOMINAL                1840
-#define ADC_CON2_NOMINAL                1170
+static const uint16_t ADC_CON1_NOMINAL = 1840;
+static const uint16_t ADC_CON2_NOMINAL = 1170;
 
-// Threshold on the nominal level delta that indicates connection state change.
+// Threshold for the change in nominal level indicating connection state change.
 //  - +250 indicates that another host is connected.
 //  - -250 indicates that (a cable to) another device is connected.
-#define ADC_CON_NOMINAL_CHANGE_THR      250
+static const uint16_t ADC_CON_NOMINAL_CHANGE_THR = 250;
 
 // Minimum level to decide if host is connected (the port should be measured with
 // SR_CTRL_SRC_x enabled.)
-#define ADC_CON_HOST_CONNECTED          100
+static const uint16_t ADC_CON_HOST_CONNECTED = 100;
 /** @} */
 
 

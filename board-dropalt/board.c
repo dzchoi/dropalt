@@ -1,7 +1,6 @@
 #include "board.h"
 #include "periph/gpio.h"
 #include "periph/wdt.h"
-#include "sr_exp.h"             // for sr_exp_init()
 
 
 
@@ -119,9 +118,6 @@ void board_init(void)
     wdt_setup_reboot(0u, WDT_TIMEOUT_MS);
     wdt_start();
 #endif
-
-    // Initialize Shift Register.
-    sr_exp_init();
 
     // Set GCLK_SOURCE_DFLL in USB recovery mode.
     // Todo: Check the DFLL status register to see if the DFLL is locked to the SOF_1KHZ

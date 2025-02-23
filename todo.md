@@ -3,9 +3,9 @@
   dfu-util: A valid DFU suffix will be required in a future dfu-util release!!!
   https://dfu-util.sourceforge.net/dfu-suffix.1.html
 
-* ztimer_acquire():
-  Make sure to call ztimer_acquire() before fetching the clock's current time.
-  Calling ztimer_acquire before using ztimer_now() is the preferred way to guarantee that a clock is continuously active. Make sure to call the corresponding ztimer_release after the last ztimer_now() call.
-  Make sure to call ztimer_acquire() before making use of ztimer_periodic_wakeup. After usage ztimer_release() should be called.
+* log_write()
+  Save logs that occur while dte is disconnected, and show them when connected.
+  Patch RIOT error handlers (assert and panic) to use LOG_ERROR() instead of printf().
+  Save the error logs (in backup RAM, not in NVM) to show them on reboot. Check during reboot if watchdog reset, memory bank switch reset, or if a special error-indicating flag is set.
 
 * Redefine Riot-independent #define constants using "static const" and "static inline".

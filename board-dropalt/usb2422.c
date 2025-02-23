@@ -121,7 +121,7 @@ void usbhub_disable_all_ports(void)
     ztimer_sleep(ZTIMER_USEC, 10);
 }
 
-void usbhub_set_host_port(uint8_t port)
+void usbhub_select_host_port(uint8_t port)
 {
     if ( port == USB_PORT_UNKNOWN )
         return;
@@ -148,7 +148,7 @@ void usbhub_set_host_port(uint8_t port)
     ztimer_sleep(ZTIMER_USEC, 10);
 }
 
-void usbhub_set_extra_port(uint8_t port, bool enable)
+void usbhub_enable_extra_port(uint8_t port, bool enable)
 {
     if ( port == USB_PORT_UNKNOWN )
         return;
