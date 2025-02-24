@@ -33,9 +33,9 @@ void main::init()
     m_instance.m_pthread = thread_get_active();
 
     // Create all threads in the order of dependency.
+    usb::init();        // Enable logging from now on.
     // rgb::init();
     usbhub::init();
-    usb::init();
     // keymap::init();
     // matrix::init();
 
