@@ -3,9 +3,15 @@
   dfu-util: A valid DFU suffix will be required in a future dfu-util release!!!
   https://dfu-util.sourceforge.net/dfu-suffix.1.html
 
-* log_write()
-  Save logs that occur while dte is disconnected, and show them when connected.
-  Patch RIOT error handlers (assert and panic) to use LOG_ERROR() instead of printf().
-  Save the error logs (in backup RAM, not in NVM) to show them on reboot. Check during reboot if watchdog reset, memory bank switch reset, or if a special error-indicating flag is set.
+* Allocate variables in .noinit section (NOINIT) unless initialization is necessary.
+
+* log_write
+  Show the saved log messages on reboot in cases of a watchdog reset, memory bank switch reset, or if a specific error-indicating flag is set.
+
+* Check max stack size.
+
+* Use likely(x) (== __builtin_expect((uintptr_t)(x), 1)) if appropriate.
 
 * Redefine Riot-independent #define constants using "static const" and "static inline".
+
+* Use MODULE_CORE_IDLE_THREAD to enable CPU sleep when idle.

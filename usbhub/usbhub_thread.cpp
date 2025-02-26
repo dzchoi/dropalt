@@ -14,8 +14,8 @@
 
 usbhub usbhub::m_instance;
 
-// THREAD_STACKSIZE_TINY is incompatible with printf().
-static char _thread_stack[THREAD_STACKSIZE_SMALL];
+// THREAD_STACKSIZE_SMALL is incompatible with printf().
+static char _thread_stack[THREAD_STACKSIZE_DEFAULT];
 
 void usbhub::init()
 {

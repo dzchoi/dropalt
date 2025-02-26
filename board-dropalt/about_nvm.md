@@ -123,6 +123,18 @@ SmartEEPROM은 각 BANKA/B에 각각 존재하는데 각 BANK마다 두 개의 v
 
 즉, BANK swapping을 위한 추가 영역 외에도 또 추가 영역이 별도로 있는 셈인데, 이는 bit가 0->1로 바뀔 때 full block erase가 필요한데 반대 편에 있는 (이미 erase된) SEES를 할당하여 사용하게 된다. 이 automatic reallocation를 통해 SmartEEPROM은 erase opration을 신경쓰지 않아도 된다.
 
+#### Backup RAM
+From riot/cpu/samd5x/Makefile.include,  
+BACKUP_RAM_ADDR = 0x47000000  
+BACKUP_RAM_LEN  = 0x2000
+
+From vectors_cortexm.c,  
+```
+#ifndef CPU_BACKUP_RAM_NOT_RETAINED
+#define CPU_BACKUP_RAM_NOT_RETAINED 0
+#endif
+```
+
 #### Hardfault example when jumping to nullptr.
 ```
 2023-06-03 20:50:54,761 # Context before hardfault:

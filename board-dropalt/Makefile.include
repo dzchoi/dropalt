@@ -17,6 +17,8 @@ NUM_SLOTS       = 2
 SLOT0_LEN       = 0x0001C000  # 112K = 256K/2 - 16K (bootloader)
 SLOT1_LEN       = 0x00020000  # 128K = 256K/2
 
+CFLAGS += -DBACKUP_RAM_LEN=$(BACKUP_RAM_LEN)  # 8K
+
 PROGRAMMERS_SUPPORTED += dfu-util
 
 include $(RIOTMAKE)/boards/sam0.inc.mk
