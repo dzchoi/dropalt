@@ -1,3 +1,4 @@
+#include "backup_ram.h"         // for backup_ram_init()
 #include "board.h"
 #include "periph/gpio.h"
 #include "periph/wdt.h"
@@ -89,6 +90,16 @@ static void _dfll_usbcrm_init(void)
     while ( OSCCTRL->DFLLSYNC.bit.ENABLE || !OSCCTRL->STATUS.bit.DFLLRDY ) {}
 }
 
+
+// RIOTBOOT is defined only when building the bootloader.
+#ifndef RIOTBOOT
+// Override the weak pre_startup() function in riot/cpu/cortexm_common/vectors_cortexm.c.
+// This function is called before cpu_init(), board_init() and kernel_init().
+void pre_startup(void)
+{
+    backup_ram_init();
+}
+#endif
 
 // Initialization flow:
 // reset_handler_default()

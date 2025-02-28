@@ -9,6 +9,7 @@ SUBMODULES = 1
 
 # The following submodules are defined:
 # dropalt_adc_get       # dropalt_adc_get replaces periph_adc.
+# dropalt_backup_ram	# Backup RAM
 # dropalt_is31fl3733    # is31fl3733 rgb led driver
 # dropalt_matrix        # keyboard matrix
 # dropalt_seeprom       # SmartEEPROM

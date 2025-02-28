@@ -1,5 +1,0 @@
-USEMODULE_INCLUDES_log_write := $(LAST_MAKEFILEDIR)
-USEMODULE_INCLUDES += $(USEMODULE_INCLUDES_log_write)
-
-INCLUDES += -I$(CURDIR)  # $(CURDIR) means the application directory.
-# LINKFLAGS += ...

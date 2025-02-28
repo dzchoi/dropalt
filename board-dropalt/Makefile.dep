@@ -20,6 +20,10 @@ endif
     FEATURES_REQUIRED += periph_flashpage
 # endif
 
+ifndef RIOTBOOT_BUILD
+USEMODULE += log_backup     # Use log_backup() for LOG_*() on riot functions.
+endif
+
 USEMODULE += ztimer
 USEMODULE += ztimer_msec
 USEMODULE += ztimer_usec

@@ -184,12 +184,12 @@ static const uint8_t DRIVER_ADDR[DRIVER_COUNT] = { 0x50, 0x5F };
 #endif
 
 
-// Constants from linker script
-//extern uint32_t _srom;
+// Labels from linker script (riot/cpu/cortexm_common/ldscripts/cortexm.ld)
 extern uint32_t _sfixed;
 extern uint32_t _lrom;
 extern uint32_t _erom;
-
+extern uint32_t _sheap1;
+extern uint32_t _eheap1;
 
 /**
  * @brief   Initiate a system reset request (SYSRESETREQ) to reset the MCU.

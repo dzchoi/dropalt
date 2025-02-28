@@ -52,7 +52,7 @@ USEMODULE += core_thread_flags
 
 # Subdirectory modules
 EXTERNAL_MODULE_DIRS += $(CURDIR)
-USEMODULE += log_write
+USEMODULE += log_backup
 USEMODULE += usbhub
 USEMODULE += usb
 
