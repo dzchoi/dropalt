@@ -27,7 +27,10 @@ EXTERNAL_BOARD_DIRS := $(CURDIR)/..
 BOARD := board-dropalt
 
 # RIOT modules
-USEMODULE += riotboot_usb_dfu
+FEATURES_REQUIRED += no_idle_thread
+FEATURES_REQUIRED += periph_pm
+USEMODULE += riotboot_flashwrite
+USEMODULE += usbus
 USEMODULE += ztimer
 USEMODULE += ztimer_msec
 USEMODULE += ztimer_usec
@@ -36,5 +39,9 @@ USEMODULE += ztimer_usec
 EXTERNAL_MODULE_DIRS += $(CURDIR)/..
 USEMODULE += dropalt_sr_595
 USEMODULE += dropalt_usb2422
+USEMODULE += dropalt_backup_ram
+
+# No CDC ACM connected
+LOG_LEVEL = LOG_NONE
 
 include $(RIOTBASE)/bootloaders/riotboot_common.mk

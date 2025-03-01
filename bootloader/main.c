@@ -10,7 +10,7 @@
 #include "sr_exp.h"             // for sr_exp_init()
 #include "thread.h"             // for thread_create(), sched_task_exit(), ...
 #include "usb/usbus.h"          // for usbus_init(), usbus_create(), ...
-#include "usb/usbus/dfu.h"      // for usbus_dfu_init(), ...
+#include "usb_dfu.h"            // for usbus_dfu_init(), ...
 #include "usb2422.h"            // for usbhub_*()
 #include "ztimer.h"             // for ztimer_init(), ztimer_periodic_wakeup(), ...
 
@@ -68,7 +68,7 @@ NORETURN static void* _main(void* arg)
     // Initialize ztimer before starting DFU mode.
     ztimer_init();
 
-    // Create and run the USB thread.
+    // Create and run the usbus thread.
     riotboot_usb_init();
 
     // Set up the USB2422 in the background.

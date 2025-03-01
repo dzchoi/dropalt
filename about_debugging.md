@@ -17,6 +17,14 @@ Should be compiled with '-g'.
 See [Get the compiler options from a compiled executable?](https://stackoverflow.com/a/65507874/10451825)  
 `arm-none-eabi-readelf --debug-dump=info ./*.elf |less`
 
+#### View logs in real-time
+``tio -mINLCRNL `ls -t /dev/ttyACM* |head -n1` ``  
+`while true; do cat /dev/ttyACMx 2>/dev/null; done`
+
+#### Retrieve logs in DFU mode
+`dfu-util -a0 -U filename`  
+However, `dfu-util -a0 -U >(less)` seems not supported yet.
+
 #### Handling Hardfault (vector_cortexm.c)
 ```
   cortex_vector_base[2]
@@ -53,6 +61,13 @@ See [Get the compiler options from a compiled executable?](https://stackoverflow
   -> core_panic()
 ```
 The address can be used with tools like `addr2line` (or e.g. `arm-none-eabi-addr2line` for ARM-based code), `objdump`, or `gdb` (with the command `info line *(0x89abcdef)`) to identify the line the assertion failed in.
+
+#### Conditional break point
+```
+static int count = 0;
+if ( ++count == 10 )
+    __asm__("bkpt #0");
+```
 
 #### DEVELHELP
 set `DEVELHELP = 1` in Makefile along with `CFLAGS += -DDEBUG_ASSERT_VERBOSE`.
@@ -91,7 +106,7 @@ Backtrace stopped: previous frame identical to this frame (corrupt stack?)
 (gdb) quit
 ```
 
-#### SCHED_TEST_STACK, DEBUG_EXTRA_STACKSIZE, DEBUG_BREAKPOINT(), PANIC_STACK_OVERFLOW
+#### SCHED_TEST_STACK, THREAD_CREATE_STACKTEST, DEBUG_EXTRA_STACKSIZE, DEBUG_BREAKPOINT(), PANIC_STACK_OVERFLOW
 
 #### Debugging switchover using CDC-ACM
 * Connect to the same host with both ports.
