@@ -1,4 +1,5 @@
 #include "assert.h"
+#include "cpu.h"                // for RSTC
 #include "log.h"
 #include "periph/wdt.h"         // for wdt_kick()
 #include "thread.h"             // for thread_get_active()
@@ -33,13 +34,19 @@ void main::init()
     m_instance.m_pthread = thread_get_active();
 
     // Create all threads in the order of dependency.
-    usb::init();        // printf() will now start, displaying on the host.
+    usb::init();        // printf() will now start to work, displaying on the host.
     // rgb::init();
     usbhub::init();
     // keymap::init();
     // matrix::init();
 
     // RGB_LED related code should be in rgb::init().
+
+    // Refer to riot/cpu/sam0_common/include/vendor/samd51/include/component/rstc.h
+    // for the meaning of each bit. For instance, 0x40 indicates a system reset.
+    // Resets other than a system reset or power reset are not expected, as they are
+    // caught by the bootloader.
+    LOG_DEBUG("Main: RSTC->RCAUSE.reg=0x%x\n", RSTC->RCAUSE.reg);
 
     // Temporary code for testing only CDC ACM.
     while ( !usbhub_is_active() ) { ztimer_sleep(ZTIMER_MSEC, 10); }
