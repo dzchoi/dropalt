@@ -2,6 +2,7 @@
 // upgrade (DFU) through the USB2422 hub.
 
 #include "board.h"              // for LED0_ON
+#include "compiler_hints.h"     // for UNREACHABLE()
 #include "cpu.h"                // for RSTC
 #include "panic.h"              // for core_panic_t
 #include "riotboot/bootloader_selection.h"  // for BTN_BOOTLOADER_PIN
@@ -101,8 +102,13 @@ void pre_startup(void)
     // If we are rebooting due to a system reset or power reset, jump to the application
     // in slot 0 if it is valid.
     if ( (RSTC->RCAUSE.bit.SYST != 0) || (RSTC->RCAUSE.bit.POR != 0) ) {
-        if ( riotboot_slot_validate(SLOT0) == 0 )
+        // The functions called here are only memory operations on NVM region, hence
+        // allowed at this early stage of booting. They do not execute log_write() since
+        // LOG_LEVEL = LOG_NONE, and assert() is disabled as NDEBUG = 1.
+        if ( riotboot_slot_validate(SLOT0) == 0 ) {
             riotboot_slot_jump(SLOT0);
+            UNREACHABLE();
+        }
     }
 
     // Any other resets, such as an external reset or watchdog reset, will stay in DFU

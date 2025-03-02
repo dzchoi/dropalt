@@ -1,7 +1,19 @@
 ## Riot bootloader
 We use `riotboot_dfu`, which supports USB Device Firmware Update (DFU) in addition to the slot selection booting. See https://api.riot-os.org/group__bootloader__riotboot.html
 
-It offers two slots (slot 0 and slot 1), allowing a binary to be flashed using `dfu-util`.
+It offers two slots (using `bAltenateSetting` in the USB Interface Descriptor) and implements the DFU protocol to allow flashing binaries into either slot with `dfu-util`.
+
+#### Booting sequence
+A power reset or system reset will immediately boot from slot 0. Any other reset, such as an external reset or watchdog reset, will enter the bootloader (DFU mode). However, a reset with the RIOTBOOT_MAGIC_NUMBER set at the end of RAM will enter the bootloader.
+
+Executing reboot_to_bootloader() from firmware will jump to the bootloader.
+
+#### Reset button
+The Drop Alt device appears to connect its Reset button to the ATSAMD51's RESETN pin instead of a dedicated GPIO pin (BTN0_PIN). See
+qmk_firmware/keyboards/massdrop/alt/config.h. An external reset can be triggered either by pressing this button or by running an application (`edbg -bt samd51 -x 10`).
+
+This also aligns with the Itsybitsy-m4 configuration. See
+https://learn.adafruit.com/introducing-adafruit-itsybitsy-m4/pinouts#other-pins-2991183.
 
 #### Memory layout
 ```
@@ -46,18 +58,6 @@ typedef struct {
   APP_VER should be an uint32_t number, which is `date +%s` by default (the current time expressed as the number of seconds since 1/1/1970 UTC.)
 * The chksum is computed over magic_number, version and start_addr in riotboot_hdr_t, using fletcher32().
 
-#### Reset button
-The Drop Alt device appears to connect its Reset button to the ATSAMD51's RESETN pin, rather than a dedicated GPIO pin (BTN0_PIN). See
-qmk_firmware/keyboards/massdrop/alt/config.h.
-
-This also aligns with the Itsybitsy-m4 configuration. See
-https://learn.adafruit.com/introducing-adafruit-itsybitsy-m4/pinouts#other-pins-2991183.
-
-#### Booting sequence
-A power reset or system reset will immediately boot from slot 0. Any other reset, such as an external reset or watchdog reset, will enter the bootloader (DFU mode). However, a reset with the RIOTBOOT_MAGIC_NUMBER set at the end of RAM will enter the bootloader.
-
-Executing reboot_to_bootloader() from firmware will jump to the bootloader.
-
 #### Serial number
 The factory serial number was originally encoded within the bootloader (mdloader) as e.g.
 `uint16_t[10] = u"1551771897"` at the address `*(uint32_t*)0x3ffc`.
@@ -70,9 +70,3 @@ The factory serial number was originally encoded within the bootloader (mdloader
 ```
 
 However, the product serial number is now encoded as `uint16_t[15] = u"..HMM.*"` in the USER page of the device at address `0x804020`. This serial number is visible in the iSerial field of the USB device descriptor.
-
-#### DFU protocol
-Make internally uses riot/makefiles/tools/dfu-util.inc.mk to invoke dfu-util.
-
-Q: Write to a specific memory bytes (like openocd's write_memory command)?  
-Q: Will it be possible to flash a bootloader without debugger?  

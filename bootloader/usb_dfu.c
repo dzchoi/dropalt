@@ -3,13 +3,12 @@
 #define USB_H_USER_IS_RIOT_INTERNAL
 
 #include "backup_ram.h"         // for backup_ram_read()
-#include "periph/pm.h"
+#include "board.h"              // for system_reset(), reboot_to_bootloader()
 #include "usb/dfu.h"
 #include "usb/descriptor.h"
 #include "usb/usbus.h"
 #include "usb/usbus/control.h"
 #include "usb_dfu.h"
-#include "riotboot/magic.h"
 #include "riotboot/slot.h"
 #include "riotboot/usb_dfu.h"
 #include "ztimer.h"
@@ -68,13 +67,15 @@ static const usbus_descr_gen_funcs_t _dfu_descriptor = {
     .len_type = USBUS_DESCR_LEN_FIXED,
 };
 
-static void _reboot(void* arg)
+static void reboot_now(void* to_bootloader)
 {
-    (void)arg;
-    pm_reboot();
+    if ( to_bootloader )
+        reboot_to_bootloader();
+    else
+        system_reset();
 }
 
-static ztimer_t scheduled_reboot = { .callback=_reboot };
+static ztimer_t scheduled_reboot = { .callback=reboot_now, .arg = NULL };
 
 void usbus_dfu_init(usbus_t* usbus, usbus_dfu_device_t* dfu, unsigned mode)
 {
@@ -144,10 +145,8 @@ static int dfu_class_control_req(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_se
         case DFU_DETACH:
             // Detach USB bus
             usbdev_set(usbus->dev, USBOPT_ATTACH, &disable, sizeof(usbopt_enable_t));
-
             // Restart and jump into the bootloader
-            *(uint32_t*)RIOTBOOT_MAGIC_ADDR = RIOTBOOT_MAGIC_NUMBER;
-            pm_reboot();
+            reboot_now((void*)true);
             break;
 
         case DFU_DOWNLOAD:
@@ -169,7 +168,7 @@ static int dfu_class_control_req(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_se
                 int ret = 0;
                 uint8_t* data = usbus_control_get_out_data(usbus, &len);
 
-                // skip writing the riotboot signature
+                // Skip writing the magic number ("RIOT") at the slot header.
                 if ( dfu->skip_signature ) {
                     // Avoid underflow condition
                     if ( len < RIOTBOOT_FLASHWRITE_SKIPLEN ) {
@@ -225,7 +224,8 @@ static int dfu_class_control_req(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_se
                 DEBUG("GET STATUS GO TO IDLE\n");
             }
             else if ( dfu->dfu_state == USB_DFU_STATE_DFU_MANIFEST_SYNC ) {
-                // Scheduled reboot, so we can answer back dfu-util before rebooting
+                // Download is finished. Schedule a reboot, so we can answer back to
+                // dfu-util before rebooting.
                 dfu->dfu_state = USB_DFU_STATE_DFU_DL_IDLE;
                 ztimer_set(ZTIMER_MSEC, &scheduled_reboot, 1000);
             }

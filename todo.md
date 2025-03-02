@@ -1,19 +1,4 @@
-* DFU suffix
-  dfu-util: Invalid DFU suffix signature
-  dfu-util: A valid DFU suffix will be required in a future dfu-util release!!!
-  https://dfu-util.sourceforge.net/dfu-suffix.1.html
-
-  `dfu-suffix -a -v <VendorID> -p <ProductID> -d <DeviceID> -s <SerialNumber> -i <FirmwareFile>` will add a DFU suffix to the firmware file. The DFU suffix is appended at the end of the firmware binary. The DFU suffix also includes the size of the firmware.
-
-  The DFU suffix typically contains the following information:
-  - Vendor ID (VID)
-  - Product ID (PID)
-  - Device ID (DID)
-  - Firmware length (size)
-  - DFU specification version
-  - DFU signature
-
-* Allocate variables in .noinit section (NOINIT) unless initialization is necessary.
+* Allocate variables in .noinit section (NOINIT) unless initialization is strictly necessary.
 
 * Check max stack size.
 
@@ -38,3 +23,9 @@
 
   include $(RIOTMAKE)/boards/sam0.inc.mk
   ```
+
+* Implement the firmware uploading feature
+  Currently, we can retrieve the logs stored in the device's NVM using the upload command of `dfu-util`. While uploading a firmware binary is not essential, it is still a nice feature to have. The implementation would be straightforward, but we need to determine the image size beforehand. This can be pre-written when generating a firmware image with the slot header included (`slot0.XXXX.bin`). We could consider extending riotboot_hdr_t in riot/sys/include/riotboot/hdr.h..."
+
+* Will it be possible to flash a bootloader without debugger?
+  Maybe we could utilize an intermediary bootloader to flash the final bootloader, using memory banks and switching them.

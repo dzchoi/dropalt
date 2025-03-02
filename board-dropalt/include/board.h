@@ -10,8 +10,10 @@
 
 #pragma once
 
+#include "compiler_hints.h"     // for NORETURN, UNREACHABLE()
 #include "cpu_conf.h"
 #include "periph/gpio.h"
+#include "riotboot/magic.h"     // for RIOTBOOT_MAGIC_ADDR, RIOTBOOT_MAGIC_NUMBER
 
 
 
@@ -194,21 +196,21 @@ extern uint32_t _eheap1;
 /**
  * @brief   Initiate a system reset request (SYSRESETREQ) to reset the MCU.
  */
-static inline void system_reset(void) { NVIC_SystemReset(); }
+NORETURN static inline void system_reset(void) { NVIC_SystemReset(); }
 
 
 /**
  * @brief   Reboot to the bootloader.
  */
-static inline void reboot_to_bootloader(void)
+NORETURN static inline void reboot_to_bootloader(void)
 {
-    // Cause a watchdog reset even if WDT is not set up.
-    MCLK->APBAMASK.bit.WDT_ = 1;
-    WDT->CLEAR.reg = 0;
+    *(uint32_t*)RIOTBOOT_MAGIC_ADDR = RIOTBOOT_MAGIC_NUMBER;
+    system_reset();
 
-    // Alternatively, RIOTBOOT_MAGIC_NUMBER can be used to jump to the bootloader.
-    // *(uint32_t*)RIOTBOOT_MAGIC_ADDR = RIOTBOOT_MAGIC_NUMBER;
-    // system_reset();
+    // Alternatively, we could cause a watchdog reset even if WDT is not set up.
+    // MCLK->APBAMASK.bit.WDT_ = 1;
+    // WDT->CLEAR.reg = 0;
+    // UNREACHABLE();
 }
 
 

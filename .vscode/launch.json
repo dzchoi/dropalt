@@ -33,6 +33,16 @@
                   "description": "set the default numeric base to 16" },
             ],
 
+            // The difference between `setupCommands` and `postRemoteConnectCommands` is
+            // that `setupCommands` are executed before loading the debug target, while
+            // `postRemoteConnectCommands` are executed after loading the debug target.
+            // See https://github.com/microsoft/vscode-docs/pull/6969
+            "postRemoteConnectCommands": [
+                { "text": "mon mww 0x2001FFFC 0x544f4952",
+                  // i.e. *(uint32_t*)RIOTBOOT_MAGIC_ADDR = RIOTBOOT_MAGIC_NUMBER
+                  "description": "Boot into the bootloader" },
+            ],
+
             // Debug console messages
             "logging": {
                 "moduleLoad": true,
