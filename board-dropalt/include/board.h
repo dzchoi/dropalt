@@ -190,8 +190,10 @@ static const uint8_t DRIVER_ADDR[DRIVER_COUNT] = { 0x50, 0x5F };
 extern uint32_t _sfixed;
 extern uint32_t _lrom;
 extern uint32_t _erom;
-extern uint32_t _sheap1;
-extern uint32_t _eheap1;
+
+// Consistent with the defintions in riot/sys/newlib_syscalls_default/syscalls.c
+extern char _sheap1;
+extern char _eheap1;
 
 /**
  * @brief   Initiate a system reset request (SYSRESETREQ) to reset the MCU.
