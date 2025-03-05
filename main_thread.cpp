@@ -1,4 +1,5 @@
 #include "assert.h"
+#include "board.h"              // for _sheap, _eheap
 #include "cpu.h"                // for RSTC
 #include "log.h"
 #include "periph/wdt.h"         // for wdt_kick()
@@ -29,7 +30,7 @@ extern "C" int main()
 // "class" is necessary here to distinguish the "main" class from main() function.
 class main main::m_instance;
 
-void main::init()
+NORETURN void main::init()
 {
     m_instance.m_pthread = thread_get_active();
 
@@ -47,6 +48,8 @@ void main::init()
     // Resets other than a system reset or power reset are not expected, as they are
     // caught by the bootloader.
     LOG_DEBUG("Main: RSTC->RCAUSE.reg=0x%x\n", RSTC->RCAUSE.reg);
+
+    LOG_DEBUG("Main: total heap size is %d bytes\n", &_eheap - &_sheap);
 
     // Temporary code for testing only CDC ACM.
     while ( !usbhub_is_active() ) { ztimer_sleep(ZTIMER_MSEC, 10); }

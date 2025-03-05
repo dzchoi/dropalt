@@ -3,7 +3,7 @@
 # Usage:
 #  - `make riotboot/slot0`: builds .build/board-dropalt/riotboot_files/slot0.$(APP_VER).bin
 #  - `make riotboot/flash-slot0`: builds it and flashes it to slot 0 using dfu-util.
-#  - `make PROGRAMMER=edgb riotboot/flash-slot0`
+#  - `make PROGRAMMER=edgb riotboot/flash-slot0`: uses the given programmer to flash.
 
 
 APPLICATION := dropalt-fw
@@ -27,10 +27,6 @@ BINDIRBASE ?= $(CURDIR)/.build
 EXTERNAL_BOARD_DIRS := $(CURDIR)
 BOARD := board-dropalt
 
-# The default ISR_STACKSIZE (=512 bytes) is not enough for LOG_ERROR() in
-# hard_fault_handler().
-CFLAGS += -DISR_STACKSIZE=THREAD_STACKSIZE_DEFAULT  # 1024
-
 # See https://github.com/cortexm/baremetal/blob/master/CMakeLists.txt
 # for compiler options for building ARM embedded system.
 CXXEXFLAGS += -std=c++17    # for C++ features such as inline (const) variables
@@ -39,7 +35,7 @@ CXXEXFLAGS += -fno-ms-extensions
 CXXEXFLAGS += -fno-rtti     # We don't need RTTI as no ambiguous base classes are used.
 CXXEXFLAGS += -fno-threadsafe-statics
 CXXEXFLAGS += -fno-use-cxa-atexit
-# INCLUDES += -I...
+# INCLUDES += -I$(CURDIR)
 
 # Peripherals and features to be used from the board.
 FEATURES_REQUIRED += cpp  # "cpp libstdcpp" ???
@@ -48,13 +44,20 @@ FEATURES_REQUIRED += riotboot
 # RIOT modules for the main thread
 USEMODULE += core_thread
 USEMODULE += core_thread_flags
-# USEMODULE += newlib_nano          # used by default
+# USEMODULE += newlib_nano          # selected by default in place of libstdcpp
 
 # Subdirectory modules
 EXTERNAL_MODULE_DIRS += $(CURDIR)
 USEMODULE += log_backup
 USEMODULE += usbhub
 USEMODULE += usb
+
+# Substitute newlib_nano's malloc() with tlsf_malloc() for global dynamic memory
+# allocation. This also applies to C++'s new operator, as implemented in the RIOT
+# cpp_new_delete module.
+USEPKG += tlsf
+USEMODULE += tlsf-malloc
+LINKFLAGS += -Wl,--allow-multiple-definition
 
 VERBOSE_ASSERT := 1
 # Enabling VERBOSE_ASSERT will set:
@@ -67,6 +70,6 @@ QUIET ?= 1
 LOG_LEVEL = LOG_DEBUG
 
 PROGRAMMER = dfu-util
-# PROGRAMMER = edbg  # uses EDBG (CMSIS-DAP) for flashing
+# PROGRAMMER = edbg  # Use EDBG (CMSIS-DAP) for flashing
 
 include $(RIOTBASE)/Makefile.include

@@ -2,6 +2,9 @@
 #include "board.h"
 #include "periph/gpio.h"
 #include "periph/wdt.h"
+#ifndef RIOTBOOT
+#include "tlsf-malloc.h"        // for tlsf_add_global_pool()
+#endif
 
 
 
@@ -93,11 +96,12 @@ static void _dfll_usbcrm_init(void)
 
 // RIOTBOOT is defined only when building the bootloader.
 #ifndef RIOTBOOT
-// Override the weak pre_startup() function in riot/cpu/cortexm_common/vectors_cortexm.c.
+// Override the weak post_startup() function in riot/cpu/cortexm_common/vectors_cortexm.c.
 // This function is called before cpu_init(), board_init() and kernel_init().
-void pre_startup(void)
+void post_startup(void)
 {
     backup_ram_init();
+    tlsf_add_global_pool(&_sheap, &_eheap - &_sheap);
 }
 #endif
 
