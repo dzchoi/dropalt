@@ -8,7 +8,7 @@
 
 APPLICATION := dropalt-fw
 
-FEATURES_HPP := features.hpp
+CONFIG_HPP := config.hpp
 
 # Version numbers encoded in USB device descriptor
 DEVICE_VER := 0x0060            # bcdDevice =  0.60 for the firmware
@@ -35,16 +35,16 @@ CXXEXFLAGS += -fno-ms-extensions
 CXXEXFLAGS += -fno-rtti     # We don't need RTTI as no ambiguous base classes are used.
 CXXEXFLAGS += -fno-threadsafe-statics
 CXXEXFLAGS += -fno-use-cxa-atexit
-# INCLUDES += -I$(CURDIR)
+INCLUDES += -I$(CURDIR)		# Propagate it as an #include directory to external modules.
 
 # Peripherals and features to be used from the board.
-FEATURES_REQUIRED += cpp  # "cpp libstdcpp" ???
+FEATURES_REQUIRED += cpp
 FEATURES_REQUIRED += riotboot
 
 # RIOT modules for the main thread
 USEMODULE += core_thread
 USEMODULE += core_thread_flags
-# USEMODULE += newlib_nano          # selected by default in place of libstdcpp
+# USEMODULE += newlib_nano          # selected by default instead of libstdcpp
 
 # Subdirectory modules
 EXTERNAL_MODULE_DIRS += $(CURDIR)

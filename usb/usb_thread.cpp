@@ -2,7 +2,7 @@
 #include "usbus_ext.h"          // for usbus_t, usbus_init(), usbus_create(), ...
 #include "thread.h"             // for thread_get()
 
-#include "features.hpp"         // for ENABLE_CDC_ACM
+#include "config.hpp"           // for ENABLE_CDC_ACM
 #include "usb_thread.hpp"
 
 

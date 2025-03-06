@@ -1,3 +1,8 @@
+#### CDC ACM
+The CDC ACM (Communications Device Class - Abstract Control Model) feature allows the keyboard to appear as a virtual serial port to the host computer, facilitating communication over USB with legacy serial terminals.
+
+You can monitor real-time logs from the keyboard using CDC ACM. For instance, you can use `cat /dev/ttyACMx` or `tio -mINLCRNL /dev/ttyACMx` on Linux. Set the ENABLE_CDC_ACM flag to true in config.hpp to enable CDC ACM feature. This feature is also essential for running Lua REPL on the keyboard.
+
 #### Using TLSF for dynamic memory allocation.
 
 The TLSF (Two-Level Segregated Fit) memory allocator is designed for real-time systems and embedded environments where predictable and efficient memory management is critical. Here are its key features:

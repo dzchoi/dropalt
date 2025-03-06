@@ -11,7 +11,7 @@
 #include "usb2422.h"            // for usbhub_is_active()
 
 #include "adc.hpp"              // for adc::v_5v, v_con1, v_con2
-#include "features.hpp"         // for ENABLE_CDC_ACM
+#include "config.hpp"           // for ENABLE_CDC_ACM
 #include "main_thread.hpp"
 #include "usb_thread.hpp"       // for usb::init()
 #include "usbhub_thread.hpp"    // for usbhub::init()

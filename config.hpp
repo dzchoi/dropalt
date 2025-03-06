@@ -1,4 +1,4 @@
-// User-configurable feature settings
+// Configurable user settings
 
 #pragma once
 

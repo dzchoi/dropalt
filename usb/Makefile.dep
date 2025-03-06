@@ -4,7 +4,7 @@ USEMODULE += usbus
 DISABLE_MODULE += usbus_hid         # We use our own implementation of usbus_hid,
 DISABLE_MODULE += auto_init_usbus   # and do not execute auto_init_usb().
 
-$(shell grep -q 'ENABLE_CDC_ACM = true' $(FEATURES_HPP))
+$(shell grep -q 'ENABLE_CDC_ACM = true' $(CONFIG_HPP))
 ifeq ($(.SHELLSTATUS),0)
     USEMODULE += stdio_cdc_acm      # Use CDC ACM as default STDIO.
 else

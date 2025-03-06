@@ -6,7 +6,7 @@
 
 #include <atomic>               // for std::atomic<>
 #include "event_ext.hpp"        // for event_ext_t
-#include "features.hpp"         // for RGB_GCR_CHANGE_PERIOD_MS, ...
+#include "config.hpp"            // for RGB_GCR_CHANGE_PERIOD_MS, ...
 
 
 
