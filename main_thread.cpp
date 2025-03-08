@@ -11,6 +11,7 @@
 #include "usb2422.h"            // for usbhub_is_active()
 
 #include "adc.hpp"              // for adc::v_5v, v_con1, v_con2
+#include "lua.hpp"              // for lua::init()
 #include "config.hpp"           // for ENABLE_CDC_ACM
 #include "main_thread.hpp"
 #include "usb_thread.hpp"       // for usb::init()
@@ -40,6 +41,7 @@ NORETURN void main::init()
     usbhub::init();
     // keymap::init();
     // matrix::init();
+    lua::init();
 
     // RGB_LED related code should be in rgb::init().
 
@@ -49,7 +51,7 @@ NORETURN void main::init()
     // caught by the bootloader.
     LOG_DEBUG("Main: RSTC->RCAUSE.reg=0x%x\n", RSTC->RCAUSE.reg);
 
-    LOG_DEBUG("Main: total heap size is %d bytes\n", &_eheap - &_sheap);
+    LOG_DEBUG("Main: max heap size is %d bytes\n", &_eheap - &_sheap);
 
     // Temporary code for testing only CDC ACM.
     while ( !usbhub_is_active() ) { ztimer_sleep(ZTIMER_MSEC, 10); }

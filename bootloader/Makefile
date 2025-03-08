@@ -26,6 +26,9 @@ BINDIRBASE ?= $(CURDIR)/.build
 EXTERNAL_BOARD_DIRS := $(CURDIR)/..
 BOARD := board-dropalt
 
+# Enable Link-Time-Optimization.
+LTO = 1
+
 # RIOT modules
 FEATURES_REQUIRED += no_idle_thread
 FEATURES_REQUIRED += periph_pm

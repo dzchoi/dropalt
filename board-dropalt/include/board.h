@@ -186,13 +186,21 @@ static const uint8_t DRIVER_ADDR[DRIVER_COUNT] = { 0x50, 0x5F };
 #endif
 
 
-// Labels from linker script (riot/cpu/cortexm_common/ldscripts/cortexm.ld)
+// Linker script labels from vectors_cortexm.c
 extern uint32_t _sfixed;
-extern uint32_t _lrom;
-extern uint32_t _erom;
+extern uint32_t _efixed;
+extern uint32_t _etext;
+extern uint32_t _srelocate;
+extern uint32_t _erelocate;
+extern uint32_t _szero;
+extern uint32_t _ezero;
+extern uint32_t _sstack;
+extern uint32_t _estack;
 extern uint8_t _sram;
-extern uint8_t _eram;   // aligned with vectors_cortexm.c
-extern char _sheap;     // aligned with newlib_syscalls_default/syscalls.c
+extern uint8_t _eram;
+
+// Linker script labels from sys/newlib_syscalls_default/syscalls.c
+extern char _sheap;
 extern char _eheap;     // end of RAM
 
 

@@ -11,6 +11,11 @@ The malloc() function is often utilized behind the scenes by various standard li
 
 By understanding that malloc() is used internally by these and other standard library functions, you can better anticipate and manage memory allocation in your applications.
 
+#### NUM_HEAPS
+The file riot/cpu/cortexm_common/Makefile.include sets `CFLAGS += -DCPU_HAS_BACKUP_RAM=1`. Additionally, riot/cpu/sam0_common/include/cpu_conf.h defines `#define NUM_HEAPS (2)`
+
+The _sbrk_r() function in riot/sys/newlib_syscalls_default/syscalls.c can allocate memory from these two non-contiguous heaps.
+
 #### _sbrk_r()
 The _sbrk_r() function is a reentrant version of the _sbrk() function, commonly used in embedded systems for dynamic memory allocation. It's part of the Newlib C library and often used with embedded operating systems like RIOT.
 

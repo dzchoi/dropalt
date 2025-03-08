@@ -1,29 +1,38 @@
+#### System reset
+$ openocd -f `f openocd.cfg` -c "reset; exit"
+
+#### Boot into bootloader
+$ `f edbg` -bt samd51 -x 10
+
 #### Dump symbols
-Useful to check for generating duplicate memories.  
-`arm-none-eabi-objdump -t *.elf | sort`
+Useful to check for generating duplicate memories:  
+$ arm-none-eabi-objdump -t *.elf | sort
 
-Sort the data size  
-`arm-none-eabi-nm --print-size --size-sort --radix=d *.elf`
+Sort the data size:  
+$ arm-none-eabi-nm --print-size --size-sort --radix=d *.elf
 
-#### Size of memory that a class instance occupies
+Size of memory that a class instance occupies:  
 Search for the variable name in .elf
 
 #### Disassemble
-Should be compiled with '-g'.  
-`arm-none-eabi-objdump -S cpu.o >cpu.s`
+$ arm-none-eabi-objdump -S cpu.o >cpu.s
+
+$ arm-none-eabi-objdump -d `f slot0.elf`|less
 
 #### Get compiler options
 Should be compiled with '-g'.
 See [Get the compiler options from a compiled executable?](https://stackoverflow.com/a/65507874/10451825)  
-`arm-none-eabi-readelf --debug-dump=info ./*.elf |less`
+$ arm-none-eabi-readelf --debug-dump=info ./*.elf |less
 
 #### View logs in real-time
-``tio -mINLCRNL `ls -t /dev/ttyACM* |head -n1` ``  
-`while true; do cat /dev/ttyACMx 2>/dev/null; done`
+$ tio -mINLCRNL `ls -t /dev/ttyACM* |head -n1`
+
+$ while true; do cat /dev/ttyACMx 2>/dev/null; done
 
 #### Retrieve logs in DFU mode
-`dfu-util -a0 -U filename`  
-However, `dfu-util -a0 -U >(less)` seems not supported yet.
+$ dfu-util -a0 -U filename
+
+However, `dfu-util -a0 -U >(less)` seems not supported (yet).
 
 #### Handling Hardfault (vector_cortexm.c)
 ```
@@ -72,6 +81,12 @@ if ( ++count == 10 )
 #### DEVELHELP
 set `DEVELHELP = 1` in Makefile along with `CFLAGS += -DDEBUG_ASSERT_VERBOSE`.
 
+#### SCHED_TEST_STACK, THREAD_CREATE_STACKTEST, DEBUG_EXTRA_STACKSIZE, DEBUG_BREAKPOINT(), PANIC_STACK_OVERFLOW
+
+#### Debugging switchover using CDC-ACM
+* Connect to the same host with both ports.
+* The same serial (e.g. /dev/ttyACM0) in the host can be used for CDC-ACM.
+
 #### Stack overflow
 * Use thread_measure_stack_free() for threads created with THREAD_CREATE_STACKTEST.
 * Use thread_stack_print() and thread_print_stack().
@@ -106,8 +121,32 @@ Backtrace stopped: previous frame identical to this frame (corrupt stack?)
 (gdb) quit
 ```
 
-#### SCHED_TEST_STACK, THREAD_CREATE_STACKTEST, DEBUG_EXTRA_STACKSIZE, DEBUG_BREAKPOINT(), PANIC_STACK_OVERFLOW
-
-#### Debugging switchover using CDC-ACM
-* Connect to the same host with both ports.
-* The same serial (e.g. /dev/ttyACM0) in the host can be used for CDC-ACM.
+#### Hardfault when jumping to nullptr.
+```
+2023-06-03 20:50:54,761 # Context before hardfault:
+2023-06-03 20:50:54,762 #    r0: 0x00000000
+2023-06-03 20:50:54,763 #    r1: 0x20000e40
+2023-06-03 20:50:54,764 #    r2: 0x00000001
+2023-06-03 20:50:54,765 #    r3: 0x00004c9d
+2023-06-03 20:50:54,766 #   r12: 0x00000022
+2023-06-03 20:50:54,767 #    lr: 0x000071b1
+2023-06-03 20:50:54,768 #    pc: 0x00000000
+2023-06-03 20:50:54,769 #   psr: 0x40000000
+2023-06-03 20:50:54,770 # 
+2023-06-03 20:50:54,770 # FSR/FAR:
+2023-06-03 20:50:54,771 #  CFSR: 0x00020000
+2023-06-03 20:50:54,772 #  HFSR: 0x40000000
+2023-06-03 20:50:54,772 #  DFSR: 0x00000000
+2023-06-03 20:50:54,773 #  AFSR: 0x00000000
+2023-06-03 20:50:54,773 # Misc
+2023-06-03 20:50:54,774 # EXC_RET: 0xfffffffd
+2023-06-03 20:50:54,775 # Active thread: 5 "keymap_thread"
+2023-06-03 20:50:54,776 # Attempting to reconstruct state for debugging...
+2023-06-03 20:50:54,776 # In GDB:
+2023-06-03 20:50:54,776 #   set $pc=0x0
+2023-06-03 20:50:54,777 #   frame 0
+2023-06-03 20:50:54,777 #   bt
+2023-06-03 20:50:54,778 # *** RIOT kernel panic (6): HARD FAULT HANDLER
+2023-06-03 20:50:54,779 # *** halted.
+2023-06-03 20:50:54,779 # Inside isr -13
+```

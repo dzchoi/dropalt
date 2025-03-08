@@ -1,19 +1,16 @@
-* How much memory is left for the heap?  
-  NUM_HEAPS should be 1 in riot/cpu/sam0_common/include/cpu_conf.h even though CPU_HAS_BACKUP_RAM is defined. See riot/sys/newlib_syscalls_default/syscalls.c.
-
-* Allocate variables in .noinit section (NOINIT) unless initialization is strictly necessary.
-
-* How to check the max stack size and the stack overflow?
-
-* Use likely(x) (== __builtin_expect((uintptr_t)(x), 1)) if appropriate.
+* How to check the max stack size and detect the stack overflow?
 
 * Redefine Riot-independent #define constants using "static const" and "static inline".
 
-* Use MODULE_CORE_IDLE_THREAD to enable CPU sleep when idle.
-
-* Main Makefile has `INCLUDES += -I$(CURDIR)` to save `INCLUDES += -I$(CURDIR)  # $(CURDIR) means the application directory.` from Makefile.include for each external module.
-
 * Use a namespace instead of a singleton class for definging each thread.
+
+* Configure the automatic switchover feature in config.hpp.
+
+* Tips
+  - typedef struct lua_State lua_State;
+  - CFLAGS from parent Makefile are inerited, but the changes here do not propagate back.
+  - Use likely(x) (== __builtin_expect((uintptr_t)(x), 1)) if appropriate.
+  - Allocate variables in ".noinit" section (NOINIT) unless initialization is strictly necessary.
 
 * SEEPROM
   ```
@@ -31,17 +28,18 @@
   include $(RIOTMAKE)/boards/sam0.inc.mk
   ```
 
+* Use MODULE_CORE_IDLE_THREAD to enable CPU sleep when idle.
+
 * Implement the firmware uploading feature
   Currently, we can retrieve the logs stored in the device's backup ram using the upload command of `dfu-util`. While also uploading a firmware binary is not essential, it is still a nice feature to have. The implementation would be straightforward, but we need to determine the image size beforehand. This can be pre-written when generating a firmware image with the slot header included (`slot0.XXXX.bin`). We could consider extending riotboot_hdr_t in riot/sys/include/riotboot/hdr.h..."
 
 * Will it be possible to flash a bootloader without debugger?
   Maybe we could utilize an intermediary bootloader to flash the final bootloader, using memory banks and switching them.
 
-* Tips
-  typedef struct lua_State lua_State;
-
 * Store a format string and its parameters for a log
   All parameters will be 4 bytes in size, except for doubles.
+
+* Where will be the UART pins?
 
 * Bootloader as a shared library
   The bootloader, rather than the firmware, could function as a shared library (.so) because it undergoes fewer changes. This shared library could potentially allocate a reset vector at address 0. Additionally, symbols exported from the bootloader might be able to resolve those in the firmware.

@@ -37,6 +37,9 @@ CXXEXFLAGS += -fno-threadsafe-statics
 CXXEXFLAGS += -fno-use-cxa-atexit
 INCLUDES += -I$(CURDIR)		# Propagate it as an #include directory to external modules.
 
+# Enable Link-Time-Optimization.
+LTO = 1
+
 # Peripherals and features to be used from the board.
 FEATURES_REQUIRED += cpp
 FEATURES_REQUIRED += riotboot
@@ -49,6 +52,7 @@ USEMODULE += core_thread_flags
 # Subdirectory modules
 EXTERNAL_MODULE_DIRS += $(CURDIR)
 USEMODULE += log_backup
+USEMODULE += lua_emb
 USEMODULE += usbhub
 USEMODULE += usb
 

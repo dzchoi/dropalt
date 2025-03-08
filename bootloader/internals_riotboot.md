@@ -15,14 +15,14 @@ qmk_firmware/keyboards/massdrop/alt/config.h. An external reset can be triggered
 This also aligns with the Itsybitsy-m4 configuration. See
 https://learn.adafruit.com/introducing-adafruit-itsybitsy-m4/pinouts#other-pins-2991183.
 
-#### Memory layout
+#### Flash memory layout
 ```
-|------------------------------- FLASH -------------------------------------|
-|----- RIOTBOOT_LEN ----|----------- RIOTBOOT_SLOT_SIZE (slot 0) -----------|
-                        |----- RIOTBOOT_HDR_LEN ------|
- ---------------------------------------------------------------------------
-|        riotboot       | riotboot_hdr_t + filler (0) |   RIOT firmware     |
- ---------------------------------------------------------------------------
+|----------------------------------- FLASH ------------------------------------------|
+|RIOTBOOT_LEN|    RIOTBOOT_SLOT_SIZE (slot 0)    |    RIOTBOOT_SLOT_SIZE (slot 1)    |
+             |RIOTBOOT_HDR_LEN|                  |RIOTBOOT_HDR_LEN|
+ ------------------------------------------------------------------------------------
+|  riotboot  | riotboot_hdr_t |     firmware     | riotboot_hdr_t |     firmware     |
+ ------------------------------------------------------------------------------------
 ```
 
 * From riot/cpu/cortexm_common/Makefile.include (for Cortex-m4f):  
@@ -70,3 +70,15 @@ The factory serial number was originally encoded within the bootloader (mdloader
 ```
 
 However, the product serial number is now encoded as `uint16_t[15] = u"..HMM.*"` in the USER page of the device at address `0x804020`. This serial number is visible in the iSerial field of the USB device descriptor.
+
+#### dfu-util
+See [DFU 1.1](https://www.usb.org/sites/default/files/DFU_1.1.pdf).
+
+`make riotboot/falsh-slot0` internally uses dfu-util via riot/makefiles/tools/dfu-util.inc.mk, and flashes slot0.XXXX.bin into the slot 0.
+
+`dfu-util` allows us to select the target slot number using the `-a` or `--alt` option. However, it only recognizes the slot number itself, without any knowledge of the slot's start address or size. These details are managed solely by the target device.
+
+`dfu-util` recognizes the optional DFU suffix, which is added at the end of the firmware image to verify that the firmware matches the device. This suffix includes information such as the Vendor ID, Product ID, Device ID, and more. It can be appended to the image file using the `dfu-suffix` tool. However, Riot does not incorporate the DFU suffix when generating firmware images.
+
+> dfu-util: Invalid DFU suffix signature  
+> dfu-util: A valid DFU suffix will be required in a future dfu-util release!!!
