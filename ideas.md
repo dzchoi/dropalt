@@ -12,6 +12,8 @@
   - Use likely(x) (== __builtin_expect((uintptr_t)(x), 1)) if appropriate.
   - Allocate variables in ".noinit" section (NOINIT) unless initialization is strictly necessary.
 
+* Binary size is also affected by .data section. Walk through those variables that initialize to non-zero values.
+
 * SEEPROM
   ```
   board-dropalt/Makefile.include:
