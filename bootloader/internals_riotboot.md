@@ -25,7 +25,7 @@ https://learn.adafruit.com/introducing-adafruit-itsybitsy-m4/pinouts#other-pins-
  ------------------------------------------------------------------------------------
 ```
 
-* From riot/cpu/cortexm_common/Makefile.include (for Cortex-m4f):  
+* From riot/cpu/cortexm_common/Makefile.include (for Cortex-M):  
   RIOTBOOT_LEN = 16K (0x4000)  
   RIOTBOOT_HDR_LEN = 1024 (0x400)
 

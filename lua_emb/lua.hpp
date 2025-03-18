@@ -6,24 +6,26 @@
 
 
 
-// Print an error message in printf() fashion, implicitly adding "remote:" at the
-// beginning and a newline at the end. The format doesn't need to be a literal string
-// if it is the only argument.
+// Output an error message in printf() fashion, automatically appending a newline
+// at the end. If the format is the only argument, it doesn't need to be a literal
+// string.
 #define l_message(format, ...) \
     _l_message ## __VA_OPT__(_v) (format __VA_OPT__(,) __VA_ARGS__)
 
-#define _l_message(s)  LOG_ERROR("remote: %s\n", (s))
-#define _l_message_v(format, ...)  LOG_ERROR("remote: " format "\n", __VA_ARGS__)
+#define _l_message(s)  LOG_ERROR("%s\n", (s))
+#define _l_message_v(format, ...)  LOG_ERROR(format "\n", __VA_ARGS__)
 
 
+
+struct lua_State;
 
 namespace lua {
 
 using status_t = int;
 
-void init();
+int luaopen_fw(lua_State* L);
 
-// bool signal_key_event(size_t index, bool is_press, uint32_t timeout_us);
+void init();
 
 // void repl_run();
 // void repl_quit();

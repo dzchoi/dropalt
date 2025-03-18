@@ -26,14 +26,8 @@ NUM_SLOTS       = 2
 SLOT0_LEN       = 0x0001C000  # 112K = 256K/2 - 16K (bootloader)
 SLOT1_LEN       = 0x00020000  # 128K = 256K/2
 
-# Size of both the initial stack (before creating any tasks) and the ISR stack
-# The default ISR_STACKSIZE (=512 bytes) is not enough for LOG_ERROR() in
-# hard_fault_handler().
-ifndef RIOTBOOT_BUILD
-CFLAGS += -DISR_STACKSIZE=1024
-endif
-
 CFLAGS += -DBACKUP_RAM_LEN=$(BACKUP_RAM_LEN)  # 8K
+CFLAGS += -DRIOTBOOT_HDR_LEN=$(RIOTBOOT_HDR_LEN)
 
 PROGRAMMERS_SUPPORTED += dfu-util
 

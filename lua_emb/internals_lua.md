@@ -34,6 +34,13 @@
   endif
   ```
 
+#### Modules
+
+* Standard libraries
+
+* "keymap" module
+  It executes in two ways. It executes entirely during power-up, i.e. when loading the module. And...
+
 #### Reducing binary size
 
 * Following the suggestion from [Lua Technical Note 2](https://www.lua.org/notes/ltn002.html) for optimizing the binary size.
@@ -57,9 +64,9 @@
 * Changing `require()` Behavior:
   > A C library statically linked to Lua can register its luaopen_ function into the preload table (`package.preload`), so that it will be called only when (and if) the user requires that module.
 
-  The `require()` function is modified to support only one searcher, the preload searcher, which is selected directly without using the package.searchers table. The package.preload table now includes two loaders: one for loading the Lua bytecode in flash memory (`require "keymap"`), and another for loading the "fw" module (`require "fw"`).
+  The `require()` function is customized to support only one searcher: the preload searcher, which is directly selected without utilizing the package.searchers table. The package.preload table exists but it's currently empty. Two modules ("keymap" and "fw") are already implemented in the firmware. These modules are preloaded using a simplified version of "require".
 
-  Note: The package library (lua_loadlib.c, which replaces loadlib.c) provides only the require() function and includes only the package.loaded and package.preload tables. It does not contain other tables such as package.searchers or package.cpath.
+  Note: The package library (lua_loadlib.c, which replaces loadlib.c) provides only the require() function and implements only the package.loaded and package.preload tables. It does not contain other tables such as package.searchers or package.cpath.
 
 * Difference between C modules and Lua modules
   - C modules (modules written in C) are loaded using `luaL_requiref()`. They have to provide an `luaopen_...` function, which will be called by luaL_requiref().
@@ -72,6 +79,15 @@
 
   - Lua modules (modules written in Lua) are loaded using `require()`.
     The entire module is executed to return the module table.
+
+  - How to put a custom loader into package.preload from C API:
+    ```
+    // Configure the preload table for the "keymap" module
+    lua_getfield(L, LUA_REGISTRYINDEX, LUA_PRELOAD_TABLE);
+    lua_pushcfunction(L, _custom_loader);
+    lua_setfield(L, 1, "custom_module");
+    lua_pop(L, 1);
+    ```
 
 * lua_run.c contains several C functions related to executing the Lua interpreter. However, as we set up our own interpreter execution environment, those functions are not used, including `lua_riot_do_buffer()` and `lua_riot_do_module()`. The only function used from lua_run.c is `lua_riot_newstate()`, which is for setting up tlsf_malloc().
 

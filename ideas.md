@@ -11,6 +11,7 @@
   - CFLAGS from parent Makefile are inerited, but the changes here do not propagate back.
   - Use likely(x) (== __builtin_expect((uintptr_t)(x), 1)) if appropriate.
   - Allocate variables in ".noinit" section (NOINIT) unless initialization is strictly necessary.
+  - Favor fputs() over printf() and puts() if possible to minimize code size.
 
 * Binary size is also affected by .data section. Walk through those variables that initialize to non-zero values.
 

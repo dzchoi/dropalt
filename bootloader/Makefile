@@ -4,12 +4,8 @@
 #  - `make`: builds .build/board-dropalt/dropalt-boot.bin
 #  - `make flash`: also flashes it using EDBG (CMSIS-DAP)
 
-# Note:
-#  - 16KB is the bootloader size.
-#  - `make flash` does not alter the slot header of slot 0 or slot 1. Flashing a binary
-#    will do.
-#  - `make flash` triggers an external reset through EDBG after flashing, which causes
-#    the device to enter DFU mode.
+# Note: `make flash` triggers an external reset through EDBG after flashing, which
+# causes the device to remain in DFU mode.
 
 
 APPLICATION := dropalt-boot

@@ -63,10 +63,27 @@ USEPKG += tlsf
 USEMODULE += tlsf-malloc
 LINKFLAGS += -Wl,--allow-multiple-definition
 
+# Size of both the initial stack (before creating any tasks) and the ISR stack.
+# The default ISR_STACKSIZE (=512 bytes) may not be enough for LOG_ERROR() in
+# hard_fault_handler().
+CFLAGS += -DISR_STACKSIZE=1024
+
+# As to the stack, each C API function called from Lua operates on the main thread's
+# stack. While these functions are assigned their own virtual stack, it is only used
+# for passing arguments to and returning results from them. The good news is, as these
+# functions execute "flat" (without nesting) within the Lua VM, we only need to
+# consider the most resource-intensive call, typically the printf() function.
+CFLAGS += -DTHREAD_STACKSIZE_MAIN=2048
+
 VERBOSE_ASSERT := 1
 # Enabling VERBOSE_ASSERT will set:
 #  - DEVELHELP := 1                    # Enable assert() and SCHED_TEST_STACK.
-#  - CFLAGS += -DDEBUG_ASSERT_VERBOSE  # assert() will print the filename and line number.
+#  - CFLAGS += -DDEBUG_ASSERT_VERBOSE  # assert() will print the filename and line #.
+
+# Trigger a watchdog fault on an assert failure, rather than only halting the current
+# thread.
+CFLAGS += -DDEBUG_ASSERT_NO_PANIC=0
+
 QUIET ?= 1
 
 # LOG_LEVEL = LOG_INFO by default, which filters out LOG_DEBUG.
