@@ -83,14 +83,12 @@ extern "C" {
     #define PRODUCT_ID          0xEED3
     #define MANUFACTURER        "Massdrop"
     #define PRODUCT             "Drop ALT (bootloader)"
-    #define SAME_SERIAL         "same as in Drop Hub"
 #else
     // USB keyboard descriptor parameters
     #define VENDOR_ID           0x04D8
     #define PRODUCT_ID          0xEED3
     #define MANUFACTURER        "Massdrop"
     #define PRODUCT             "Drop ALT"
-    #define SAME_SERIAL         "same as in Drop Hub"
 #endif
 
 // USB HUB descriptor parameters
@@ -98,7 +96,6 @@ extern "C" {
 #define HUB_PRODUCT_ID      0xEEC5
 #define HUB_MANUFACTURER    "Massdrop"
 #define HUB_PRODUCT         "Drop Hub"
-#define HUB_NO_SERIAL       "Unavailable"   // to be used when not factory-programmed
 
 // USB keyboard descriptor parameters for RIOT (USB 2.0 spec table 9-8)
 #define CONFIG_USB_SPEC_BCDVERSION_2_0      1       // bcdUSB == 0x0200
@@ -108,7 +105,7 @@ extern "C" {
 #define CONFIG_USB_PRODUCT_BCDVERSION  DEVICE_VER   // bcdDevice (not used by RIOT)
 #define CONFIG_USB_MANUF_STR           MANUFACTURER // iManufacturer
 #define CONFIG_USB_PRODUCT_STR         PRODUCT      // iProduct
-#define CONFIG_USB_SERIAL_STR          SAME_SERIAL  // iSerialNumber
+#define CONFIG_USB_SERIAL_STR          get_product_serial()  // iSerialNumber
 
 // USB configuration descriptor (USB 2.0 spec table 9-10)
 #define CONFIG_USB_MAX_POWER            300  // bMaxPower (300 mA.)
@@ -247,10 +244,10 @@ static inline void ztimer_irq_enable(void)
  * @brief   Retrieve the product serial number "..HMM.*" in the USER page of the device.
  *          Return NULL if not found.
  */
-static inline const uint16_t* retrieve_factory_serial(void)
+static inline const char* get_product_serial(void)
 {
-    const uint16_t* p = (uint16_t*)(NVMCTRL_USER + sizeof(nvm_user_page_t));
-    return *p == 0xFFFFu ? NULL : p;
+    const char* p = (char*)sam0_flashpage_aux_get(0);
+    return *p == '\xff' ? NULL : p;
 }
 
 

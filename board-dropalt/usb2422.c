@@ -1,4 +1,4 @@
-#include "board.h"                  // for HUB_*, retrieve_factory_serial(), ...
+#include "board.h"                  // for HUB_*, get_product_serial(), ...
 #include "periph/i2c.h"
 #include "_usb2422_t.h"             // for struct Usb2422
 #include "usb2422.h"
@@ -21,10 +21,10 @@ static Usb2422 usb2422_cfg = {
     .HCMCB.reg = 0,                     // 0 mA
     .MFRSL.reg = sizeof(HUB_MANUFACTURER) - 1,  // exclude the trailing '\0'
     .PRDSL.reg = sizeof(HUB_PRODUCT) - 1,
-    .SERSL.reg = sizeof(HUB_NO_SERIAL) - 1,
+    .SERSL.reg = 0,
     .MFRSTR = u"" HUB_MANUFACTURER,     // in utf-16 format
     .PRDSTR = u"" HUB_PRODUCT,
-    .SERSTR = u"" HUB_NO_SERIAL,
+    .SERSTR = u"",
     // .BOOSTUP.bit.BOOST = 3,          // upstream port
     // .BOOSTDOWN.bit.BOOST1 = 0,       // extra port
     // .BOOSTDOWN.bit.BOOST2 = 2,       // MCU is close
@@ -86,15 +86,14 @@ void usbhub_init(void)
     // connect signal
     sr_exp_writedata(SR_CTRL_HUB_CONNECT, 0);
 
-    // Prepare the HUB configuration data
-    const uint16_t* serial_str = retrieve_factory_serial();
+    // Prepare the iSerialNumber.
+    const char* serial_str = get_product_serial();
     if ( serial_str != NULL ) {
-        size_t serial_len = 0;
-        while ( serial_str[serial_len] != 0u
-          && serial_len < sizeof(usb2422_cfg)/sizeof(uint16_t) )
-            serial_len++;
-        usb2422_cfg.SERSL.reg = serial_len;
-        __builtin_memcpy(usb2422_cfg.SERSTR, serial_str, serial_len * sizeof(uint16_t));
+        unsigned n = 0;
+        for ( ; serial_str[n]
+          && n < sizeof(usb2422_cfg.SERSTR)/sizeof(usb2422_cfg.SERSTR[0]) ; ++n )
+            usb2422_cfg.SERSTR[n] = (uint16_t)serial_str[n];
+        usb2422_cfg.SERSL.reg = n;
     }
 
     // When keyboard is powered up by manually plugging into the host USB port

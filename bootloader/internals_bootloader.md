@@ -58,19 +58,6 @@ typedef struct {
   APP_VER should be an uint32_t number, which is `date +%s` by default (the current time expressed as the number of seconds since 1/1/1970 UTC.)
 * The chksum is computed over magic_number, version and start_addr in riotboot_hdr_t, using fletcher32().
 
-#### Serial number
-The factory serial number was originally encoded within the bootloader (mdloader) as e.g.
-`uint16_t[10] = u"1551771897"` at the address `*(uint32_t*)0x3ffc`.
-
-```
-00002480: 0001 0000 3100 3500 3500 3100 3700 3700  ....1.5.5.1.7.7.
-00002490: 3100 3800 3900 3700 2000 2000 2000 2000  1.8.9.7. . . . .
-
-00003ff0: ffff ffff ffff ffff ffff ffff 8424 0000
-```
-
-However, the product serial number is now encoded as `uint16_t[15] = u"..HMM.*"` in the USER page of the device at address `0x804020`. This serial number is visible in the iSerial field of the USB device descriptor.
-
 #### dfu-util
 See [DFU 1.1](https://www.usb.org/sites/default/files/DFU_1.1.pdf).
 

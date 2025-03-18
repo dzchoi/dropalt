@@ -118,6 +118,38 @@ STATUS.READY will be 0 until programming is complete, and access through the AHB
 #### Write lock
 After programming the NVM main array, the region that the page resides in can be locked to prevent spurious write or erase sequences. Locking is performed on a per-region basis, and so locking a region locks all pages inside the region.
 
+#### Serial number
+The factory serial number was originally encoded within the bootloader (mdloader) as e.g.
+`uint16_t[10] = u"1551771897"` at the address `*(uint32_t*)0x3ffc`.
+
+```
+00002480: 0001 0000 3100 3500 3500 3100 3700 3700  ....1.5.5.1.7.7.
+00002490: 3100 3800 3900 3700 2000 2000 2000 2000  1.8.9.7. . . . .
+
+00003ff0: ffff ffff ffff ffff ffff ffff 8424 0000
+```
+
+However, the product serial number (`..HMM.*`) is now stored as an `uint8_t[16]` array in the USER page of the device at address 0x804020. If the string length is less than 16, it can be null-terminated. This serial number is displayed in the iSerial field of the USB device descriptor.
+
+* Max size
+Under the USB protocol, the maximum string size is 126 characters in UTF-16 format, and the string does not require null-termination. However, in `struct Usb2422`, the size is further restricted to 31 characters, defined as `uint16_t SERSTR[31];`.
+
+* Updating the USER page (updated openocd for `atsame5 userpage` required)
+  ```
+  openocd -f `f openocd.cfg` -c "atsame5 userpage > user_row.bin; exit"
+  echo -en "15HMMKAG010321\0" | dd of=user_row.bin bs=1 seek=$((0x20)) conv=notrunc
+  openocd -f `f openocd.cfg` -c "atsame5 userpage < user_row.bin; reset; exit"
+  ```
+
+  You can additionally modify a binary file using `xxd` in vim:
+  ```
+  : set noeol binary
+  : %!xxd
+  <Edit it!>
+  : %!xxd -r
+  : w
+  ```
+
 #### SmartEEPROM
 SmartEEPROM은 각 BANKA/B에 각각 존재하는데 각 BANK마다 두 개의 virtual sector (SEES)가 있다.
 
