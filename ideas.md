@@ -6,8 +6,6 @@
 
 * Configure the automatic switchover feature in config.hpp.
 
-* Code LOG_ERROR("xxx") as fputs("\e[0;31m" "xxx" "\e[0m" "\n") that won't disrupt the texts displayed from dalua.
-
 * Fix: "CDCACM: line coding not supported".
 
 * Tips

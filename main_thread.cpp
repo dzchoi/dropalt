@@ -109,12 +109,12 @@ NORETURN void* main_thread::_thread_entry(void*)
                 | FLAG_TIMEOUT );
 
             if ( flags & FLAG_DTE_ENABLED )
-                LOG_DEBUG("Main: DTE enabled\n");
+                LOG_INFO("Main: DTE enabled\n");
 
             if ( flags & FLAG_DTE_DISABLED ) {
                 timed_stdin::disable();
                 lua::repl::stop(L);
-                LOG_DEBUG("Main: DTE disabled\n");
+                LOG_INFO("Main: DTE disabled\n");
             }
 
             if ( flags & FLAG_DTE_READY ) {
