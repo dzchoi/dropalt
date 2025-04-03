@@ -33,12 +33,24 @@ The keymap module interacts with the firmware to catch key events, execute Lua f
 
 The Lua script is dowloaded to slot **1** separately from the firmware. For the purposes of efficiency and performance, the script is downloaded as compiled bytecode rather than plain text. For detailed instructions on writing a keymap module, compiling and downloading, refer to lua_emb/keymap.lua.
 
-This feature does not require CDC ACM.
+Note: This feature is integrated independently of CDC ACM.
 
 #### Lua REPL (Read-Eval-Print-Loop)
-This feature requires CDC ACM.
+The Lua interpreter is also accessible via the Lua REPL using the dedicated serial terminal, `dalua`, which enables immediate execution of typed Lua code.
+```
+$ dalua
+Connected to /dev/serial/by-id/usb-Massdrop_Drop_ALT_15HMMKAG010321-if00
+Lua 5.3.6  Copyright (C) 1994-2020 Lua.org, PUC-Rio
+> print "Hello, World."
+Hello, World.
+> fw = require "fw"
+> fw.led0(1)
+> 
+```
 
-TBD: Use `luada` to run Lua Repl on the keyboard.
+As can be seen, the "fw" module is accessible through the REPL, which allows direct interaction with certain firmware functions. This functionality can be utilized to configure various settings on the keyboard.
+
+Note: This feature depends on CDC ACM.
 
 #### Using TLSF for dynamic memory allocation.
 

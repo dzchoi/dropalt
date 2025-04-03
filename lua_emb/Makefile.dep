@@ -7,3 +7,10 @@ USEMODULE += lua-contrib_noparser
 
 USEMODULE += log_backup
 USEMODULE += riotboot_slot  # for using riotboot_slot_*()
+USEMODULE += ztimer
+USEMODULE += ztimer_msec
+
+$(shell grep -q 'ENABLE_LUA_REPL = true' $(CONFIG_HPP))
+ifeq ($(.SHELLSTATUS),0)
+    USEMODULE += lua_repl
+endif

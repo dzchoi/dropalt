@@ -10,8 +10,14 @@
 // The ENABLE_* constant here will activate or deactivate the corresponding feature in
 // the source code at compile-time, for example, using if constexpr (ENABLE_CDC_ACM).
 
-// Serial over USB (CDC_ACM)
+// Serial over USB (CDC_ACM), enabling the stdout.
 constexpr bool ENABLE_CDC_ACM = true;
+
+// Enable Lua REPL and also enable the stdin.
+constexpr bool ENABLE_LUA_REPL = true;
+
+// ENABLE_LUA_REPL requires ENABLE_CDC_ACM.
+static_assert( !ENABLE_LUA_REPL || ENABLE_CDC_ACM );
 
 // If false, power to the extra port will be cut off during USB suspend.
 constexpr bool KEEP_CHARGING_EXTRA_DEVICE_DURING_SUSPEND = true;

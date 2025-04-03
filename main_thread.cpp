@@ -1,7 +1,7 @@
 #include "assert.h"
 #include "board.h"              // for _sheap, _eheap
 #include "cpu.h"                // for RSTC
-#include "log.h"
+#include "log.h"                // for set_log_mask()
 #include "periph/wdt.h"         // for wdt_kick()
 #include "thread.h"             // for thread_get_active()
 #include "thread_flags.h"       // for thread_flags_set(), thread_flags_wait_any()
@@ -12,8 +12,10 @@
 
 #include "adc.hpp"              // for adc::v_5v, v_con1, v_con2
 #include "lua.hpp"              // for lua::init()
-#include "config.hpp"           // for ENABLE_CDC_ACM
+#include "config.hpp"           // for ENABLE_CDC_ACM, ENABLE_LUA_REPL
 #include "main_thread.hpp"
+#include "repl.hpp"             // for lua::repl::init(), ...
+#include "timed_stdin.hpp"      // for timed_stdin::wait_for_input(), ...
 #include "usb_thread.hpp"       // for usb::init()
 #include "usbhub_thread.hpp"    // for usbhub::init()
 
@@ -23,17 +25,16 @@
 // See kernel_init() for more information.
 extern "C" int main()
 {
-    main::init();
+    main_thread::init();
 }
 
 
 
-// "class" is necessary here to distinguish the "main" class from main() function.
-class main main::m_instance;
+thread_t* main_thread::m_pthread;
 
-NORETURN void main::init()
+NORETURN void main_thread::init()
 {
-    m_instance.m_pthread = thread_get_active();
+    m_pthread = thread_get_active();
 
     // Create all threads in the order of dependency.
     usb::init();        // printf() will now start to work, displaying on the host.
@@ -41,7 +42,6 @@ NORETURN void main::init()
     usbhub::init();
     // keymap::init();
     // matrix::init();
-    lua::init();
 
     // RGB_LED related code should be in rgb::init().
 
@@ -57,31 +57,39 @@ NORETURN void main::init()
     while ( !usbhub_is_active() ) { ztimer_sleep(ZTIMER_MSEC, 10); }
     usbhub::thread().signal_usb_resume();
 
-    // m_show_previous_logs = persistent::has_log();
-
     // Instead of creating a new thread, use the already existing "main" thread.
-    (void)_thread_entry(&m_instance);
+    (void)_thread_entry(nullptr);
 }
 
-void main::set_thread_flags(thread_flags_t flags)
+void main_thread::set_thread_flags(thread_flags_t flags)
 {
     thread_flags_set(m_pthread, flags);
-    // if constexpr ( LUA_REPL_ENABLE )
-    //     stdio_stop_read();
+    if constexpr ( ENABLE_LUA_REPL )
+        timed_stdin::stop_read();
 }
 
-void main::signal_dte_state(bool dte_enabled)
+void main_thread::signal_dte_state(bool dte_enabled)
 {
     if constexpr ( ENABLE_CDC_ACM )
         set_thread_flags(dte_enabled ? FLAG_DTE_ENABLED : FLAG_DTE_DISABLED);
-    else
-        assert( false );
+    if constexpr ( ENABLE_LUA_REPL ) {
+        if ( !dte_enabled )
+            set_log_mask(0xff);  // Enable all logs when DTE is disconnected.
+    }
 }
 
-NORETURN void* main::_thread_entry(void* arg)
+void main_thread::signal_dte_ready(uint8_t log_mask)
 {
-    main* const that = static_cast<main*>(arg);
-    (void)that;
+    if constexpr ( ENABLE_LUA_REPL ) {
+        set_thread_flags(FLAG_DTE_READY);
+        set_log_mask(log_mask);
+    }
+}
+
+NORETURN void* main_thread::_thread_entry(void*)
+{
+    // Lua keymap script and REPL will operate on the common lua State.
+    lua_State* L = lua::init();
 
     thread_flags_t flags;
     while ( true ) {
@@ -89,20 +97,62 @@ NORETURN void* main::_thread_entry(void* arg)
         // within the watchdog timeout, the system will trigger a watchdog reset.
         wdt_kick();
 
-        // Set up wake-up time before going to sleep.
-        ztimer_t heartbeat;
-        ztimer_set_timeout_flag(ZTIMER_MSEC, &heartbeat, HEARTBEAT_PERIOD_MS);
+        if constexpr ( ENABLE_LUA_REPL ) {
+            bool has_input = timed_stdin::wait_for_input(HEARTBEAT_PERIOD_MS);  // Zzz
 
-        flags = thread_flags_wait_any(  // Zzz
-            FLAG_USB_RESET
-            | FLAG_USB_RESUME
-            | FLAG_TIMEOUT );
+            flags = thread_flags_clear(
+                FLAG_USB_RESET
+                | FLAG_USB_RESUME
+                | FLAG_DTE_DISABLED
+                | FLAG_DTE_ENABLED
+                | FLAG_DTE_READY
+                | FLAG_TIMEOUT );
 
-        // if ( m_show_previous_logs && (flags & FLAG_USB_RESUME) ) {
-        //     // Use LOG_INFO instead of LOG_ERROR to not add duplicate logs.
-        //     LOG_INFO(persistent::get_log());
-        //     m_show_previous_logs = false;
-        // }
+            if ( flags & FLAG_DTE_ENABLED )
+                LOG_DEBUG("Main: DTE enabled\n");
+
+            if ( flags & FLAG_DTE_DISABLED ) {
+                timed_stdin::disable();
+                lua::repl::stop(L);
+                LOG_DEBUG("Main: DTE disabled\n");
+            }
+
+            if ( flags & FLAG_DTE_READY ) {
+                lua::repl::init(L);
+                timed_stdin::enable();
+                LOG_DEBUG("Main: DTE ready (0x%x)\n", get_log_mask());
+            }
+
+            // Process key events here before executing REPL.
+
+            if ( has_input )
+                lua::repl::execute(L);
+        }
+
+        else {
+            // Set up wake-up time before going to sleep.
+            ztimer_t heartbeat;
+            ztimer_set_timeout_flag(ZTIMER_MSEC, &heartbeat, HEARTBEAT_PERIOD_MS);
+
+            flags = thread_flags_wait_any(  // Zzz
+                FLAG_USB_RESET
+                | FLAG_USB_RESUME
+                | FLAG_DTE_DISABLED
+                | FLAG_DTE_ENABLED
+                | FLAG_DTE_READY
+                | FLAG_TIMEOUT );
+
+            if constexpr ( ENABLE_CDC_ACM ) {
+                if ( flags & FLAG_DTE_ENABLED )
+                    LOG_DEBUG("Main: DTE enabled\n");
+
+                if ( flags & FLAG_DTE_DISABLED )
+                    LOG_DEBUG("Main: DTE disabled\n");
+            }
+
+            // Do not process FLAG_DTE_READY when ENABLE_LUA_REPL is false. The stdin
+            // remains permanently disabled.
+        }
 
         if ( flags & FLAG_TIMEOUT ) {
             LOG_DEBUG("Main: v_5v=%d v_con1=%d v_con2=%d @%ld\n",

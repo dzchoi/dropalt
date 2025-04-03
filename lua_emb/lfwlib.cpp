@@ -7,6 +7,7 @@ extern "C" {
 }
 
 #include "board.h"              // for fw_system_reset(), ...
+#include "log.h"                // for set_log_mask()
 
 #include "lua.hpp"
 
@@ -42,11 +43,20 @@ static int fw_led0(lua_State* L)
     return 0;
 }
 
+// fw.set_log_mask(int mask) -> void
+static int fw_set_log_mask(lua_State* L)
+{
+    int mask = lua_tointeger(L, 1);
+    set_log_mask((uint8_t)mask);
+    return 0;
+}
+
 int luaopen_fw(lua_State* L)
 {
     static constexpr luaL_Reg fw_lib[] = {
         { "led0", fw_led0 },
         { "reboot_to_bootloader", fw_reboot_to_bootloader },
+        { "set_log_mask", fw_set_log_mask },
         { "system_reset", fw_system_reset },
         { NULL, NULL }
     };

@@ -1,7 +1,4 @@
-#include <stdio.h>              // for fputs()
-
 #include "assert.h"
-#include "compiler_hints.h"     // for unlikely()
 
 extern "C" {
 #include "lua_run.h"            // include "lua.h" besides lua_riot_newstate()
@@ -10,7 +7,7 @@ extern "C" {
 }
 
 #include "lua.hpp"
-#include "riotboot/slot.h"      // for riotboot_slot_validate(), ...
+#include "keymap.hpp"           // for keymap::load_keymap()
 
 
 
@@ -18,12 +15,8 @@ namespace lua {
 
 static constexpr size_t LUA_MEM_SIZE = 100 *1024;
 
-static uint8_t lua_memory[LUA_MEM_SIZE] __attribute__((section(".noinit")));
-
-// Lua keymap script and Lua Repl will share the same lua State.
-static lua_State* L;
-
-
+static uint8_t lua_memory[LUA_MEM_SIZE]
+    __attribute__((section(".noinit"), aligned(sizeof(uint32_t))));
 
 // Lua panic function invoked when an error occurs outside a protected environment.
 static int _panic(lua_State* L)
@@ -32,66 +25,13 @@ static int _panic(lua_State* L)
     return 0;
 }
 
-constexpr unsigned SLOT1 = 1;
+// Exported from lfwlib.cpp
+extern int luaopen_fw(lua_State* L);
 
-// Note that SLOT1_LEN, SLOT1_OFFSET and RIOTBOOT_HDR_LEN are given from Makefiles.
-// See riot/sys/riotboot/Makefile.include and board-dropalt/Makefile.include.
-constexpr uintptr_t SLOT1_IMAGE_OFFSET = (uintptr_t)SLOT1_OFFSET + RIOTBOOT_HDR_LEN;
-
-const char* _reader(lua_State*, void* pdata, size_t* psize)
+lua_State* init()
 {
-    bool& has_read = *(bool*)pdata;
-    if ( unlikely(has_read) )
-        return nullptr;
-
-    has_read = true;
-    *psize = riotboot_slot_get_hdr(SLOT1)->start_addr;
-    constexpr size_t SLOT1_IMAGE_SIZE = SLOT1_LEN - RIOTBOOT_HDR_LEN;
-    assert( *psize > 0 && *psize <= SLOT1_IMAGE_SIZE );
-    // OR we could return all of slot 1 for reading. Lua would read only the compiled
-    // code within it.
-    // *psize = SLOT1_IMAGE_SIZE;
-
-    return (const char*)SLOT1_IMAGE_OFFSET;
-}
-
-// ( -- )
-static status_t load_keymap(lua_State* L)
-{
-    // Verify the validity of the slot header in slot 1.
-    constexpr unsigned SLOT1 = 1;
-    assert( riotboot_slot_validate(SLOT1) == 0 );
-
-    // Verify that the image is a valid Lua bytecode.
-    constexpr union {
-        char str[5];
-        uint32_t num;
-    } signature = { LUA_SIGNATURE };
-    assert( *(const uint32_t*)SLOT1_IMAGE_OFFSET == signature.num );
-
-    bool has_read = false;
-    // We pass a null chunkname argument to lua_load(). In this case, Lua will
-    // assign the default value "=(load)" to the chunkname.
-    status_t status = lua_load(L, _reader, &has_read, nullptr, "b");
-    if ( status == LUA_OK ) {
-        lua_pushstring(L, "keymap");  // "keymap" is the module name.
-        status = lua_pcall(L, 1, 1, 0);
-        if ( status != LUA_OK )
-            l_message(lua_tostring(L, -1));
-        lua_pop(L, 1);  // Remove the module table returned or the error message.
-    }
-
-    return status;
-}
-
-
-
-void init()
-{
-    L = lua_riot_newstate(lua_memory, sizeof(lua_memory), _panic);
+    lua_State* L = lua_riot_newstate(lua_memory, sizeof(lua_memory), _panic);
     assert( L != nullptr );
-
-    fputs(LUA_COPYRIGHT "\n", stdout);
 
     // Load some of the standard libraries.
     // Note: Calling lua_riot_openlibs() would enlarge the firmware image by linking
@@ -111,10 +51,19 @@ void init()
     lua_settop(L, 0);  // Remove the libs on the stack.
 
     // Load the keymap module from flash memory.
-    status_t status = load_keymap(L);
+    status_t status = keymap::load_keymap(L);
 
     // Runtime errors are not allowed during the module loading.
     assert( status == LUA_OK );
+
+    return L;
+}
+
+status_t ping::status() const
+{
+    if ( hd0 == '[' && hd1 == '}' && nl == '\n' )
+        return st - '0';
+    return LUA_NOSTATUS;
 }
 
 }

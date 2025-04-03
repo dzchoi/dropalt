@@ -105,6 +105,35 @@
 
   > Each time you register a module (via luaL_register) you create a new table and populate it with the module's methods. But a table is a read/write datatype, so luaL_register is quite inefficient if you don't plan to do any write operations on that table later (adding new elements or manipulating existing ones).
 
+#### Lua REPL
+
+We employ a simple protocol for CDC-ACM stdin and stdout. Data sent via stdout consists of plain text strings intended for display on the host, while data received via stdin is Lua bytecode, executed by the device's Lua interpreter. This approach allows bytecode binary data to be transmitted without requiring a specialized protocol, such as xmodem.
+
+Once the bytecode is received, the Lua interpreter executes it and sends the result (or an error message) back to the host as plain text. This output is displayed on the host's serial terminal (`dalua`). Finally, the execution status is returned to the host, indicating that the interpreter is ready for the next bytecode.
+
+#### Flow control
+
+The Linux CDC-ACM driver is aware of flow control settings, but its behavior with flow control characters depends on how it is configured. Here’s how it works:
+
+1. Hardware Flow Control:
+  - The CDC-ACM driver supports hardware flow control, typically implemented using RTS (Request to Send) and CTS (Clear to Send) signals. However, this requires the underlying hardware (UART) and USB-to-serial device to support hardware flow control as well.
+
+2. Software Flow Control:
+  - The driver can also support software flow control using XON (0x11) and XOFF (0x13) characters. This is typically handled at the terminal level using standard termios settings.
+  - For software flow control to work, the XON/XOFF handling needs to be enabled explicitly using the tcsetattr() system call or a similar configuration utility.
+
+  - In Linux, you can enable software flow control by setting the IXON (enable XON) and IXOFF (enable XOFF) flags using tcsetattr(). This means that the terminal driver will automatically pause data transmission upon receiving the XOFF character (0x13) and resume it when it receives the XON character (0x11).
+    ```
+    struct termios options;
+    tcgetattr(fd, &options);       // Get current terminal attributes
+    options.c_iflag |= (IXON | IXOFF); // Enable XON/XOFF
+    tcsetattr(fd, TCSANOW, &options);  // Apply changes immediately
+    ```
+
+3. Driver Awareness:
+  - By default, the CDC-ACM driver passes all characters, including flow control characters like XON/XOFF, transparently to user space. If software flow control is disabled, these characters are treated as regular data.
+  - When flow control is enabled, the terminal layer (configured via termios) interprets these characters and manages the flow control state. The CDC-ACM driver itself doesn’t process these characters but facilitates their interpretation by the higher layers.
+
 #### Porting the RIOT patches for updating Lua 5.3.4 -> 5.3.6
 
 Note: riot/pkg/pkg.mk uses `git am` to apply the patches.
@@ -137,3 +166,25 @@ Note: riot/pkg/pkg.mk uses `git am` to apply the patches.
    $ rm -fr riot/build/pkg/lua
    $ rm -r .build
    $ make riotboot/flash-slot0
+
+#### Check the validity of the Lua bytecode received from stdin
+// Check if the input from wait_for_input() is valid Lua bytecode.
+bool timed_stdin::is_lua_bytecode()
+{
+    if ( m_read_ahead == 0 )
+        return false;
+
+    constexpr union {
+        char str[5];
+        uint32_t num;
+    } signature = { LUA_SIGNATURE };
+
+    bool res = (m_read_ahead >= sizeof(uint32_t))
+        && (*(uint32_t*)(void*)m_read_buffer == signature.num);
+    if ( !res ) {
+        l_message("Lua: not bytecode \"%.*s\"", m_read_ahead, m_read_buffer);
+        m_read_ahead = 0;
+    }
+
+    return res;
+}

@@ -2,9 +2,13 @@
 
 * Redefine Riot-independent #define constants using "static const" and "static inline".
 
-* Use a namespace instead of a singleton class for definging each thread.
+* Use a static class (having only static methods/members) instead of a singleton class for defining each thread.
 
 * Configure the automatic switchover feature in config.hpp.
+
+* Code LOG_ERROR("xxx") as fputs("\e[0;31m" "xxx" "\e[0m" "\n") that won't disrupt the texts displayed from dalua.
+
+* Fix: "CDCACM: line coding not supported".
 
 * Tips
   - typedef struct lua_State lua_State;
@@ -12,6 +16,10 @@
   - Use likely(x) (== __builtin_expect((uintptr_t)(x), 1)) if appropriate.
   - Allocate variables in ".noinit" section (NOINIT) unless initialization is strictly necessary.
   - Favor fputs() over printf() and puts() if possible to minimize code size.
+  - Don't waste assert(). Even a simple `assert( m_pthread );` consumes 56 bytes.
+  - Don't include <cstdbool>, <cstddef> and <cstdint> for each source file, as they would
+    have been already included in the header file that provides the functions with those
+    types as parameters or as a return value.
 
 * Binary size is also affected by .data section. Walk through those variables that initialize to non-zero values.
 

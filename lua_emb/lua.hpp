@@ -2,6 +2,9 @@
 
 #pragma once
 
+#include <climits>              // for INT_MIN
+#include <cstdint>              // for uint32_t, int8_t
+
 #include "log.h"
 
 
@@ -12,22 +15,41 @@
 #define l_message(format, ...) \
     _l_message ## __VA_OPT__(_v) (format __VA_OPT__(,) __VA_ARGS__)
 
-#define _l_message(s)  LOG_ERROR("%s\n", (s))
-#define _l_message_v(format, ...)  LOG_ERROR(format "\n", __VA_ARGS__)
+#define _l_message(s)  LOG(LOG_LUA_ERROR, "%s\n", (s))
+#define _l_message_v(format, ...)  LOG(LOG_LUA_ERROR, format "\n", __VA_ARGS__)
 
 
 
 struct lua_State;
 
+constexpr int LUA_NOSTATUS = INT_MIN;
+
 namespace lua {
 
 using status_t = int;
 
-int luaopen_fw(lua_State* L);
+lua_State* init();
 
-void init();
+class ping {
+public:
+    constexpr ping(status_t status):
+        hd0('['), hd1('}'), st(status + '0'), nl('\n') {}
 
-// void repl_run();
-// void repl_quit();
+    operator uint32_t() const { return value; }
+
+    // Retrieve the status embedded in the ping, or return -1 if the ping is invalid.
+    status_t status() const;
+
+private:
+    union {
+        uint32_t value;
+        struct {
+            const char hd0;   // '['
+            const char hd1;   // '}'
+            const int8_t st;  // 1 byte of status
+            const char nl;    // '\n'
+        } __attribute__((packed));
+    };
+};
 
 }
