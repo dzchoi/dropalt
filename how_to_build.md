@@ -12,6 +12,7 @@ dfu-util --alt 0 --download `f slot0.96.bin`
 
 make PROGRAMMER=edbg riotboot/flash-slot0
 ```
+Use `make riotboot/slot0` rather than `make`, as using `make` can result in a build error.
 
 #### Firmware size
 ```
