@@ -75,3 +75,9 @@ The allocator has minimal overhead, making it ideal for resource-constrained env
 Although TLSF itself is not inherently thread-safe, it can be combined with synchronization mechanisms (e.g., mutexes) to ensure safe memory allocation in multi-threaded environments.
 
 See http://www.gii.upv.es/tlsf/files/papers/ecrts04_tlsf.pdf.
+
+#### NVM
+
+The non-volatile memory (NVM) subsystem provides persistent storage backed by SEEPROM on SAMD51, enabling data retention across power cycles. It supports dynamic allocation and seamless access to NVM variables from both firmware and Lua scripts. This flexibility enables users to adjust keyboard settings interactively via the Lua keymap module (e.g. fw.nvm.enable_nkro = true).
+
+The SEEPROM is structured as a single associative array, providing efficient storage and retrieval of name-value pairs. Internally, the SEEPROM space (4K) is organized as a sequential structure where name-value pairs are stored contiguously, with all fields laid out back-to-back without any alignment or padding to optimize space usage.

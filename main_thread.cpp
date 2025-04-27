@@ -14,6 +14,7 @@
 #include "lua.hpp"              // for lua::init()
 #include "config.hpp"           // for ENABLE_CDC_ACM, ENABLE_LUA_REPL
 #include "main_thread.hpp"
+#include "persistent.hpp"       // for persistent::init()
 #include "repl.hpp"             // for lua::repl::init(), ...
 #include "timed_stdin.hpp"      // for timed_stdin::wait_for_input(), ...
 #include "usb_thread.hpp"       // for usb::init()
@@ -36,8 +37,11 @@ NORETURN void main_thread::init()
 {
     m_pthread = thread_get_active();
 
+    // Initialize NVM. (See `last_host_port` for an example of usage.)
+    persistent::init();
+
     // Create all threads in the order of dependency.
-    usb::init();        // printf() will now start to work, displaying on the host.
+    usb::init();        // printf() will work from this point, displaying on the host.
     // rgb::init();
     usbhub::init();
     // keymap::init();

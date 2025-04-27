@@ -21,22 +21,6 @@
 
 * Binary size is also affected by .data section. Walk through those variables that initialize to non-zero values.
 
-* SEEPROM
-  ```
-  board-dropalt/Makefile.include:
-  # Each slot length should be a multiple of 8K (block size for EB command).
-  NUM_SLOTS       = 2
-  SLOT0_LEN       = 0x0001C000  # 112K = 256K/2 - 16K (bootloader)
-  SLOT1_LEN       = 0x0001C000  # 112K = 256K/2 - SLOT_AUX_LEN
-
-  # SEEPROM is allocated at the end of NVM.
-  SLOT_AUX_LEN    = 0x00004000  # 16K = 2 * SBLK * 8K
-
-  PROGRAMMERS_SUPPORTED += dfu-util
-
-  include $(RIOTMAKE)/boards/sam0.inc.mk
-  ```
-
 * Use MODULE_CORE_IDLE_THREAD to enable CPU sleep when idle.
 
 * Implement the firmware uploading feature

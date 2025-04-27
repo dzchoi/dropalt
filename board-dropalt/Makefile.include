@@ -21,13 +21,21 @@ PSEUDOMODULES += dropalt_usb2422        # USB2422 Hub
 # BACKUP_RAM_ADDR = 0x47000000
 # BACKUP_RAM_LEN  = 0x00002000  # 8K
 
+# AUX slot (SEEPROM) is allocated at the end of NVM.
+SEEPROM_SBLK    = 1           # Must be within the range 0 .. 10.
+SEEPROM_PSZ     = 3           # Must be within the range 0 .. 7.
+SLOT_AUX_LEN    = 0x00004000  # 16K = 2 * SBLK * 8K
+# Setting SBLK=1 and PSZ=3 configures the SEEPROM virtual size to 4K. Refer to Table 25-6
+# in the SAM D5x datasheet.
+
 # Each slot length should be a multiple of 8K (block size for EB command).
 NUM_SLOTS       = 2
 SLOT0_LEN       = 0x0001C000  # 112K = 256K/2 - 16K (bootloader)
-SLOT1_LEN       = 0x00020000  # 128K = 256K/2
+SLOT1_LEN       = 0x0001C000  # 112K = 256K/2 - SLOT_AUX_LEN
 
 CFLAGS += -DBACKUP_RAM_LEN=$(BACKUP_RAM_LEN)  # 8K
 CFLAGS += -DRIOTBOOT_HDR_LEN=$(RIOTBOOT_HDR_LEN)
+CFLAGS += -DSEEPROM_SBLK=$(SEEPROM_SBLK) -DSEEPROM_PSZ=$(SEEPROM_PSZ)
 
 PROGRAMMERS_SUPPORTED += dfu-util
 

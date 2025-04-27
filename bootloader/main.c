@@ -1,7 +1,7 @@
 // A variant of riotboot_dfu that boots from slot 0 and supports USB device firmware
 // upgrade (DFU) through the USB2422 hub.
 
-#include "board.h"              // for LED0_ON
+#include "board.h"              // for LED0_ON, sam0_flashpage_aux_cfg(), ...
 #include "compiler_hints.h"     // for UNREACHABLE()
 #include "cpu.h"                // for RSTC
 #include "panic.h"              // for core_panic_t
@@ -83,6 +83,28 @@ NORETURN static void* _main(void* arg)
     sched_task_exit();
 }
 
+static void allocate_seeprom(void)
+{
+    nvm_user_page_t user_page = *sam0_flashpage_aux_cfg();
+
+    if ( user_page.smart_eeprom_blocks != SEEPROM_SBLK
+      || user_page.smart_eeprom_page_size != SEEPROM_PSZ ) {
+        user_page.smart_eeprom_blocks = SEEPROM_SBLK;
+        user_page.smart_eeprom_page_size = SEEPROM_PSZ;
+        const char* s = (char*)sam0_flashpage_aux_get(0);
+        s = (*s == '\xff' ? NULL : __builtin_strdup(s));
+
+        // Erase the USER page while preserving the reserved section (the first 32 bytes).
+        sam0_flashpage_aux_reset(&user_page);
+
+        // Restore the product serial.
+        if ( s ) {
+            sam0_flashpage_aux_write(0, s, __builtin_strlen(s) + 1);
+            __builtin_free(s);
+        }
+    }
+}
+
 
 
 // Override the weak pre_startup() function in riot/cpu/cortexm_common/vectors_cortexm.c.
@@ -119,6 +141,9 @@ NORETURN void kernel_init(void)
 {
     // Welcome to the DFU mode!
     irq_disable();
+
+    // Allocate SEEPROM if not allocated yet. Changes will take effect after reset.
+    allocate_seeprom();
 
     static char _main_stack[THREAD_STACKSIZE_MAIN];
     thread_create(_main_stack, sizeof(_main_stack),

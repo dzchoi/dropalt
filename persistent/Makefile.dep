@@ -1,0 +1,7 @@
+# USEMODULE += event
+# USEMODULE += core_thread
+# USEMODULE += core_thread_flags
+USEMODULE += ztimer
+USEMODULE += ztimer_msec
+
+USEMODULE += dropalt_seeprom

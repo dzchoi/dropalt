@@ -37,3 +37,6 @@ constexpr uint32_t DEFAULT_USB_RETRY_PERIOD_MS = 1 *MS_PER_SEC;  // 1 second
 
 // GCR changes slowly and gracefully, changing 1 GCR per this time period.
 constexpr uint32_t RGB_GCR_CHANGE_PERIOD_MS = 32;
+
+// NVM (SmartEEPROM) is delayed to write for this period.
+constexpr uint32_t NVM_WRITE_DELAY_MS = 1000;

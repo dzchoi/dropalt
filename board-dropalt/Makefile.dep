@@ -13,12 +13,12 @@ ifneq (,$(filter dropalt_is31fl3733 dropalt_usb2422,$(USEMODULE)))
     FEATURES_REQUIRED += periph_i2c
 endif
 
-# ifneq (,$(filter periph_seeprom,$(FEATURES_USED)))
-    # This is needed even if we do not access NVM main array since it enables 
-    # MCLK_APBBMASK_NVMCTRL. Otherwise access to seeprom registers can cause unintended
-    # flash bank swap.
+ifneq (,$(filter dropalt_seeprom,$(USEMODULE)))
+    # The periph_flashpage module is needed even if the NVM main array is not accessed,
+    # because it enables MCLK_APBBMASK_NVMCTRL. Without it, accessing the SEEPROM
+    # registers might inadvertently trigger a flash bank swap.
     FEATURES_REQUIRED += periph_flashpage
-# endif
+endif
 
 ifndef RIOTBOOT_BUILD
 USEMODULE += log_backup     # Use log_backup() for LOG_*() on riot functions.
