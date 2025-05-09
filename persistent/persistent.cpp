@@ -5,127 +5,177 @@
 
 
 
+uint8_t (&persistent::nvm)[SEEPROM_SIZE] = *(uint8_t (*)[SEEPROM_SIZE])(SEEPROM_ADDR);
+
 mutex_t persistent::lock_guard::m_mutex = MUTEX_INIT;
-
-const size_t persistent::m_size = seeprom_size();
-
-uint16_t& persistent::nvm_occupied = *static_cast<uint16_t*>(seeprom_addr(0));
 
 void persistent::init()
 {
     seeprom_init();
     seeprom_unbuffered();  // Enable unbuffered mode.
 
-    LOG_DEBUG("seeprom: seeprom_size=%d\n", m_size);
-    if ( nvm_occupied > m_size )  // E.g. nvm_occupied == 0xffff
-        nvm_occupied = sizeof(nvm_occupied);
+    if ( begin()->uint8 == 0xff )  // If not initialized,
+        begin()->size2 = SEEPROM_SIZE2;  // == log2(SEEPROM_SIZE)
 }
 
-void* persistent::create(const char* name, size_t value_size)
+bool persistent::_create(const char* name, const void* value, size_t value_size, uint8_t value_type)
 {
     const size_t name_size = __builtin_strlen(name) + 1;  // including '\0'.
     const size_t new_size = 1 + name_size + value_size;
-    if ( new_size > 0xff || nvm_occupied + new_size > m_size )
-        return nullptr;  // Entry size exceeds 255 bytes or causes SEEPROM overflow.
+    const uint8_t new_size2 = (sizeof(size_t) * CHAR_BIT) - __builtin_clz(new_size - 1);
 
-    uint8_t* here = end();
-    *here++ = new_size;
-    __builtin_memcpy(here, name, name_size);
-    nvm_occupied += new_size;
-    LOG_DEBUG("seeprom: create \"%s\"\n", name);
-    // commit_later();  // will be performed by get()/set() outside.
-    return here + name_size;  // Return the value-field address.
+    // Maximum SEEPROM_SIZE is limited to 16KB (= 2^14).
+    static_assert( SEEPROM_SIZE2 < 15 );
+    block_header no_block(SEEPROM_SIZE2 + 1, TFREE, false);  // .free = false
+    iterator found(&no_block);
+
+    // Find the smallest block that the requested size can fit in.
+    for ( auto it = begin() ; it != end() ; ++it )
+        if ( it->free ) {
+            if ( it->size2 == new_size2 ) {
+                found = it;
+                break;
+            }
+            if ( new_size2 < it->size2 && it->size2 < found->size2 )
+                found = it;
+        }
+        else if ( __builtin_strcmp(name, it + 1) == 0 )
+            return false;  // Already existing.
+
+    // Return NULL if not found.
+    if ( !found->free )
+        return false;
+
+    // Split the block if its size is larger than required.
+    for ( uint8_t blk_size2 = found->size2 ; blk_size2 > new_size2 ; ) {
+        blk_size2--;
+        *found.buddy(1 << blk_size2) = block_header(blk_size2);
+    }
+
+    // Allocate the block.
+    *found = block_header(new_size2, value_type, false);
+
+    // Populate the name field and value field
+    __builtin_memcpy(found + 1, name, name_size);
+    __builtin_memcpy(found + 1 + name_size, value, value_size);
+    // LOG_DEBUG("seeprom: _create \"%s\" type=%d\n", name, value_type);
+    // _commit_later();  // will be performed by get()/set() outside.
+    return true;  // Return the value field address.
 }
 
-std::pair<void*, size_t> persistent::find(const char* name)
+bool persistent::_remove(iterator it)
 {
-    uint8_t* it = begin();
-    uint8_t* const end = persistent::end();
-    while ( it < end ) {
-        char* const pname = (char*)it + 1;
-        it += *it;  // Move to the next entry.
-        if ( __builtin_strcmp(name, pname) == 0 ) {
-            void* pvalue = pname + __builtin_strlen(name) + 1;
-            return { pvalue, it - (uint8_t*)pvalue };
-        }
+    if ( it == end() || it->free )
+        return false;
+
+    // Merge the buddy blocks if they are free.
+    uint8_t blk_size2 = it->size2;
+    while ( blk_size2 < SEEPROM_SIZE2 ) {
+        auto buddy = it.buddy(1 << blk_size2);
+        if ( !(buddy->free && buddy->size2 == blk_size2) )
+            break;
+        // If the buddy block is free, do not change it but move up to the parent block.
+        it = it.parent(1 << blk_size2++);
     }
-    return { nullptr, 0 };
+
+    // Make this block free.
+    *it = block_header(blk_size2);
+    // LOG_DEBUG("seeprom: _remove \"%s\"\n", name);
+    _commit_later();
+    return true;
+}
+
+persistent::iterator persistent::_find(const char* name)
+{
+    if ( name )
+        for ( auto it = begin() ; it != end() ; ++it ) {
+            if ( !it->free && __builtin_strcmp(name, it + 1) == 0 )
+                return it;
+        }
+
+    return end();
 }
 
 const char* persistent::next(const char* name)
 {
-    lock_guard seeprom_lock;
-    uint8_t* it = begin();
-    uint8_t* const end = persistent::end();
+    lock_guard nvm_lock;
+    iterator it = begin();
     if ( name ) {
-        auto [pvalue, found_size] = find(name);
-        it = pvalue ? (uint8_t*)pvalue + found_size : end;
+        it = _find(name);
+        if ( it != end() )
+            ++it;
     }
 
-    // Bypass entries marked as deleted.
-    while ( it < end && it[1] == 0xff )
-        it += *it;
-    return it < end ? (char*)it + 1 : nullptr;
+    while ( it != end() && it->free )
+        ++it;
+
+    return it != end() ? it + 1 : nullptr;
 }
 
-bool persistent::get(const char* name, void* value, size_t value_size)
+bool persistent::_get(const char* name, void* value, size_t value_size)
 {
-    lock_guard seeprom_lock;
-    auto [pvalue, found_size] = find(name);
-    if ( pvalue == nullptr )
+    iterator it = _find(name);
+    if ( it == end() )
         return false;
-    if ( value_size > found_size )
-        value_size = found_size;
+    if ( value_size > it->value_type )
+        // Note that value_size would be 4 if value_type = TFLOAT (=7).
+        value_size = it->value_type;
 
-    __builtin_memcpy(value, pvalue, value_size);
+    __builtin_memcpy(value, it.pvalue(), value_size);
     return true;
 }
 
-bool persistent::set(const char* name, const void* value, size_t value_size)
+const char* persistent::get(const char* name)
 {
-    lock_guard seeprom_lock;
-    auto [pvalue, found_size] = find(name);
-    if ( pvalue == nullptr ) {
-        pvalue = create(name, value_size);
-        if ( pvalue == nullptr )
-            return false;
-    }
-    else if ( value_size > found_size )
-        value_size = found_size;
-
-    __builtin_memcpy(pvalue, value, value_size);
-    commit_later();
-    return true;
+    lock_guard nvm_lock;
+    return (const char*)_find(name).pvalue();
 }
 
-bool persistent::remove(const char* name)
+bool persistent::_set(const char* name, const void* value, size_t value_size)
 {
-    lock_guard seeprom_lock;
-    uint8_t* here = (uint8_t*)find(name).first;
-    if ( here == nullptr )
+    iterator it = _find(name);
+    if ( it == end() )
         return false;
-    here -= __builtin_strlen(name) + 1;
-    *here = 0xff;  // Clear the first character of the name.
+    if ( value_size > it->value_type )
+        value_size = it->value_type;
 
-    // Tail reclamation
-    uint8_t* tail = begin();
-    uint8_t* const end = persistent::end();
-    for ( uint8_t* it = begin() ; it < end ; ) {
-        uint8_t name0 = it[1];
-        it += *it;
-        if ( name0 != 0xff )
-            tail = it;
-    }
-    nvm_occupied = tail - static_cast<uint8_t*>(seeprom_addr(0));
-
-    commit_now();
+    __builtin_memcpy(it.pvalue(), value, value_size);
+    _commit_later();
     return true;
+}
+
+bool persistent::set(const char* name, float value)
+{
+    lock_guard nvm_lock;
+    return _set(name, &value, sizeof(float))
+        || _create(name, &value, sizeof(float), TFLOAT);
+}
+
+bool persistent::set(const char* name, const char* value)
+{
+    lock_guard nvm_lock;
+    auto it = _find(name);
+    _remove(it);
+    return _create(name, value, __builtin_strlen(value) + 1, TSTRING);
 }
 
 void persistent::remove_all()
 {
-    lock_guard seeprom_lock;
-    __builtin_memset(&nvm_occupied, 0xff, m_size);  // Clear the flash.
-    nvm_occupied = sizeof(nvm_occupied);
-    commit_now();
+    lock_guard nvm_lock;
+    // Clearing the entire SEEPROM may take a long time, potentially triggering a
+    // watchdog reset.
+    // __builtin_memset(begin(), 0xff, sizeof(nvm));  // Clear the SEEPROM.
+    *begin() = block_header(SEEPROM_SIZE2);
+    _commit_now();
+}
+
+size_t persistent::size()
+{
+    lock_guard nvm_lock;
+    size_t count = 0;
+    for ( auto it = begin() ; it != end() ; ++it ) {
+        if ( !it->free )
+            count++;
+    }
+    return count;
 }

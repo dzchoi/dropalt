@@ -9,7 +9,7 @@ extern "C" {
 #include "lauxlib.h"
 }
 
-#include "persistent.hpp"       // for persistent::get(), ...
+#include "persistent.hpp"       // for persistent::_get/_set(), ...
 
 
 
@@ -90,18 +90,40 @@ static int fw_product_serial(lua_State* L)
     return 0;
 }
 
-// Read an integer from NVM (e.g. fw.nvm.var).
-// Note that if the stored value size is less than 4 bytes it will be loaded with zero-
-// extension.
+// Read from NVM (e.g. print(fw.nvm.var)).
 // ( nvm name -- value | nil )
-static int _nvm_index(lua_State* L)
+int _nvm_index(lua_State* L)
 {
     const char* name = luaL_checkstring(L, -1);
-    int value = 0;
-    if ( persistent::get(name, value) )
-        lua_pushinteger(L, value);
-    else
+    persistent::lock_guard nvm_lock;
+    auto it = persistent::_find(name);
+
+    if ( it == persistent::end() )
         lua_pushnil(L);
+
+    else
+    switch ( it->value_type ) {
+        case persistent::TSTRING:
+            lua_pushstring(L, (char*)it.pvalue());
+            break;
+
+        case persistent::TFLOAT: {
+            float value;
+            persistent::_get(name, &value, sizeof(float));
+            lua_pushnumber(L, value);
+            break;
+        }
+
+        // For a value_type other than TSTRING and TFLOAT, read it as an int, zero-extend
+        // if smaller than 4 bytes, or take only the first 4 bytes if larger.
+        default: {
+            int value = 0;
+            persistent::_get(name, &value, sizeof(int));
+            lua_pushinteger(L, value);
+            break;
+        }
+    }
+
     // "The function does not need to clear the stack before pushing its results. After
     // it returns, Lua automatically saves its results and clears its entire stack."
     // lua_insert(L, 1);
@@ -109,21 +131,78 @@ static int _nvm_index(lua_State* L)
     return 1;
 }
 
-// Write an integer to NVM (e.g. fw.nvm.var = 27).
-// Note that if the stored value size is less than 4 bytes, only the LSBs that fit within
-// the size will be stored.
+// Write to NVM (e.g. fw.nvm.var = 27).
 // ( nvm name value -- )
-static int _nvm_newindex(lua_State* L)
+int _nvm_newindex(lua_State* L)
 {
     const char* name = luaL_checkstring(L, -2);
-    if ( lua_isnil(L, -1) )
-        // No need to trigger an error for deleting non-existent keys.
-        persistent::remove(name);
-    else {
-        int value = luaL_checkinteger(L, -1);
-        if ( !persistent::set(name, value) )
-            luaL_error(L, "cannot add a new key");
+    persistent::lock_guard::lock();
+    auto it = persistent::_find(name);
+
+    if ( lua_isnil(L, -1) ) {
+        // Do not trigger an error for deleting non-existent keys.
+        persistent::_remove(it);
+        return 0;
     }
+
+    bool success = false;
+    if ( lua_isinteger(L, -1) ) {
+        int value = lua_tointeger(L, -1);
+        if ( it == persistent::end() )
+            success = persistent::_create(name, &value, sizeof(value), sizeof(int));
+
+        else
+        switch ( it->value_type ) {
+            case persistent::TSTRING:
+            case persistent::TFLOAT:
+                success = persistent::_remove(it)
+                    && persistent::_create(name, &value, sizeof(value), sizeof(int));
+                break;
+
+            // If the stored value size is less than 4 bytes, only the LSBs that fit
+            // within the size will be stored.
+            default:
+                success = persistent::_set(name, &value, sizeof(value));
+                break;
+        }
+    }
+
+    else if ( lua_isnumber(L, -1) ) {
+        float value = lua_tonumber(L, -1);
+        if ( it == persistent::end() )
+            success = persistent::_create(
+                name, &value, sizeof(value), persistent::TFLOAT);
+
+        else
+        switch ( it->value_type ) {
+            case persistent::TFLOAT:
+                success = persistent::_set(name, &value, sizeof(value));
+                break;
+
+            default:
+                success = persistent::_remove(it)
+                    && persistent::_create(
+                        name, &value, sizeof(value), persistent::TFLOAT);
+                break;
+        }
+    }
+
+    else if ( lua_isstring(L, -1) ) {
+        const char* value = lua_tostring(L, -1);
+        persistent::_remove(it);
+        success = persistent::_create(
+            name, value, __builtin_strlen(value) + 1, persistent::TSTRING);
+    }
+
+    else {
+        // Unlock the mutex manually as luaL_argerror() will terminate the function.
+        persistent::lock_guard::unlock();
+        luaL_argerror(L, -1, "value type not allowed in NVM");
+    }
+
+    persistent::lock_guard::unlock();
+    if ( !success )
+        luaL_error(L, "cannot add a new key to NVM");
     return 0;
 }
 
@@ -136,16 +215,14 @@ static int _nvm_iterator(lua_State* L)
         name = luaL_checkstring(L, -1);
 
     name = persistent::next(name);
+    lua_pop(L, 1);
     if ( name == nullptr ) {
         lua_pushnil(L);
         return 1;
     }
 
     lua_pushstring(L, name);
-    int value = 0;
-    assert( persistent::get(name, value) );
-    lua_pushinteger(L, value);
-    return 2;
+    return 1 + _nvm_index(L);  // Return (name, value) pair.
 }
 
 // ( nvm -- iterator nvm nil )
@@ -155,6 +232,14 @@ static int _nvm_pairs(lua_State* L)
     lua_insert(L, 1);
     lua_pushnil(L);
     return 3;
+}
+
+// Number of entries in the NVM.
+// ( nvm -- count )
+static int _nvm_len(lua_State* L)
+{
+    lua_pushinteger(L, persistent::size());
+    return 1;
 }
 
 // fw.nvm_clear() -> void
@@ -205,6 +290,8 @@ int luaopen_fw(lua_State* L)
     lua_setfield(L, -2, "__index");
     lua_pushcfunction(L, _nvm_newindex);
     lua_setfield(L, -2, "__newindex");
+    lua_pushcfunction(L, _nvm_len);
+    lua_setfield(L, -2, "__len");
     lua_pushcfunction(L, _nvm_pairs);
     lua_setfield(L, -2, "__pairs");
     lua_setmetatable(L, -2);

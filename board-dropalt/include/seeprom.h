@@ -10,19 +10,22 @@
 extern "C" {
 #endif
 
-// Compute the SEEPROM virtual size based on SBLK and PSZ. Refer to Table 25-6 in the SAM
-// D5x datasheet.
-static inline size_t seeprom_size(void)
-{
-    static const uint8_t max_psz[] = { 0, 3, 4, 5, 5, 6, 6, 6, 6, 7, 7 };
-    const uint8_t sblk = SEEPROM_SBLK;
-    uint8_t psz = SEEPROM_PSZ;
+// Total (virtual) size of the SEEPROM.
+static const size_t SEEPROM_SIZE = 4 * 1024;  // == seeprom_size() as computed below.
 
-    if ( sblk == 0u ) return 0;
-    if ( psz > max_psz[sblk] )
-        psz = max_psz[sblk];
-    return 512u << psz;
-}
+// The SEEPROM virtual size can be computed based on SBLK and PSZ using the following C++
+// constexpr function. Refer to Table 25-6 in the SAM D5x datasheet.
+// constexpr size_t seeprom_size()
+// {
+//     constexpr uint8_t max_psz[] = { 0, 3, 4, 5, 5, 6, 6, 6, 6, 7, 7 };
+//     const uint8_t sblk = SEEPROM_SBLK;
+//     uint8_t psz = SEEPROM_PSZ;
+
+//     if ( sblk == 0u ) return 0;
+//     if ( psz > max_psz[sblk] )
+//         psz = max_psz[sblk];
+//     return 512u << psz;
+// }
 
 static inline void* seeprom_addr(size_t offset) {
     return (void*)((uint8_t*)SEEPROM_ADDR + offset);
