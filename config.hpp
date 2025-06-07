@@ -19,6 +19,22 @@ constexpr bool ENABLE_LUA_REPL = true;
 // ENABLE_LUA_REPL requires ENABLE_CDC_ACM.
 static_assert( !ENABLE_LUA_REPL || ENABLE_CDC_ACM );
 
+constexpr bool ENABLE_NKRO = true;
+
+// Periodic interval for reporting keyboard state change to the host. Updates occur at
+// this rate (recommended range: 1–10 ms). In Boot protocol mode, this setting is
+// overridden and set to 10 ms.
+constexpr uint8_t KEYBOARD_REPORT_INTERVAL_MS = 10;
+
+// While USB is suspended, key events are stored in the event queue to be processed once
+// USB reconnects. These events remain in the queue for this duration, which should
+// exceed the typical switchover time (~1 second).
+constexpr uint32_t SUSPENDED_KEY_EVENT_LIFETIME_MS = 4 *MS_PER_SEC;
+
+// Wait before USB becomes accessible after resumption. A delay that's too short may
+// cause buffered key events from suspend mode to be missed upon USB resume.
+constexpr uint32_t DELAY_USB_ACCESSIBLE_AFTER_RESUMED_MS = 500;
+
 // If false, power to the extra port will be cut off during USB suspend.
 constexpr bool KEEP_CHARGING_EXTRA_DEVICE_DURING_SUSPEND = true;
 

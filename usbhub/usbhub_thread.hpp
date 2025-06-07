@@ -6,45 +6,37 @@
 
 
 
-// This usbhub class is a singleton. Use usbhub::thread() to access the instance.
-class usbhub {
+class usbhub_thread {
 public:
     static void init();
 
-    static usbhub& thread() { return m_instance; }
+    static void signal_usb_suspend() { thread_flags_set(m_pthread, FLAG_USB_SUSPEND); }
 
-    usbhub(const usbhub&) =delete;
-    usbhub& operator=(const usbhub&) =delete;
+    static void signal_usb_resume() { thread_flags_set(m_pthread, FLAG_USB_RESUME); }
 
-    void signal_usb_suspend() { thread_flags_set(m_pthread, FLAG_USB_SUSPEND); }
-
-    void signal_usb_resume() { thread_flags_set(m_pthread, FLAG_USB_RESUME); }
-
-    void request_usbport_switchover() {
+    static void request_usbport_switchover() {
         thread_flags_set(m_pthread, FLAG_USBPORT_SWITCHOVER);
     }
 
-    void request_extra_enable_manually() {
+    static void request_extra_enable_manually() {
         thread_flags_set(m_pthread, FLAG_EXTRA_MANUAL);
     }
 
-    void request_extra_enable_automatically() {
+    static void request_extra_enable_automatically() {
         thread_flags_set(m_pthread, FLAG_EXTRA_AUTOMATIC);
     }
 
     // Notify that the v_5v report is ready.
-    void signal_v_5v_report() { thread_flags_set(m_pthread, FLAG_REPORT_V_5V); }
+    static void signal_v_5v_report() { thread_flags_set(m_pthread, FLAG_REPORT_V_5V); }
 
     // Notify that the v_con report is ready.
-    void signal_v_con_report() { thread_flags_set(m_pthread, FLAG_REPORT_V_CON); }
+    static void signal_v_con_report() { thread_flags_set(m_pthread, FLAG_REPORT_V_CON); }
 
     // Signal a generic event to usbhub_thread.
-    void signal_event(event_t* event) { event_post(&m_queue, event); }
+    static void signal_event(event_t* event) { event_post(&m_queue, event); }
 
 private:
-    static usbhub m_instance;
-
-    static void* _thread_entry(void* arg);
+    constexpr usbhub_thread() =delete;  // Ensure a static class
 
     enum : thread_flags_t {
         FLAG_EVENT              = 0x0001,  // == THREAD_FLAG_EVENT from event.h
@@ -58,9 +50,11 @@ private:
         FLAG_TIMEOUT            = THREAD_FLAG_TIMEOUT  // (1u << 14)
     };
 
-    thread_t* m_pthread;
+    static thread_t* m_pthread;
 
-    event_queue_t m_queue;
+    static char m_thread_stack[];
 
-    usbhub() =default;  // for creating the static m_instance.
+    static event_queue_t m_queue;
+
+    static void* _thread_entry(void* arg);
 };

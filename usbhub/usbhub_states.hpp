@@ -26,7 +26,7 @@ public:
     // Note that events triggered by ADC measurements (process_v_5v_report() and
     // process_v_con_report()) occur periodically, while other events do not. If an event
     // is not handled by the current state, it is discarded and not forwarded to the next
-    // state. (See usbhub::_thread_entry().)
+    // state. (See usbhub_thread::_thread_entry().)
     virtual void process_usb_suspend() {}
     virtual void process_usb_resume() {}
     virtual void process_usbport_switchover() {}

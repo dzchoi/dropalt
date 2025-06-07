@@ -57,12 +57,12 @@ void adc_v_5v::_isr_signal_report()
 {
     update_level();
     // rgb_thread::obj().signal_v_5v_report();
-    usbhub::thread().signal_v_5v_report();
+    usbhub_thread::signal_v_5v_report();
 }
 
 void adc_v_con::_isr_signal_report()
 {
-    usbhub::thread().signal_v_con_report();
+    usbhub_thread::signal_v_con_report();
 }
 
 void adc::_tmo_periodic_measure(void* arg)
@@ -71,7 +71,7 @@ void adc::_tmo_periodic_measure(void* arg)
     that->schedule_periodic();
     // As executed in interrupt context, we cannot call async_measure() directly.
     // Instead, we delegate the actual (starting of) measurement to usbhub_thread.
-    usbhub::thread().signal_event(&that->m_event_periodic_measure);
+    usbhub_thread::signal_event(&that->m_event_periodic_measure);
 };
 
 void adc::_hdlr_periodic_measure(event_t* event)

@@ -10,6 +10,7 @@ extern "C" {
 }
 
 #include "persistent.hpp"       // for persistent::_get/_set(), ...
+#include "usb_thread.hpp"       // for usb_thread::send_press/release()
 
 
 
@@ -268,6 +269,17 @@ static int fw_stack_usage(lua_State* L)
     return lua_gettop(L);
 }
 
+// fw.send_key(int keycode, bool is_press) -> void
+static int fw_send_key(lua_State* L)
+{
+    uint8_t keycode = luaL_checkinteger(L, 1);
+    if ( lua_toboolean(L, 2) )
+        usb_thread::send_press(keycode);
+    else
+        usb_thread::send_release(keycode);
+    return 0;
+}
+
 int luaopen_fw(lua_State* L)
 {
     static constexpr luaL_Reg fw_lib[] = {
@@ -277,6 +289,7 @@ int luaopen_fw(lua_State* L)
         { "nvm_clear", fw_nvm_clear },
         { "product_serial", fw_product_serial },
         { "reboot_to_bootloader", fw_reboot_to_bootloader },
+        { "send_key", fw_send_key },
         { "stack_usage", fw_stack_usage },
         { "system_reset", fw_system_reset },
         { nullptr, nullptr }

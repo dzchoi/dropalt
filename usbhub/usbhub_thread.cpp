@@ -12,12 +12,14 @@
 
 
 
-usbhub usbhub::m_instance;
+thread_t* usbhub_thread::m_pthread = nullptr;
 
 // THREAD_STACKSIZE_SMALL is incompatible with printf().
-static char _thread_stack[THREAD_STACKSIZE_DEFAULT];
+char usbhub_thread::m_thread_stack[THREAD_STACKSIZE_DEFAULT];
 
-void usbhub::init()
+event_queue_t usbhub_thread::m_queue;
+
+void usbhub_thread::init()
 {
     // Initialize Shift Register.
     sr_exp_init();
@@ -26,23 +28,21 @@ void usbhub::init()
 
     adc::v_5v.wait_for_stable_5v();
 
-    m_instance.m_pthread = thread_get_unchecked( thread_create(
-        _thread_stack, sizeof(_thread_stack),
-        THREAD_PRIO_ADC,
+    m_pthread = thread_get_unchecked( thread_create(
+        m_thread_stack, sizeof(m_thread_stack),
+        THREAD_PRIO_USBHUB,
         THREAD_CREATE_STACKTEST,
-        _thread_entry, &m_instance, "usbhub_thread") );
+        _thread_entry, nullptr, "usbhub_thread") );
 }
 
-NORETURN void* usbhub::_thread_entry(void* arg)
+NORETURN void* usbhub_thread::_thread_entry(void*)
 {
-    usbhub* const that = static_cast<usbhub*>(arg);
-
     // event_queue_init() should be called from the queue-owning thread.
-    event_queue_init(&that->m_queue);
+    event_queue_init(&m_queue);
 
     // Initialize USB2422.
-    // Could be called from usbhub::init(), but usbhub_init() will take a while and
-    // we may better call it from thread context.
+    // Could be called from usbhub_thread::init(), but usbhub_init() will take a while
+    // and we may better call it from thread context.
     usbhub_init();
 
     // Initialize the usbhub state machine.
@@ -67,7 +67,7 @@ NORETURN void* usbhub::_thread_entry(void* arg)
 
         if ( flags & FLAG_EVENT ) {
             event_t* event;
-            while ( (event = event_get(&that->m_queue)) != nullptr )
+            while ( (event = event_get(&m_queue)) != nullptr )
                 event->handler(event);
         }
 
@@ -97,5 +97,5 @@ NORETURN void* usbhub::_thread_entry(void* arg)
     }
 
     // Should never reach this point.
-    adc::v_5v.schedule_cancel();
+    // adc::v_5v.schedule_cancel();
 }

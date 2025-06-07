@@ -71,7 +71,7 @@ However, `dfu-util -a0 -U >(less)` seems not supported (yet).
 ```
 The address can be used with tools like `addr2line` (or e.g. `arm-none-eabi-addr2line` for ARM-based code), `objdump`, or `gdb` (with the command `info line *(0x89abcdef)`) to identify the line the assertion failed in.
 
-#### Conditional break point
+#### Autonomous conditional break point
 ```
 static int count = 0;
 if ( ++count == 10 )
@@ -150,3 +150,32 @@ Backtrace stopped: previous frame identical to this frame (corrupt stack?)
 2023-06-03 20:50:54,779 # *** halted.
 2023-06-03 20:50:54,779 # Inside isr -13
 ```
+
+#### Improve to trace Watchdog reset
+  - See hard_fault_handler() in vectors_cortexm.c
+  - Configure the Watchdog Timer (WDT) to generate an Early Warning interrupt before the reset occurs. This allows you to execute specific actions, such as logging the program counter (PC) or saving system state, before the reset.
+    Ensure the Early Warning interrupt is configured with enough time before the watchdog timeout to allow for state-saving operations.
+    ```
+    WDT->EWCTRL.reg = WDT_EWCTRL_EWOFFSET(0x3); // Set Early Warning offset
+    NVIC_EnableIRQ(WDT_IRQn);                   // Enable WDT interrupt in NVIC
+    ```
+  - In the ISR, capture the current program counter or other relevant state information. This can help you identify where the system was executing when the interrupt occurred.
+    ```
+    void WDT_Handler() {
+        // Log the program counter or other state information
+        uint32_t currentPC = __get_MSP(); // Example: Get Main Stack Pointer
+        // pc = sp[6]
+        save_state_to_memory(currentPC);  // Save state to non-volatile memory
+
+        // Clear the Early Warning interrupt flag
+        WDT->INTFLAG.reg = WDT_INTFLAG_EW;
+    }
+    ```
+  - After the system resets, check the reset cause register to confirm that the reset was triggered by the watchdog. The SAMD51J has a Reset Cause (RCAUSE) register that indicates the source of the reset.
+    ```
+    if (RSTC->RCAUSE.bit.WDT) {
+        // Watchdog reset occurred
+        uint32_t savedPC = read_state_from_memory(); // Retrieve saved state
+        debug_log("Watchdog reset at PC: 0x%08X", savedPC);
+    }
+    ```

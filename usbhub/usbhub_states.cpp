@@ -96,9 +96,6 @@ void state_determine_host::process_v_con_report()
         v_host->schedule_cancel();
         LOG_DEBUG("USBHUB: determined host port %d @%lu\n",
             v_host->line, ztimer_now(ZTIMER_MSEC));
-
-        // Remember the host port when acquired only from state_determine_host.
-        persistent::set("last_host_port", v_host->line);
     }
 }
 
@@ -110,15 +107,18 @@ void state_determine_host::process_timeout()
         DEBUG_LED_BLINK_PERIOD_MS > 0
         ? DEBUG_LED_BLINK_PERIOD_MS : DEFAULT_USB_RETRY_PERIOD_MS);
 
-    v_host->schedule_cancel();
+    if ( !v_host->is_host_connected() ) {
+        v_host->schedule_cancel();
 
-    const uint8_t desired_port = v_extra->line;  // == usbhub_extra_port();
-    LOG_DEBUG("USBHUB: switchover to port %d @%lu\n", desired_port, ztimer_now(ZTIMER_MSEC));
+        const uint8_t desired_port = v_extra->line;  // == usbhub_extra_port();
+        LOG_DEBUG("USBHUB: switchover to port %d @%lu\n",
+            desired_port, ztimer_now(ZTIMER_MSEC));
 
-    usbhub_select_host_port(desired_port);
-    std::swap(v_host, v_extra);
+        usbhub_select_host_port(desired_port);
+        std::swap(v_host, v_extra);
 
-    v_host->schedule_periodic();
+        v_host->schedule_periodic();
+    }
 }
 
 void state_determine_host::end()
@@ -128,6 +128,9 @@ void state_determine_host::end()
     ztimer_remove(ZTIMER_MSEC, &retry_timer);
 
     v_host->schedule_cancel();
+
+    // Remember the host port when acquired only from state_determine_host.
+    persistent::set("last_host_port", v_host->line);
 
     automatic_switchover_enabled = v_host->is_host_connected();
     if ( !automatic_switchover_enabled )

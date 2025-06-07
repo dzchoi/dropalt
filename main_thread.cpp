@@ -7,9 +7,6 @@
 #include "thread_flags.h"       // for thread_flags_set(), thread_flags_wait_any()
 #include "ztimer.h"             // for ztimer_set_timeout_flag()
 
-// Temporary code for testing only CDC ACM.
-#include "usb2422.h"            // for usbhub_is_active()
-
 #include "adc.hpp"              // for adc::v_5v, v_con1, v_con2
 #include "lua.hpp"              // for lua::init()
 #include "config.hpp"           // for ENABLE_CDC_ACM, ENABLE_LUA_REPL
@@ -17,8 +14,8 @@
 #include "persistent.hpp"       // for persistent::init()
 #include "repl.hpp"             // for lua::repl::init(), ...
 #include "timed_stdin.hpp"      // for timed_stdin::wait_for_input(), ...
-#include "usb_thread.hpp"       // for usb::init()
-#include "usbhub_thread.hpp"    // for usbhub::init()
+#include "usb_thread.hpp"       // for usb_thread::init()
+#include "usbhub_thread.hpp"    // for usbhub_thread::init()
 
 
 
@@ -37,13 +34,11 @@ NORETURN void main_thread::init()
 {
     m_pthread = thread_get_active();
 
-    // Initialize NVM. (See `last_host_port` for an example of usage.)
-    persistent::init();
-
-    // Create all threads in the order of dependency.
-    usb::init();        // printf() will work from this point, displaying on the host.
+    // Initialize subsystems in the order of dependency.
+    persistent::init();  // Initialize NVM. (See `last_host_port` for a usage example.)
+    usbhub_thread::init();
+    usb_thread::init();  // printf() will work from this point, displaying on the host.
     // rgb::init();
-    usbhub::init();
     // keymap::init();
     // matrix::init();
 
@@ -56,10 +51,6 @@ NORETURN void main_thread::init()
     LOG_DEBUG("Main: RSTC->RCAUSE.reg=0x%x\n", RSTC->RCAUSE.reg);
 
     LOG_DEBUG("Main: max heap size is %d bytes\n", &_eheap - &_sheap);
-
-    // Temporary code for testing only CDC ACM.
-    while ( !usbhub_is_active() ) { ztimer_sleep(ZTIMER_MSEC, 10); }
-    usbhub::thread().signal_usb_resume();
 
     // Instead of creating a new thread, use the already existing "main" thread.
     (void)_thread_entry(nullptr);
@@ -106,6 +97,7 @@ NORETURN void* main_thread::_thread_entry(void*)
 
             flags = thread_flags_clear(
                 FLAG_USB_RESET
+                | FLAG_USB_SUSPEND
                 | FLAG_USB_RESUME
                 | FLAG_DTE_DISABLED
                 | FLAG_DTE_ENABLED
@@ -113,18 +105,19 @@ NORETURN void* main_thread::_thread_entry(void*)
                 | FLAG_TIMEOUT );
 
             if ( flags & FLAG_DTE_ENABLED )
-                LOG_INFO("Main: DTE enabled\n");
+                LOG_DEBUG("Main: DTE enabled\n");
 
+            // Todo: Is DTE disconnected when switchover happens manually???
             if ( flags & FLAG_DTE_DISABLED ) {
                 timed_stdin::disable();
                 lua::repl::stop(L);
-                LOG_INFO("Main: DTE disabled\n");
+                LOG_DEBUG("Main: DTE disabled\n");
             }
 
             if ( flags & FLAG_DTE_READY ) {
                 lua::repl::init(L);
                 timed_stdin::enable();
-                LOG_DEBUG("Main: DTE ready (0x%x)\n", get_log_mask());
+                LOG_INFO("Main: DTE ready (0x%x)\n", get_log_mask());
             }
 
             // Process key events here before executing REPL.
@@ -140,6 +133,7 @@ NORETURN void* main_thread::_thread_entry(void*)
 
             flags = thread_flags_wait_any(  // Zzz
                 FLAG_USB_RESET
+                | FLAG_USB_SUSPEND
                 | FLAG_USB_RESUME
                 | FLAG_DTE_DISABLED
                 | FLAG_DTE_ENABLED
@@ -159,8 +153,9 @@ NORETURN void* main_thread::_thread_entry(void*)
         }
 
         if ( flags & FLAG_TIMEOUT ) {
-            LOG_DEBUG("Main: v_5v=%d v_con1=%d v_con2=%d @%ld\n",
+            LOG_DEBUG("Main: v_5v=%d v_con1=%d v_con2=%d fsmstatus=0x%x @%ld\n",
                 adc::v_5v.read(), adc::v_con1.read(), adc::v_con2.read(),
+                usb_thread::fsmstatus(),
                 ztimer_now(ZTIMER_MSEC));
         }
     }

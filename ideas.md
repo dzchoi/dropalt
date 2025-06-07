@@ -8,9 +8,15 @@
 
 * Fix: "CDCACM: line coding not supported".
 
+* Rename keymap_thread -> main_thread.
+
+* USB: Is the USB access delay (m_delay_usb_accessible|_tmo_usb_accessible) still necessary on recent Linux?
+
+* Switchover: Is DTE disconnected when switchover happens manually?
+
 * Tips
-  - typedef struct lua_State lua_State;
-  - CFLAGS from parent Makefile are inerited, but the changes here do not propagate back.
+  - `typedef struct lua_State lua_State;`
+  - CFLAGS from parent Makefile are inherited, but the changes in child Makefiles do not propagate back.
   - Use likely(x) (== __builtin_expect((uintptr_t)(x), 1)) if appropriate.
   - Allocate variables in ".noinit" section (NOINIT) unless initialization is strictly necessary.
   - Favor fputs() over printf() and puts() if possible to minimize code size.
