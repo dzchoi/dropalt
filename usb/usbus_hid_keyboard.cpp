@@ -8,8 +8,7 @@
 #include "ztimer.h"             // for ztimer_set(), ztimer_remove()
 
 #include "config.hpp"           // for DELAY_USB_ACCESSIBLE_AFTER_RESUMED_MS, ...
-// #include "keymap_thread.hpp"    // for signal_lamp_state()
-#include "main_thread.hpp"      // for signal_usb_suspend(), signal_usb_resume()
+#include "main_thread.hpp"      // for signal_usb_resume(), signal_lamp_state(), ...
 // #include "lamp.hpp"             // for lamp_iter, lamp_id()
 // #include "rgb_thread.hpp"       // for signal_usb_suspend(), signal_usb_resume()
 #include "usb_thread.hpp"       // for send_remote_wake_up()
@@ -17,11 +16,6 @@
 #include "usbus_hid_keyboard.hpp"
 
 
-
-static constexpr const char* press_or_release(bool is_press)
-{
-    return is_press ? "press" : "release";
-}
 
 void key_event_queue_t::push(key_event_t event, bool wait_if_full)
 {
@@ -204,7 +198,7 @@ bool usbus_hid_keyboard_t::try_report_event(uint8_t keycode, bool is_press)
     return true;
 }
 
-// This method is supposed to execute from client thread (keymap_thread).
+// This method is supposed to execute from a client thread (main_thread).
 void usbus_hid_keyboard_t::report_event(uint8_t keycode, bool is_press)
 {
     unsigned state = irq_disable();  // Disable preemption by usb_thread or interrupt.
@@ -371,7 +365,7 @@ void usbus_hid_keyboard_t::_hdlr_receive_data(
 
     // for ( auto it = lamp_iter::begin() ; it != lamp_iter::end() ; ++it )
     //     if ( lamp_state & (uint8_t(1) << it->lamp_id()) )
-    //         keymap_thread::obj().signal_lamp_state(&*it);
+    //         main_thread::signal_lamp_state(&*it);
 
     // Begin the m_delay_usb_accessible timer upon receiving the first data
     // (led_lamp_state) from the host.

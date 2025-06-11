@@ -1,0 +1,5 @@
+USEMODULE += core_thread
+USEMODULE += ztimer
+USEMODULE += ztimer_usec
+
+USEMODULE += dropalt_matrix

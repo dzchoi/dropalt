@@ -1,6 +1,7 @@
 #include "assert.h"
 #include "board.h"              // for _sheap, _eheap
 #include "cpu.h"                // for RSTC
+#include "event.h"              // for event_queue_init(), event_get(), ...
 #include "log.h"                // for set_log_mask()
 #include "periph/wdt.h"         // for wdt_kick()
 #include "thread.h"             // for thread_get_active()
@@ -11,6 +12,7 @@
 #include "lua.hpp"              // for lua::init()
 #include "config.hpp"           // for ENABLE_CDC_ACM, ENABLE_LUA_REPL
 #include "main_thread.hpp"
+#include "matrix_thread.hpp"    // for matrix_thread::init()
 #include "persistent.hpp"       // for persistent::init()
 #include "repl.hpp"             // for lua::repl::init(), ...
 #include "timed_stdin.hpp"      // for timed_stdin::wait_for_input(), ...
@@ -30,6 +32,8 @@ extern "C" int main()
 
 thread_t* main_thread::m_pthread;
 
+event_queue_t main_thread::m_event_queue;
+
 NORETURN void main_thread::init()
 {
     m_pthread = thread_get_active();
@@ -39,8 +43,7 @@ NORETURN void main_thread::init()
     usbhub_thread::init();
     usb_thread::init();  // printf() will work from this point, displaying on the host.
     // rgb::init();
-    // keymap::init();
-    // matrix::init();
+    matrix_thread::init();
 
     // RGB_LED related code should be in rgb::init().
 
@@ -81,8 +84,21 @@ void main_thread::signal_dte_ready(uint8_t log_mask)
     }
 }
 
+bool main_thread::signal_key_event(unsigned slot_index, bool is_press, uint32_t timeout_us)
+{
+    if ( timeout_us )
+        LOG_DEBUG("Matrix: %s [%u]\n", press_or_release(is_press), slot_index);
+    else
+        LOG_INFO("Emulate %s [%u]\n", press_or_release(is_press), slot_index);
+
+    return true;
+}
+
 NORETURN void* main_thread::_thread_entry(void*)
 {
+    // The event_queue_init() should be called from the queue-owning thread.
+    event_queue_init(&m_event_queue);
+
     // Lua keymap script and REPL will operate on the common lua State.
     lua_State* L = lua::init();
 
@@ -96,7 +112,9 @@ NORETURN void* main_thread::_thread_entry(void*)
             bool has_input = timed_stdin::wait_for_input(HEARTBEAT_PERIOD_MS);  // Zzz
 
             flags = thread_flags_clear(
-                FLAG_USB_RESET
+                FLAG_GENERIC_EVENT
+                | FLAG_KEY_EVENT
+                | FLAG_USB_RESET
                 | FLAG_USB_SUSPEND
                 | FLAG_USB_RESUME
                 | FLAG_DTE_DISABLED
@@ -132,7 +150,9 @@ NORETURN void* main_thread::_thread_entry(void*)
             ztimer_set_timeout_flag(ZTIMER_MSEC, &heartbeat, HEARTBEAT_PERIOD_MS);
 
             flags = thread_flags_wait_any(  // Zzz
-                FLAG_USB_RESET
+                FLAG_GENERIC_EVENT
+                | FLAG_KEY_EVENT
+                | FLAG_USB_RESET
                 | FLAG_USB_SUSPEND
                 | FLAG_USB_RESUME
                 | FLAG_DTE_DISABLED
@@ -150,6 +170,12 @@ NORETURN void* main_thread::_thread_entry(void*)
 
             // Do not process FLAG_DTE_READY when ENABLE_LUA_REPL is false. The stdin
             // remains permanently disabled.
+        }
+
+        // Timeout event and lamp state event are handled through m_event_queue.
+        if ( flags & FLAG_GENERIC_EVENT ) {
+            while ( event_t* event = event_get(&m_event_queue) )
+                event->handler(event);
         }
 
         if ( flags & FLAG_TIMEOUT ) {

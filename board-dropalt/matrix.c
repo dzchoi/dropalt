@@ -1,5 +1,5 @@
 #include "matrix.h"
-#include "periph/gpio.h"
+#include "periph/gpio.h"        // also includes board-dropalt/include/periph_conf.h
 #include "ztimer.h"             // for ztimer_spin()
 
 
@@ -12,13 +12,9 @@ static inline void matrix_output_select_delay(void) { ztimer_spin(ZTIMER_USEC, 1
 
 static debouncer_t _debouncer = NULL;
 
-// Note that the gpio pins for matrix are assumed to be output for Col and input for Row,
-// that is, DIODE_DIRECTION == ROW2COL in terms of QMK. For COL2ROW instead, we should use
-// read_cols_on_row(). See quantum/matrix.c in QMK.
-
 #if 1
-// This works only if all row_pins have the same port group (e.g. PA), but matrix_scan()
-// will take less time, 30 us vs 43 us.
+// Optimized to leverage the fact that all row_pins belong to the same port group (e.g.
+// PA), reducing matrix_scan() execution time, 30 µs vs 43 µs.
 
 // Same definitions as in gpio.c
 static inline PortGroup* _pin_port(gpio_t pin) {
@@ -29,7 +25,7 @@ static inline unsigned _pin_mask(gpio_t pin) {
     return 1u << (pin & 0x1fu);
 }
 
-static inline void read_rows_on_col(unsigned col)
+static void read_rows_on_col(unsigned col)
 {
     // Select col
     select_col(col);
@@ -40,13 +36,13 @@ static inline void read_rows_on_col(unsigned col)
     const uint32_t in_reg = port->IN.reg;
 
     for ( unsigned row = 0 ; row < MATRIX_ROWS ; row++ )
-        _debouncer(row, col, (in_reg & _pin_mask(row_pins[row])) != 0u);
+        _debouncer(row * MATRIX_COLS + col, (in_reg & _pin_mask(row_pins[row])) != 0);
 
     // Unselect col
     unselect_col(col);
 }
 #else
-static inline void read_rows_on_col(unsigned col)
+static void read_rows_on_col(unsigned col)
 {
     // Select col
     select_col(col);
@@ -54,28 +50,31 @@ static inline void read_rows_on_col(unsigned col)
 
     // For each row...
     for ( unsigned row = 0 ; row < MATRIX_ROWS ; row++ )
-        _debouncer(row, col, gpio_read(row_pins[row]) != 0);
+        _debouncer(row * MATRIX_COLS + col, gpio_read(row_pins[row]) != 0);
 
     // Unselect col
     unselect_col(col);
 }
 #endif
 
-void matrix_init(debouncer_t debouncer, gpio_cb_t cb, void* arg)
+// GPIO pins for the matrix are expected to function as outputs for Col and inputs for
+// Row, meaning DIODE_DIRECTION is set to ROW2COL in QMK. If using COL2ROW,
+// read_cols_on_row() should be used instead. See quantum/matrix.c in QMK for details.
+void matrix_init(debouncer_t debouncer, gpio_cb_t isr, void* arg)
 {
     _debouncer = debouncer;
 
-    // initialize gpio pins
+    // Initialize GPIO pins
     for ( unsigned col = 0 ; col < MATRIX_COLS ; col++ ) {
         gpio_init(col_pins[col], GPIO_OUT);
         select_col(col);
     }
 
     for ( unsigned row = 0 ; row < MATRIX_ROWS ; row++ )
-        (void)gpio_init_int(row_pins[row], GPIO_IN_PD, GPIO_RISING, cb, arg);
+        (void)gpio_init_int(row_pins[row], GPIO_IN_PD, GPIO_RISING, isr, arg);
 }
 
-void matrix_enable_interrupts(void)
+void matrix_enable_interrupt(void)
 {
     for ( unsigned col = 0 ; col < MATRIX_COLS ; col++ )
         select_col(col);
@@ -83,7 +82,7 @@ void matrix_enable_interrupts(void)
         gpio_irq_enable(row_pins[row]);
 }
 
-void matrix_disable_interrupts(void)
+void matrix_disable_interrupt(void)
 {
     for ( unsigned row = 0 ; row < MATRIX_ROWS ; row++ )
         gpio_irq_disable(row_pins[row]);
@@ -93,7 +92,7 @@ void matrix_disable_interrupts(void)
 
 void matrix_scan(void)
 {
-    // Set col and read rows.
+    // Select each col and read rows.
     for ( unsigned col = 0 ; col < MATRIX_COLS ; col++ )
         read_rows_on_col(col);
 }

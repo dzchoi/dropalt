@@ -8,11 +8,13 @@
 
 * Fix: "CDCACM: line coding not supported".
 
-* Rename keymap_thread -> main_thread.
+* Change m_pthread->flags directly instead calling thread_flags_set(), if we don't need to yield to other threads at this moment, and there is no other threads or interrupt that can change it simultaneously (So irq_disable() is not necessary).
 
 * USB: Is the USB access delay (m_delay_usb_accessible|_tmo_usb_accessible) still necessary on recent Linux?
 
 * Switchover: Is DTE disconnected when switchover happens manually?
+
+* RGB: Precise color accuracy isn't necessary — keycaps give everything a reddish hue.
 
 * Tips
   - `typedef struct lua_State lua_State;`

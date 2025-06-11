@@ -56,3 +56,16 @@ constexpr uint32_t RGB_GCR_CHANGE_PERIOD_MS = 32;
 
 // NVM (SmartEEPROM) is delayed to write for this period.
 constexpr uint32_t NVM_WRITE_DELAY_MS = 1000;
+
+// Keyboard matrix scan rate (while operating in periodic scan mode)
+constexpr uint32_t MATRIX_SCAN_PERIOD_US = 997;  // very close to 1 ms.
+
+// If press is not detected during the first scan for this max scan count we go back to
+// sleep and perform interrupt-based scan.
+constexpr unsigned MATRIX_FIRST_SCAN_MAX_COUNT = 8;  // will take ~1 ms.
+
+// A key press sustained for this duration will make a debounced press.
+constexpr uint8_t DEBOUNCE_PRESS_MS = 3;  // must be >= 1.
+
+// A key release sustained for this duration will make a debounced release.
+constexpr uint8_t DEBOUNCE_RELEASE_MS = 5;  // must be >= 1.

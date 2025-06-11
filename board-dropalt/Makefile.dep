@@ -20,6 +20,10 @@ ifneq (,$(filter dropalt_seeprom,$(USEMODULE)))
     FEATURES_REQUIRED += periph_flashpage
 endif
 
+ifneq (,$(filter dropalt_matrix,$(USEMODULE)))
+    FEATURES_REQUIRED += periph_gpio_irq   # for gpio_init_int()
+endif
+
 ifndef RIOTBOOT_BUILD
 USEMODULE += log_backup     # Use log_backup() for LOG_*() on riot functions.
 endif

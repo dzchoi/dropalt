@@ -9,7 +9,7 @@
 #include "usbus_hid_device.hpp"
 
 // Note that physical key press/release events are generated from matrix_thread, sent to
-// keymap_thread, converted into USB keycodes, and finally reported to usb_thread through
+// main_thread, converted into USB keycodes, and finally reported to usb_thread through
 // usbus_hid_keyboard.
 
 
@@ -23,7 +23,7 @@ public:
 
     // These methods are NOT thread-safe. It is the caller's responsibility to ensure
     // thread safety. push() is invoked by report_event() from the client thread
-    // (keymap_thread) with interrupts disabled. The remaining methods are exclusively
+    // (main_thread) with interrupts disabled. The remaining methods are exclusively
     // executed by usb_thread, which has the highest priority, ensuring they run without
     // preemption.
 
@@ -70,7 +70,7 @@ public:
     // These two user-facing methods register key press/release events to the host. They
     // are thread-safe and remain non-blocking as long as m_key_event_queue is not full.
     // If the queue is full and USB is accessible, they block the caller thread
-    // (keymap_thread). However, if USB is not accessible, they do not block; instead,
+    // (main_thread). However, if USB is not accessible, they do not block; instead,
     // they discard the oldest events when the queue is full or clear the entire queue if
     // no key event has occurred for SUSPENDED_KEY_EVENT_LIFETIME_MS.
     // There is no need to introduce an explicit delay between consecutive calls, as this
