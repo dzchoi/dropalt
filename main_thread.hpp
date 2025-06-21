@@ -1,6 +1,6 @@
 #pragma once
 
-#include "thread.h"             // for thread_t
+#include "thread.h"             // for thread_t, thread_get_active()
 #include "thread_flags.h"       // for thread_flags_t
 
 #include "event_ext.hpp"        // for event_ext_t, event_queue_t, event_post(), ...
@@ -10,6 +10,9 @@
 class main_thread {
 public:
     static void init();
+
+    // Check if we are in the main_thread context.
+    static bool is_active() { return thread_get_active() == m_pthread; }
 
     static void signal_usb_reset() { set_thread_flags(FLAG_USB_RESET); }
 

@@ -28,7 +28,10 @@ namespace lua {
 
 using status_t = int;
 
-lua_State* init();
+// Shared global Lua state used by both the keymap and REPL modules.
+extern lua_State* L;
+
+void init();
 
 class ping {
 public:

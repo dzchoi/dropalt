@@ -55,14 +55,17 @@ void cdc_acm_rx_pipe(usbus_cdcacm_device*, uint8_t* data, size_t len)
         main_thread::signal_dte_state(len == USBUS_CDC_ACM_LINE_STATE_DTE);
 }
 
-// Read up to `len` bytes from stdin into `buffer` within `timeout_ms`, and return the
-// number of bytes read. If a timeout occurs or if stop_read() is invoked, the function
-// stops waiting and returns 0.
+// Attempt to read up to `len` bytes from stdin into `buffer` within `timeout_ms`, and
+// return the number of bytes read. If a timeout occurs or if stop_read() is called, the
+// read is aborted and 0 is returned, signaling the calling thread with
+// THREAD_FLAG_TIMEOUT.
+// Note: If a signal is pending on the calling thread, the function returns immediately.
 static size_t read_timeout(void* buffer, size_t len, uint32_t timeout_ms)
 {
     mutex_lock(&stdin_isrpipe.mutex);
+
     int res = tsrb_get(&stdin_isrpipe.tsrb, (uint8_t*)buffer, len);
-    if ( res == 0 ) {
+    if ( res == 0 && thread_get_active()->flags == 0 ) {
         ztimer_t timer = {
             .callback = [](void* arg) {
                 thread_flags_set((thread_t*)arg, THREAD_FLAG_TIMEOUT);

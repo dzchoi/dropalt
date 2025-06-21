@@ -1,3 +1,7 @@
+#### Keyboard Capabilities
+
+Supports both 6KRO and NKRO, configurable through firmware.
+
 #### USB hub
 The built-in USB hub supports two USB ports. One port can be connected to the keyboard, while the other port can be used for additional devices such as a mouse or smartphone. 
 
@@ -51,6 +55,12 @@ Hello, World.
 As can be seen, the "fw" module is accessible through the REPL, which allows direct interaction with certain firmware functions. This functionality can be utilized to configure various settings on the keyboard.
 
 Note: This feature depends on CDC ACM.
+
+#### Keymap Definition Language
+Provides a domain-specific language in Lua for defining custom keymaps, including:
+- map_literal()
+- map_if()
+- ...
 
 #### Using TLSF for dynamic memory allocation.
 

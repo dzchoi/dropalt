@@ -10,7 +10,7 @@ extern "C" {
 }
 
 #include "config.hpp"           // for ENABLE_LUA_REPL
-#include "lua.hpp"              // for l_message()
+#include "lua.hpp"              // for lua::L, l_message()
 #include "repl.hpp"
 #include "timed_stdin.hpp"      // for timed_stdin::_reader()
 
@@ -20,14 +20,14 @@ static_assert( ENABLE_LUA_REPL );
 
 namespace lua {
 
-void repl::init(lua_State*)
+void repl::start()
 {
     respond(LUA_OK);                             // Indicate that REPL is ready.
     if ( get_log_mask() & LOG_MASK_WELCOME )
         std::fputs(LUA_COPYRIGHT "\n", stdout);  // Then output the welcome message.
 }
 
-void repl::report(lua_State* L, status_t status)
+void repl::report(status_t status)
 {
     if ( status == LUA_OK ) {
         for ( int i = -lua_gettop(L) ; i < 0 ; i++ ) {
@@ -67,7 +67,7 @@ void repl::respond(status_t status)
     stdio_write(&resp, sizeof(resp));
 }
 
-void repl::execute(lua_State* L)
+void repl::execute()
 {
     // We use a timed reader function here instead of stdio_read() from stdio_base.h.
     // This ensures that if the host's serial terminal (e.g., dalua) is malfunctioning
@@ -81,8 +81,8 @@ void repl::execute(lua_State* L)
         // stripped debug information. Otherwise, the progname will be shown as "-1".
         status = lua_pcall(L, 0, LUA_MULTRET, 0);
 
-    report(L, status);  // Show the result or error.
-    respond(status);    // Respond to the host with the status.
+    report(status);   // Show the result or error.
+    respond(status);  // Respond to the host with the status.
 }
 
 }

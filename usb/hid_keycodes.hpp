@@ -10,7 +10,7 @@
 
 // USB HID Keyboard/Keypad Usage(0x07)
 
-enum hid_keyboard_keypad_usage: uint8_t {
+enum hid_keyboard_keypad_usage: uint8_t {  // Legacy enum
     KC_NO               = 0x00,
     KC_ROLL_OVER,
     KC_POST_FAIL,
@@ -58,8 +58,8 @@ enum hid_keyboard_keypad_usage: uint8_t {
     KC_SPACE,
     KC_MINUS,
     KC_EQUAL,
-    KC_LBRACKET,
-    KC_RBRACKET,        // 0x30
+    KC_LBRCK,
+    KC_RBRCK,           // 0x30
     KC_BSLASH,          // \ (and |)
     KC_NONUS_HASH,      // Non-US # and ~ (Typically near the Enter key)
     KC_SCOLON,          // ; (and :)
@@ -249,7 +249,7 @@ enum hid_keyboard_keypad_usage: uint8_t {
     KC_RGUI,
 };
 
-// This is for debugging purposes. It will not be compiled if not referenced.
+// Note: This will not be compiled if not referenced.
 inline constexpr const char* keycode_to_name[] = {
     "NULL",             // 0x00
     "ROLLOVER",

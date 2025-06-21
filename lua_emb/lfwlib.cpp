@@ -1,6 +1,5 @@
-// The "fw" module provides a Lua interface for the utility functions in the firmware.
+// The "fw" module exposes firmware utility functions to Lua.
 
-#include "assert.h"
 #include "board.h"              // for system_reset(), sam0_flashpage_aux_get(), ...
 #include "log.h"                // for get/set_log_mask()
 #include "thread.h"             // for thread_isr_stack_usage(), ...
@@ -9,6 +8,9 @@ extern "C" {
 #include "lauxlib.h"
 }
 
+#include "hid_keycodes.hpp"     // for keycode_to_name[]
+#include "literal.hpp"          // for literal_t::_create()
+#include "map.hpp"              // for map_t::_create()
 #include "persistent.hpp"       // for persistent::_get/_set(), ...
 #include "usb_thread.hpp"       // for usb_thread::send_press/release()
 
@@ -82,9 +84,8 @@ static int fw_product_serial(lua_State* L)
     size_t len;
     const char* s = luaL_checklstring(L, 1, &len);
     // `struct Usb2422` restricts the iSerialNumber size to `uint16_t SERSTR[31]`.
-    if ( s == nullptr || len > 31 )
-        return luaL_argerror(L, 1,
-            "product serial must be a string containing a maximum of 31 characters");
+    luaL_argcheck(L, (len <= 31), 1,
+        "product serial must be a string containing a maximum of 31 characters");
 
     sam0_flashpage_aux_write(0, s, len + 1);
     system_reset();
@@ -198,7 +199,7 @@ int _nvm_newindex(lua_State* L)
     else {
         // Unlock the mutex manually as luaL_argerror() will terminate the function.
         persistent::lock_guard::unlock();
-        luaL_argerror(L, -1, "value type not allowed in NVM");
+        luaL_argerror(L, 3, "value type not allowed in NVM");
     }
 
     persistent::lock_guard::unlock();
@@ -269,6 +270,24 @@ static int fw_stack_usage(lua_State* L)
     return lua_gettop(L);
 }
 
+// fw.keycode(string keyname) -> int | void
+// Note: This uses an unoptimized linear search to find the keyname.
+static int fw_keycode(lua_State* L)
+{
+    const char* keyname = luaL_checkstring(L, 1);
+    constexpr int NUM_KEYCODES = sizeof(keycode_to_name) / sizeof(keycode_to_name[0]);
+
+    int result = KC_NO;  // KC_NO (= 0) is not a valid keycode.
+    for ( int keycode = KC_A ; keycode < NUM_KEYCODES ; keycode++ )
+        if ( __builtin_strcmp(keyname, keycode_to_name[keycode]) == 0 ) {
+            result = keycode;
+            break;
+        }
+
+    lua_pushinteger(L, result);
+    return result != KC_NO;
+}
+
 // fw.send_key(int keycode, bool is_press) -> void
 static int fw_send_key(lua_State* L)
 {
@@ -283,8 +302,11 @@ static int fw_send_key(lua_State* L)
 int luaopen_fw(lua_State* L)
 {
     static constexpr luaL_Reg fw_lib[] = {
+        { "keycode", fw_keycode },
         { "led0", fw_led0 },
         { "log_mask", fw_log_mask },
+        { "map_literal", key::literal_t::_create },
+        { "map_pseudo", key::map_t::_create },
         { "nvm", nullptr },  // placeholder for the `nvm` table
         { "nvm_clear", fw_nvm_clear },
         { "product_serial", fw_product_serial },

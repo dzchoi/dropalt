@@ -2,6 +2,7 @@
 #include "board.h"              // for _sheap, _eheap
 #include "cpu.h"                // for RSTC
 #include "event.h"              // for event_queue_init(), event_get(), ...
+#include "irq.h"                // for irq_disable(), irq_restore()
 #include "log.h"                // for set_log_mask()
 #include "periph/wdt.h"         // for wdt_kick()
 #include "thread.h"             // for thread_get_active()
@@ -11,6 +12,8 @@
 #include "adc.hpp"              // for adc::v_5v, v_con1, v_con2
 #include "lua.hpp"              // for lua::init()
 #include "config.hpp"           // for ENABLE_CDC_ACM, ENABLE_LUA_REPL
+#include "key_event_queue.hpp"  // for key::event_queue::push(), ...
+#include "lkeymap.hpp"          // for lua::handle_key_event(), ...
 #include "main_thread.hpp"
 #include "matrix_thread.hpp"    // for matrix_thread::init()
 #include "persistent.hpp"       // for persistent::init()
@@ -91,6 +94,15 @@ bool main_thread::signal_key_event(unsigned slot_index, bool is_press, uint32_t 
     else
         LOG_INFO("Emulate %s [%u]\n", press_or_release(is_press), slot_index);
 
+    if ( unlikely(!key::event_queue::push(slot_index, is_press, timeout_us)) ) {
+        // Failure from key::event_queue::push() is unrecoverable, indicating that the
+        // key event queue is completely filled with deferred events.
+        LOG_ERROR("Keymap: key::event_queue::push() failed\n");
+        assert( false );
+        // return false;
+    }
+
+    set_thread_flags(FLAG_KEY_EVENT);
     return true;
 }
 
@@ -99,9 +111,9 @@ NORETURN void* main_thread::_thread_entry(void*)
     // The event_queue_init() should be called from the queue-owning thread.
     event_queue_init(&m_event_queue);
 
-    // Lua keymap script and REPL will operate on the common lua State.
-    lua_State* L = lua::init();
+    lua::init();
 
+    bool has_input = false;
     thread_flags_t flags;
     while ( true ) {
         // Kick the watchdog timer to keep the system alive. If we don't come back here
@@ -109,7 +121,7 @@ NORETURN void* main_thread::_thread_entry(void*)
         wdt_kick();
 
         if constexpr ( ENABLE_LUA_REPL ) {
-            bool has_input = timed_stdin::wait_for_input(HEARTBEAT_PERIOD_MS);  // Zzz
+            has_input = timed_stdin::wait_for_input(HEARTBEAT_PERIOD_MS);  // Zzz
 
             flags = thread_flags_clear(
                 FLAG_GENERIC_EVENT
@@ -128,20 +140,15 @@ NORETURN void* main_thread::_thread_entry(void*)
             // Todo: Is DTE disconnected when switchover happens manually???
             if ( flags & FLAG_DTE_DISABLED ) {
                 timed_stdin::disable();
-                lua::repl::stop(L);
+                lua::repl::stop();
                 LOG_DEBUG("Main: DTE disabled\n");
             }
 
             if ( flags & FLAG_DTE_READY ) {
-                lua::repl::init(L);
+                lua::repl::start();
                 timed_stdin::enable();
                 LOG_INFO("Main: DTE ready (0x%x)\n", get_log_mask());
             }
-
-            // Process key events here before executing REPL.
-
-            if ( has_input )
-                lua::repl::execute(L);
         }
 
         else {
@@ -172,10 +179,31 @@ NORETURN void* main_thread::_thread_entry(void*)
             // remains permanently disabled.
         }
 
-        // Timeout event and lamp state event are handled through m_event_queue.
+        // Internal key events such as key timeout event and lamp state event are handled
+        // all at once through m_event_queue.
         if ( flags & FLAG_GENERIC_EVENT ) {
             while ( event_t* event = event_get(&m_event_queue) )
                 event->handler(event);
+        }
+
+        // External key events from key::event_queue are handled one at a time.
+        key::event_queue::entry_t event;
+        if ( key::event_queue::next_event(&event) ) {
+            lua::handle_key_event(event.slot_index, event.is_press);
+
+            unsigned state = irq_disable();
+            m_pthread->flags |= FLAG_KEY_EVENT;
+            irq_restore(state);
+            // Or could use `atomic_fetch_or_u16(&m_pthread->flags, FLAG_KEY_EVENT)`.
+
+            // Any remaining key events will be handled next time without sleeping.
+            continue;
+        }
+
+        if constexpr ( ENABLE_LUA_REPL ) {
+            // Execute REPL once all events are handled and if input is available.
+            if ( has_input )
+                lua::repl::execute();
         }
 
         if ( flags & FLAG_TIMEOUT ) {

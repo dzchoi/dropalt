@@ -7,11 +7,13 @@ extern "C" {
 }
 
 #include "lua.hpp"
-#include "keymap.hpp"           // for keymap::load_keymap()
+#include "lkeymap.hpp"          // for lua::load_keymap()
 
 
 
 namespace lua {
+
+lua_State* L = nullptr;
 
 static constexpr size_t LUA_MEM_SIZE = 100 *1024;
 
@@ -28,9 +30,9 @@ static int _panic(lua_State* L)
 // Exported from lfwlib.cpp
 extern int luaopen_fw(lua_State* L);
 
-lua_State* init()
+void init()
 {
-    lua_State* L = lua_riot_newstate(lua_memory, sizeof(lua_memory), _panic);
+    L = lua_riot_newstate(lua_memory, sizeof(lua_memory), _panic);
     assert( L != nullptr );
 
     // Load some of the standard libraries.
@@ -50,13 +52,8 @@ lua_State* init()
     luaL_requiref(L, "fw", luaopen_fw, 0);  // Do not load into global environment.
     lua_settop(L, 0);  // Remove the libs on the stack.
 
-    // Load the keymap module from flash memory.
-    status_t status = keymap::load_keymap(L);
-
-    // Runtime errors are not allowed during the module loading.
-    assert( status == LUA_OK );
-
-    return L;
+    // Load the "keymap" module into the registry.
+    load_keymap();
 }
 
 status_t ping::status() const

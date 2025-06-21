@@ -4,8 +4,8 @@
 #include <cstddef>              // for size_t
 #include <cstdint>              // for uint8_t
 
-#define CONCAT(x, y) x##y
-#define CONCAT_EXPANDED(x, y) CONCAT(x, y)
+#define JOIN(x, y) x##y
+#define CONCAT_EXPANDED(x, y) JOIN(x, y)
 #include "_HIDReportData.h"
 
 
