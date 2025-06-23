@@ -1,7 +1,7 @@
 #include "compiler_hints.h"     // for likely()
 #include "isrpipe.h"            // for isrpipe_write(), tsrb_get(), ...
 #include "mutex.h"              // for mutex_lock(), mutex_unlock()
-#include "stdio_base.h"         // for stdin_isrpipe, STDIO_RX_BUFSIZE
+#include "stdio_base.h"         // for stdin_isrpipe
 #include "thread.h"             // for thread_get_active()
 #include "thread_flags.h"       // for thread_flags_set()
 #include "usbus_ext.h"          // Avoid compile error in acm.h below.
@@ -21,7 +21,7 @@ static_assert( ENABLE_CDC_ACM );
 
 
 
-char timed_stdin::m_read_buffer[STDIO_RX_BUFSIZE]
+char timed_stdin::m_read_buffer[CONFIG_STDIN_RX_BUFSIZE]
     __attribute__((section(".noinit"), aligned(sizeof(uint32_t))));
 
 size_t timed_stdin::m_read_ahead = 0;

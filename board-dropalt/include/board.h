@@ -112,16 +112,20 @@ extern "C" {
 // #define CONFIG_USB_CONFIGURATION_STR "USB config" // iConfiguration
 #define CONFIG_USB_REM_WAKEUP           1  // bmAttributes
 
-// The buffer for stdout is _cdc_tx_buf_mem[CONFIG_USBUS_CDC_ACM_STDOUT_BUF_SIZE], which
-// is associated with cdcacm->tsrb. It is configured to be larger than the USB buffer
-// (device to host data buffer) cdcacm->in_buf[CONFIG_USBUS_CDC_ACM_BULK_EP_SIZE]
-// (64 bytes), to retain old logs generated while DTE is not connected.
-// Note: When receiving data from the host, the USB buffer (host to device data buffer)
-// is cdcacm->out_buf[CONFIG_USBUS_CDC_ACM_BULK_EP_SIZE], _rx_buf_mem[STDIO_RX_BUFSIZE]
-// is the buffer associated with stdin_isrpipe.tsrb, and then
-// timed_stdin::m_read_buffer[STDIO_RX_BUFSIZE] serves as the buffer for Lua bytecode,
-// where STDIO_RX_BUFSIZE = 64 bytes.
+// The stdout buffer is _cdc_tx_buf_mem[CONFIG_USBUS_CDC_ACM_STDOUT_BUF_SIZE], which is
+// associated with cdcacm->tsrb. It is configured to be larger than the USB transmit
+// buffer (cdcacm->in_buf[CONFIG_USBUS_CDC_ACM_BULK_EP_SIZE], 64 bytes) to retain old
+// logs generated while DTE is not connected.
+//
+// Note: Data from the host is first received into the USB buffer
+// (cdcacm->out_buf[CONFIG_USBUS_CDC_ACM_BULK_EP_SIZE]). It then flows into
+// _rx_buf_mem[STDIO_RX_BUFSIZE], which backs stdin_isrpipe.tsrb. Finally,
+// timed_stdin::m_read_buffer[CONFIG_STDIN_RX_BUFSIZE] is used to gradually read Lua
+// bytecode. STDIO_RX_BUFSIZE (set to 4KB in Makefile.include) is configured to be large
+// enough to reliably absorb the incoming stream, even when the Lua REPL processes input
+// more slowly.
 #define CONFIG_USBUS_CDC_ACM_STDOUT_BUF_SIZE (4*1024)
+#define CONFIG_STDIN_RX_BUFSIZE (64)
 /** @} */
 
 

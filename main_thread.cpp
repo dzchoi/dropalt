@@ -201,7 +201,9 @@ NORETURN void* main_thread::_thread_entry(void*)
         }
 
         if constexpr ( ENABLE_LUA_REPL ) {
-            // Execute REPL once all events are handled and if input is available.
+            // Execute REPL once all events are handled and if input is available. Once
+            // has_input is true, all remaining inputs for the compiled Lua chunk are
+            // handled within lua::repl::execute().
             if ( has_input )
                 lua::repl::execute();
         }

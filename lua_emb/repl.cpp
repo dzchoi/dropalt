@@ -72,8 +72,7 @@ void repl::execute()
     // We use a timed reader function here instead of stdio_read() from stdio_base.h.
     // This ensures that if the host's serial terminal (e.g., dalua) is malfunctioning
     // and fails to provide the expected input, the REPL does not become unresponsive.
-    // Note: We use 100 ms here for the timeout to wait for receiving subsequent chunks
-    // when necessary.
+    // Note: We use 100 ms here for the timeout to wait for receiving subsequent chunks.
     status_t status = lua_load(L, timed_stdin::_reader, (void*)100, nullptr, "b");
     if ( status == LUA_OK )
         // If an error occurs in lua_pcall(), the error message will include the progname
