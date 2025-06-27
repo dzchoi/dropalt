@@ -98,7 +98,7 @@ bool event_queue::try_peek(entry_t* pevent)
 
 void event_queue::start_defer(defer_t* pmap)
 {
-    LOG_DEBUG("Keymap: start defer\n");
+    LOG_DEBUG("Map: start defer\n");
     assert( m_deferrer == nullptr );
     assert( main_thread::is_active() );
 
@@ -108,7 +108,7 @@ void event_queue::start_defer(defer_t* pmap)
 
 void event_queue::stop_defer()
 {
-    LOG_DEBUG("Keymap: stop defer\n");
+    LOG_DEBUG("Map: stop defer\n");
     assert( m_deferrer != nullptr );
     assert( main_thread::is_active() );
 

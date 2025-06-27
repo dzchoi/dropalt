@@ -11,8 +11,7 @@ extern "C" {
 #include "key_event_queue.hpp"  // for key::event_queue::deferrer(), ...
 #include "lkeymap.hpp"
 #include "main_thread.hpp"      // for press_or_release()
-#include "map.hpp"              // for key::map_t::__gc(), ...
-#include "literal.hpp"          // for key::literal_t::__gc(), ...
+#include "map.hpp"              // for key::map_t::_delete(), ...
 #include "lua.hpp"              // for lua::L, l_message()
 
 
@@ -39,32 +38,41 @@ static const char* _reader(lua_State*, void* arg, size_t* psize)
     return (const char*)SLOT1_IMAGE_OFFSET;
 }
 
-// keymap::press(int slot_index) -> void
+// keymap:press() -> void
+// Note: Lua interacts solely with base map_t instances. Responsibility for handling
+// derived types lies in C++.
 static int _press(lua_State* L)
 {
-    // Negative stack indices are used to allow this function to be called from C API.
-    key::map_t* obj = static_cast<key::map_t*>(lua_touserdata(L, -2));
-    luaL_argcheck(L, (obj != nullptr), 1, "not a map_t instance");
-    obj->press(luaL_checkinteger(L, -1));
+    key::map_t* obj = static_cast<key::map_t*>(luaL_checkudata(L, 1, "map_t"));
+    obj->press();
+    // ( -- keymap )
     return 0;
 }
 
-// keymap::release(int slot_index) -> void
+// keymap:release() -> void
 static int _release(lua_State* L)
 {
-    key::map_t* obj = static_cast<key::map_t*>(lua_touserdata(L, -2));
-    luaL_argcheck(L, (obj != nullptr), 1, "not a map_t instance");
-    obj->release(luaL_checkinteger(L, -1));
+    key::map_t* obj = static_cast<key::map_t*>(luaL_checkudata(L, 1, "map_t"));
+    obj->release();
+    // ( -- keymap )
     return 0;
 }
 
 // keymap:is_pressed() -> bool
 static int _is_pressed(lua_State* L)
 {
-    key::map_t* obj = static_cast<key::map_t*>(lua_touserdata(L, -1));
-    luaL_argcheck(L, (obj != nullptr), 1, "not a map_t instance");
+    key::map_t* obj = static_cast<key::map_t*>(luaL_checkudata(L, 1, "map_t"));
     lua_pushboolean(L, obj->is_pressed());
+    // ( -- keymap bool )
     return 1;
+}
+
+static int __gc(lua_State* L)
+{
+    // ( keymap -- )
+    key::map_t* obj = static_cast<key::map_t*>(lua_touserdata(L, -1));
+    obj->_delete();
+    return 0;
 }
 
 void load_keymap()
@@ -93,7 +101,15 @@ void load_keymap()
         lua_error(L);  // Trigger _panic(L) with the error message.
     // ( -- chunk )
 
-    // Create a common __index method table for all map_t and child instances.
+    // Create a common metatable called "map_t" for all map_t and child instances.
+    // Note: This must be created before invoking the keymap module below, as it depends
+    // on the metatable.
+    luaL_newmetatable(L, "map_t");
+    lua_pushcfunction(L, __gc);
+    lua_setfield(L, -2, "__gc");
+    // ( -- chunk metatable )
+
+    // Create the __index method table in the metatable.
     lua_newtable(L);
     lua_pushcfunction(L, _press);
     lua_setfield(L, -2, "press");
@@ -101,33 +117,14 @@ void load_keymap()
     lua_setfield(L, -2, "release");
     lua_pushcfunction(L, _is_pressed);
     lua_setfield(L, -2, "is_pressed");
-    // ( -- chunk index-table )
-
-    // Create a metatable for map_t userdata.
-    luaL_newmetatable(L, "map_t");
-    lua_pushcfunction(L, key::map_t::__gc);
-    lua_setfield(L, -2, "__gc");
-    // ( -- chunk index-table metatable )
-    lua_pushvalue(L, -2);
-    // ( -- chunk index-table metatable index-table )
-    lua_setfield(L, -2, "__index");
-    // ( -- chunk index-table metatable )
-    lua_pop(L, 1);
-    // ( -- chunk index-table )
-
-    // Create a metatable for literal_t userdata.
-    luaL_newmetatable(L, "literal_t");
-    lua_pushcfunction(L, key::literal_t::__gc);
-    lua_setfield(L, -2, "__gc");
-    // ( -- chunk index-table metatable )
-    lua_insert(L, -2);
     // ( -- chunk metatable index-table )
+
     lua_setfield(L, -2, "__index");
     // ( -- chunk metatable )
     lua_pop(L, 1);
     // ( -- chunk )
 
-    // Invoke the keymap module outside a protected environment; runtime errors will
+    // Invoke the keymap module outside a protected environment; any runtime errors will
     // trigger `_panic(L)`.
     lua_pushstring(L, "keymap");  // "keymap" is the module name.
     lua_call(L, 1, 1);
@@ -149,24 +146,22 @@ void handle_key_event(unsigned slot_index, bool is_press)
 
     // Execute the event if in normal mode.
     if ( !::key::event_queue::deferrer() ) {
-        LOG_DEBUG("Keymap: [%u] handle %s\n", slot_index, press_or_release);
+        LOG_DEBUG("Map: [%u] handle %s\n", slot_index, press_or_release);
         // rgb_thread::obj().signal_key_event(slot_index, is_press);
 
         lua_pushlightuserdata(L, (void*)&load_keymap);
         lua_gettable(L, LUA_REGISTRYINDEX);
         lua_pushinteger(L, slot_index);
-        lua_gettable(L, -2);  // Get the userdata (keymap) from keymap[slot_index].
-        // ( -- module-table keymap )
+        lua_gettable(L, -2);  // Retrieve the keymap object from module-table[slot_index].
+        lua_remove(L, -2);
+        // ( -- userdata )
 
-        lua_pushinteger(L, slot_index);
-        // ( -- module-table keymap slot_index )
-        // _press/_release() are invoked outside a protected environment; any runtime
-        // errors will trigger `_panic(L)`.
+        // Invoke _press/_release() outside a protected environment; any runtime errors
+        // will trigger `_panic(L)`.
         is_press ? _press(L) : _release(L);
-        // ( -- module-table keymap slot_index )
+        // ( -- userdata )
 
-        lua_settop(L, 0);
-        return;
+        return lua_settop(L, 0);
     }
 
     assert( false );

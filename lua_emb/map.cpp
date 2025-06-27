@@ -1,4 +1,5 @@
 #include <new>                  // for placement new
+#include "log.h"
 
 extern "C" {
 #include "lua.h"
@@ -15,6 +16,7 @@ namespace lua {
 
 namespace key {
 
+// fw.map_pseudo() -> keymap
 int map_t::_create(lua_State* L)
 {
     void* memory = lua_newuserdata(L, sizeof(map_t));
@@ -23,32 +25,31 @@ int map_t::_create(lua_State* L)
     return 1;
 }
 
-int map_t::__gc(lua_State* L)
+map_t::~map_t()
 {
-    map_t* obj = static_cast<map_t*>(lua_touserdata(L, -1));
-    obj->~map_t();  // Any Lua references should be deleted by ~map_t().
-    return 0;
+    // While possible, creating a temporary keymap object at runtime is not desirable.
+    LOG_WARNING("Map: ~map_t()\n");
 }
 
-void map_t::press(unsigned slot_index)
+void map_t::press()
 {
     if ( m_press_count++ == 0 ) {
         // map_proxy_t* const pproxy = get_proxy();
         // if ( pproxy )
-        //     pproxy->on_proxy_press(slot_index);
+        //     pproxy->on_proxy_press();
         // else
-            on_press(slot_index);
+            on_press();
     }
 }
 
-void map_t::release(unsigned slot_index)
+void map_t::release()
 {
     if ( --m_press_count == 0 ) {
         // map_proxy_t* const pproxy = get_proxy();
         // if ( pproxy )
-        //     pproxy->on_proxy_release(slot_index);
+        //     pproxy->on_proxy_release();
         // else
-            on_release(slot_index);
+            on_release();
     }
 }
 

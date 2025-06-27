@@ -1,10 +1,12 @@
 #include <new>                  // for the placement new
+#include "log.h"
 
 extern "C" {
 #include "lua.h"
 #include "lauxlib.h"
 }
 
+#include "hid_keycodes.hpp"     // for keycode()
 #include "literal.hpp"
 
 
@@ -15,18 +17,20 @@ namespace key {
 
 int literal_t::_create(lua_State* L)
 {
-    uint8_t keycode = luaL_checkinteger(L, -1);
+    const char* keyname = luaL_checkstring(L, 1);
+    uint8_t keycode = ::keycode(keyname);
+    if ( keycode == KC_NO )
+        luaL_error(L, "invalid keyname \"%s\"", keyname);
+
     void* memory = lua_newuserdata(L, sizeof(literal_t));
     new (memory) literal_t(keycode);
-    luaL_setmetatable(L, "literal_t");
+    luaL_setmetatable(L, "map_t");
     return 1;
 }
 
-int literal_t::__gc(lua_State* L)
+literal_t::~literal_t()
 {
-    literal_t* obj = static_cast<literal_t*>(lua_touserdata(L, -1));
-    obj->~literal_t();
-    return 0;
+    LOG_WARNING("Map: ~literal_t()\n");
 }
 
 }

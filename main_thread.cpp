@@ -97,7 +97,7 @@ bool main_thread::signal_key_event(unsigned slot_index, bool is_press, uint32_t 
     if ( unlikely(!key::event_queue::push(slot_index, is_press, timeout_us)) ) {
         // Failure from key::event_queue::push() is unrecoverable, indicating that the
         // key event queue is completely filled with deferred events.
-        LOG_ERROR("Keymap: key::event_queue::push() failed\n");
+        LOG_ERROR("Map: key::event_queue::push() failed\n");
         assert( false );
         // return false;
     }

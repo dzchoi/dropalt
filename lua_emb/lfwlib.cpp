@@ -8,7 +8,7 @@ extern "C" {
 #include "lauxlib.h"
 }
 
-#include "hid_keycodes.hpp"     // for keycode_to_name[]
+#include "if.hpp"               // for if_t::_create()
 #include "literal.hpp"          // for literal_t::_create()
 #include "map.hpp"              // for map_t::_create()
 #include "persistent.hpp"       // for persistent::_get/_set(), ...
@@ -197,9 +197,9 @@ int _nvm_newindex(lua_State* L)
     }
 
     else {
-        // Unlock the mutex manually as luaL_argerror() will terminate the function.
+        // Unlock the mutex manually before luaL_argerror() terminates the function.
         persistent::lock_guard::unlock();
-        luaL_argerror(L, 3, "value type not allowed in NVM");
+        luaL_argerror(L, 3, "type not allowed in NVM");
     }
 
     persistent::lock_guard::unlock();
@@ -270,24 +270,6 @@ static int fw_stack_usage(lua_State* L)
     return lua_gettop(L);
 }
 
-// fw.keycode(string keyname) -> int | void
-// Note: This uses an unoptimized linear search to find the keyname.
-static int fw_keycode(lua_State* L)
-{
-    const char* keyname = luaL_checkstring(L, 1);
-    constexpr int NUM_KEYCODES = sizeof(keycode_to_name) / sizeof(keycode_to_name[0]);
-
-    int result = KC_NO;  // KC_NO (= 0) is not a valid keycode.
-    for ( int keycode = KC_A ; keycode < NUM_KEYCODES ; keycode++ )
-        if ( __builtin_strcmp(keyname, keycode_to_name[keycode]) == 0 ) {
-            result = keycode;
-            break;
-        }
-
-    lua_pushinteger(L, result);
-    return result != KC_NO;
-}
-
 // fw.send_key(int keycode, bool is_press) -> void
 static int fw_send_key(lua_State* L)
 {
@@ -302,9 +284,9 @@ static int fw_send_key(lua_State* L)
 int luaopen_fw(lua_State* L)
 {
     static constexpr luaL_Reg fw_lib[] = {
-        { "keycode", fw_keycode },
         { "led0", fw_led0 },
         { "log_mask", fw_log_mask },
+        { "map_if", key::if_t::_create },
         { "map_literal", key::literal_t::_create },
         { "map_pseudo", key::map_t::_create },
         { "nvm", nullptr },  // placeholder for the `nvm` table

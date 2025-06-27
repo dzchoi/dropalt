@@ -8,7 +8,9 @@
 
 * Change m_pthread->flags directly instead calling thread_flags_set(), if we don't need to yield to other threads at this moment, and there is no other threads or interrupt that can change it simultaneously (So irq_disable() is not necessary).
 
-* Keymap: Do we need the slot_index for map_t::press/release(), ... ?
+* map_func(f): executes f() with is_press argument.
+* map_no_repeat(): press and release quickly.
+* Loading the keymap module affects performance?: "USBHUB: acquired host port 1 @924"
 
 * USB: Is the USB access delay (m_delay_usb_accessible|_tmo_usb_accessible) still necessary on recent Linux?
 
@@ -19,6 +21,7 @@
 * RGB: Precise color accuracy isn't necessary — keycaps give everything a reddish hue.
 
 * `assert( false )` and `assert( status == LUA_OK )` are not the proper way to shutdown. Use abort(), lua_error() or luaL_error() instead.
+  `assert()` for only "non-trivial" logical error.
 
 * Tips
   - `typedef struct lua_State lua_State;`
@@ -38,7 +41,8 @@
 * Implement the firmware uploading feature
   Currently, we can retrieve the logs stored in the device's backup ram using the upload command of `dfu-util`. While also uploading a firmware binary is not essential, it is still a nice feature to have. The implementation would be straightforward, but we need to determine the image size beforehand. This can be pre-written when generating a firmware image with the slot header included (`slot0.XXXX.bin`). We could consider extending riotboot_hdr_t in riot/sys/include/riotboot/hdr.h..."
 
-* Will it be possible to flash a bootloader without debugger?
+* Generic bootloader changer application
+  Provides slot 0 in dfu-util to flash the real bootloader (at the first 16KB).
   Maybe we could utilize an intermediary bootloader to flash the final bootloader, using memory banks and switching them.
 
 * Store a format string and its parameters for a log

@@ -7,44 +7,46 @@
 -- environment. We need to explicitly "require" for the "fw" module.
 local fw = require "fw"
 
+-- Shorthand aliases
+local map_if        = fw.map_if
+local map_literal   = fw.map_literal
+local map_pseudo    = fw.map_pseudo
+
 -- Note: Any runtime error in this script will cause a crash during the firmware boot.
 -- For example, the package module does not define non_existent_function() and thus
 -- package.non_existent_function("nop") will cause a crash!
 
 
--- Create a keymap table based on the given template.
+-- Define custom keymaps.
+local ___ = map_pseudo()
+local FN  = map_pseudo()
+
+local mRIGHT = map_if(function() return FN:is_pressed() end,
+    map_literal("LEFT"), map_literal("RIGHT"))
+
+
+-- Create the keymap table, which also serves as the module table.
 local function keymap_table(template)
     local table = {}
     for i = 0, #template do
         if type(template[i]) == "string" then
-            -- Literal
-            local keycode = fw.keycode(template[i])
-            assert( keycode, "no keycode for \"" .. template[i] .. "\"" )
-            table[i] = fw.map_literal(keycode)
-        else
-            -- Instance of map_t or a derived class of map_t
-            assert( type(template[i]) == "userdata" )
+            table[i] = map_literal(template[i])
+        elseif type(template[i]) == "userdata" then
             table[i] = template[i]
+        else
+            error("'" .. template[i] .. "' cannot create a keymap")
         end
     end
 
     return table
 end
 
--- Define custom keymaps.
-local ___ = fw.map_pseudo()
-local FN  = fw.map_pseudo()
-
-local SPC = fw.map_literal(fw.keycode("SPACE"))
--- E.g. we can call `SPC:is_pressed()`.
-
--- Create the module table.
 local keymaps = keymap_table {
     [0]="`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "BKSP", "HOME",
     "TAB", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "[", "]", "\\", "END",
     "LCTRL", "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'", ___, "ENTER", "PGUP",
     "LSHIFT", ___, "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", "RSHIFT", "UP", "PGDN",
-    "LALT", "LGUI", FN, ___, ___, ___, SPC, ___, ___, ___, "RCTRL", "RALT", "LEFT", "DOWN", "RIGHT"
+    "LALT", "LGUI", FN, ___, ___, ___, "SPACE", ___, ___, ___, "RCTRL", "RALT", "LEFT", "DOWN", mRIGHT
 }
 
 
