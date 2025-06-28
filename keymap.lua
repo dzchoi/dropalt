@@ -28,7 +28,7 @@ local mRIGHT = map_if(function() return FN:is_pressed() end,
 -- Create the keymap table, which also serves as the module table.
 local function keymap_table(template)
     local table = {}
-    for i = 0, #template do
+    for i = 1, #template do
         if type(template[i]) == "string" then
             table[i] = map_literal(template[i])
         elseif type(template[i]) == "userdata" then
@@ -42,7 +42,7 @@ local function keymap_table(template)
 end
 
 local keymaps = keymap_table {
-    [0]="`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "BKSP", "HOME",
+    "`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "BKSP", "HOME",
     "TAB", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "[", "]", "\\", "END",
     "LCTRL", "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'", ___, "ENTER", "PGUP",
     "LSHIFT", ___, "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", "RSHIFT", "UP", "PGDN",

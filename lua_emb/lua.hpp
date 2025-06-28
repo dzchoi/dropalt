@@ -29,7 +29,7 @@ namespace lua {
 using status_t = int;
 
 // Shared global Lua state used by both the keymap and REPL modules.
-extern lua_State* L;
+inline lua_State* L = nullptr;
 
 void init();
 

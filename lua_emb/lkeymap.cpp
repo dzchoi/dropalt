@@ -140,19 +140,18 @@ void load_keymap()
     // ( -- )
 }
 
-void handle_key_event(unsigned slot_index, bool is_press)
+void handle_key_event(unsigned slot_index1, bool is_press)
 {
     const char* const press_or_release = ::press_or_release(is_press);
 
     // Execute the event if in normal mode.
     if ( !::key::event_queue::deferrer() ) {
-        LOG_DEBUG("Map: [%u] handle %s\n", slot_index, press_or_release);
-        // rgb_thread::obj().signal_key_event(slot_index, is_press);
+        LOG_DEBUG("Map: [%u] handle %s\n", slot_index1, press_or_release);
 
         lua_pushlightuserdata(L, (void*)&load_keymap);
         lua_gettable(L, LUA_REGISTRYINDEX);
-        lua_pushinteger(L, slot_index);
-        lua_gettable(L, -2);  // Retrieve the keymap object from module-table[slot_index].
+        lua_pushinteger(L, slot_index1);
+        lua_gettable(L, -2);  // Retrieve the keymap from module-table[slot_index1].
         lua_remove(L, -2);
         // ( -- userdata )
 

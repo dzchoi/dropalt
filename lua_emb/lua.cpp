@@ -13,8 +13,6 @@ extern "C" {
 
 namespace lua {
 
-lua_State* L = nullptr;
-
 static constexpr size_t LUA_MEM_SIZE = 100 *1024;
 
 static uint8_t lua_memory[LUA_MEM_SIZE]

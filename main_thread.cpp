@@ -189,7 +189,10 @@ NORETURN void* main_thread::_thread_entry(void*)
         // External key events from key::event_queue are handled one at a time.
         key::event_queue::entry_t event;
         if ( key::event_queue::next_event(&event) ) {
-            lua::handle_key_event(event.slot_index, event.is_press);
+            // rgb_thread::obj().signal_key_event(slot_index, is_press);
+            // Note that handle_key_event() uses `slot_index1` instead of `slot_index`,
+            // since Lua array indices start from 1.
+            lua::handle_key_event(event.slot_index + 1, event.is_press);
 
             unsigned state = irq_disable();
             m_pthread->flags |= FLAG_KEY_EVENT;

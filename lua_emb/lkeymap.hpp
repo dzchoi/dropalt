@@ -9,6 +9,6 @@ namespace lua {
 void load_keymap();
 
 // Keymap engine that triggers all on_*_press/release() callbacks.
-void handle_key_event(unsigned slot_index, bool is_press);
+void handle_key_event(unsigned slot_index1, bool is_press);
 
 }
