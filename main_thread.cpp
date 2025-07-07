@@ -12,8 +12,8 @@
 #include "adc.hpp"              // for adc::v_5v, v_con1, v_con2
 #include "lua.hpp"              // for lua::init()
 #include "config.hpp"           // for ENABLE_CDC_ACM, ENABLE_LUA_REPL
-#include "key_event_queue.hpp"  // for key::event_queue::push(), ...
-#include "lkeymap.hpp"          // for lua::handle_key_event(), ...
+#include "key_queue.hpp"        // for key_queue::push(), ...
+#include "lkeymap.hpp"          // for lua::handle_key_event()
 #include "main_thread.hpp"
 #include "matrix_thread.hpp"    // for matrix_thread::init()
 #include "persistent.hpp"       // for persistent::init()
@@ -87,17 +87,28 @@ void main_thread::signal_dte_ready(uint8_t log_mask)
     }
 }
 
+void main_thread::signal_event(event_t* event)
+{
+    event_post(&m_event_queue, event);
+    if constexpr ( ENABLE_LUA_REPL )
+        timed_stdin::stop_read();
+}
+
 bool main_thread::signal_key_event(unsigned slot_index, bool is_press, uint32_t timeout_us)
 {
-    if ( timeout_us )
-        LOG_DEBUG("Matrix: %s [%u]\n", press_or_release(is_press), slot_index);
-    else
-        LOG_INFO("Emulate %s [%u]\n", press_or_release(is_press), slot_index);
+    assert( slot_index < NUM_MATRIX_SLOTS );
+    // Convert `slot_index` to `slot_index1`, since Lua array indices start from 1.
+    unsigned slot_index1 = slot_index + 1;
 
-    if ( unlikely(!key::event_queue::push(slot_index, is_press, timeout_us)) ) {
-        // Failure from key::event_queue::push() is unrecoverable, indicating that the
-        // key event queue is completely filled with deferred events.
-        LOG_ERROR("Map: key::event_queue::push() failed\n");
+    if ( timeout_us )
+        LOG_DEBUG("Matrix: %s [%u]\n", press_or_release(is_press), slot_index1);
+    else
+        LOG_INFO("Emulate %s [%u]\n", press_or_release(is_press), slot_index1);
+
+    if ( unlikely(!key_queue::push(slot_index1, is_press, timeout_us)) ) {
+        // Failure from key_queue::push() is unrecoverable, indicating that the key event
+        // queue is completely filled with deferred events.
+        LOG_ERROR("Main: key_queue::push() failed\n");
         assert( false );
         // return false;
     }
@@ -186,13 +197,10 @@ NORETURN void* main_thread::_thread_entry(void*)
                 event->handler(event);
         }
 
-        // External key events from key::event_queue are handled one at a time.
-        key::event_queue::entry_t event;
-        if ( key::event_queue::next_event(&event) ) {
-            // rgb_thread::obj().signal_key_event(slot_index, is_press);
-            // Note that handle_key_event() uses `slot_index1` instead of `slot_index`,
-            // since Lua array indices start from 1.
-            lua::handle_key_event(event.slot_index + 1, event.is_press);
+        // External key events from key_queue are handled one at a time.
+        key_queue::entry_t event;
+        if ( key_queue::next_event(&event) ) {
+            lua::handle_key_event(event.slot_index1, event.is_press);
 
             unsigned state = irq_disable();
             m_pthread->flags |= FLAG_KEY_EVENT;
@@ -212,7 +220,7 @@ NORETURN void* main_thread::_thread_entry(void*)
         }
 
         if ( flags & FLAG_TIMEOUT ) {
-            LOG_DEBUG("Main: v_5v=%d v_con1=%d v_con2=%d fsmstatus=0x%x @%ld\n",
+            LOG_DEBUG("Main: v_5v=%d v_con1=%d v_con2=%d fsmstatus=0x%x @%lu\n",
                 adc::v_5v.read(), adc::v_con1.read(), adc::v_con2.read(),
                 usb_thread::fsmstatus(),
                 ztimer_now(ZTIMER_MSEC));

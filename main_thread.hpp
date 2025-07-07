@@ -25,7 +25,7 @@ public:
     static void signal_dte_ready(uint8_t log_mask);
 
     // Signal a generic event to main_thread.
-    static void signal_event(event_t* event) { event_post(&m_event_queue, event); }
+    static void signal_event(event_t* event);
 
     // For non-zero timeout_us it returns an indicator of whether or not it has been
     // signaled successfully. If it is zero it waits indefinitely and returns true.

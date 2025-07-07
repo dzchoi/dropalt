@@ -198,11 +198,11 @@ inline constexpr const char* keycode_to_name[] = {
 
     // Modifiers
     "LCTRL",            // 0xE0
-    "LSHIFT",
+    "LSHFT",
     "LALT",
     "LGUI",
     "RCTRL",
-    "RSHIFT",
+    "RSHFT",
     "RALT",
     "RGUI",
 };

@@ -91,7 +91,7 @@ static void allocate_seeprom(void)
       || user_page.smart_eeprom_page_size != SEEPROM_PSZ ) {
         user_page.smart_eeprom_blocks = SEEPROM_SBLK;
         user_page.smart_eeprom_page_size = SEEPROM_PSZ;
-        const char* s = (char*)sam0_flashpage_aux_get(0);
+        char* s = (char*)sam0_flashpage_aux_get(0);
         s = (*s == '\xff' ? NULL : __builtin_strdup(s));
 
         // Erase the USER page while preserving the reserved section (the first 32 bytes).

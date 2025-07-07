@@ -7,55 +7,693 @@
 -- environment. We need to explicitly "require" for the "fw" module.
 local fw = require "fw"
 
--- Shorthand aliases
-local map_if        = fw.map_if
-local map_literal   = fw.map_literal
-local map_pseudo    = fw.map_pseudo
-
 -- Note: Any runtime error in this script will cause a crash during the firmware boot.
 -- For example, the package module does not define non_existent_function() and thus
 -- package.non_existent_function("nop") will cause a crash!
 
 
--- Define custom keymaps.
-local ___ = map_pseudo()
-local FN  = map_pseudo()
 
-local mRIGHT = map_if(function() return FN:is_pressed() end,
-    map_literal("LEFT"), map_literal("RIGHT"))
+-------- Configuration
+-- TAPPING_TERM_MS defines the maximum interval between press and release for a key input
+-- to be recognized as a tap. Used as the default tapping_term_ms value in TapHold and
+-- TapDouble classes.
+TAPPING_TERM_MS = 200
 
+-------- handle_key_event()
+g_current_slot_index1 = 0
 
--- Create the keymap table, which also serves as the module table.
-local function keymap_table(template)
-    local table = {}
-    for i = 1, #template do
-        if type(template[i]) == "string" then
-            table[i] = map_literal(template[i])
-        elseif type(template[i]) == "userdata" then
-            table[i] = template[i]
+local Module = {}
+
+-- Core keymap engine responsible for processing all key events across keymaps
+function Module.handle_key_event(slot_index1, is_press)
+    g_current_slot_index1 = slot_index1
+    local press_or_release = is_press and "press" or "release"
+
+    local deferrer = fw.defer_owner()
+    if deferrer then
+        -- In defer mode, if the event targets the deferrer, execute it immediately.
+        if slot_index1 == deferrer.m_slot_index1 then
+            fw.log("Map: ["..slot_index1.."] handle deferrer "..press_or_release)
+
+        -- In defer mode, if the event targets another slot, notify the deferrer first.
         else
-            error("'" .. template[i] .. "' cannot create a keymap")
+            fw.log("Map: ["..deferrer.m_slot_index1.."] handle other "
+               ..press_or_release.." ["..slot_index1.."]")
+            local handler = is_press and "on_other_press" or "on_other_release"
+            if not deferrer[handler](deferrer) then
+                return
+            end
+
+            -- If the deferrer has opted not to defer this event by returning a non-nil,
+            -- execute it immediately.
+            fw.log("Map: ["..slot_index1.."] execute immediate "..press_or_release)
+        end
+
+        -- Note: Those two cases of executing events immediately during defer mode can
+        -- disrupt the order of key event occurrences. See comments in TapHold.
+
+    -- Execute the event if in normal mode.
+    else
+        fw.log("Map: ["..slot_index1.."] handle "..press_or_release)
+    end
+
+    -- rgb_thread::obj().signal_key_event(slot_index1, is_press)
+
+    if is_press then
+        g_keymaps[slot_index1]:press()
+    else
+        g_keymaps[slot_index1]:release()
+    end
+
+    -- If we were in defer mode, remove the latest deferred event from the event queue,
+    -- as this event has already executed on the deferrer or on another slot above.
+    -- Note: The latest deferred (i.e. just peeked) event must have its .slot_index1
+    -- equal to the provided slot_index1. See the while-loop in main_thread.
+    if deferrer then
+        fw.defer_remove_last();
+    end
+end
+
+-------- Lightweight class implementation with multiple inheritance
+local function class(...)
+    local parents = {...}
+    -- A class is a table used as the metatable for its instances.
+    -- Multiple inheritance is implemented by customizing the __index metamethod to
+    -- search parent classes.
+    local cls = setmetatable({}, {  -- metatable for the class itself, not its instances.
+        -- Setup inheritance through __index.
+        __index = function(_, key)
+            for _, parent in ipairs(parents) do
+                local val = parent[key]
+                if val then return val end
+            end
+            -- Return nil if not found.
+        end,
+
+        -- Make the class callable to act as a constructor.
+        __call = function(self, ...)
+            -- Create a new instance (`obj`) and set its metatable to the class (`self`).
+            local obj = setmetatable({}, self)
+            -- If the class (`self`) defines its own `init()`, call it on the new object.
+            -- Note: Child classes are responsible for explicitly calling their parent 
+            -- classes' `init()` if needed.
+            if rawget(self, "init") then
+                obj:init(...)
+            end
+            return obj
+        end
+    })
+
+    -- Allow instances to access methods defined on the class table.
+    cls.__index = cls
+
+    -- Note: Each class can define custom metamethods for instances.
+    -- Example: A = class(); function A:__eq(other) ... end
+    return cls
+end
+
+-------- Base
+-- Base class for all keymaps.
+Base = class()
+
+function Base:init()
+    -- Initialize the new object (`self`).
+    self.m_press_count = 0
+end
+
+-- The base class provides virtual handlers for press and release events, but does not
+-- register keys directly.
+function Base:on_press() end
+function Base:on_release() end
+
+function Base:press()
+    self.m_press_count = self.m_press_count + 1
+    if self.m_press_count == 1 then
+        if self.on_proxy_press then
+            self:on_proxy_press()
+        else
+            self:on_press()
+        end
+    end
+end
+
+function Base:release()
+    self.m_press_count = self.m_press_count - 1
+    if self.m_press_count == 0 then
+        if self.on_proxy_release then
+            self:on_proxy_release()
+        else
+            self:on_release()
+        end
+    end
+end
+
+function Base:is_pressed()
+    return self.m_press_count > 0
+end
+
+Pseudo = Base  -- Base can be used standalone.
+
+-------- Lit
+Lit = class(Base)
+
+-- Create a keymap object that registers presses/releases for a named key. See
+-- keycode_to_name[] for available key names.
+-- Note: Each keymap object is independent and tracks its own press/release state. 
+-- Although calling Lit() multiple times with the same key name is allowed, it is 
+-- generally discouraged. If you want multiple key slots to behave identically (e.g. left 
+-- and right FN), create a single instance and assign it to both slots.
+function Lit:init(keyname)
+    Base.init(self)
+    local keycode = fw.keycode(keyname)
+    if not keycode then
+        error('invalid keyname "'..keyname..'"')
+    end
+    self.m_keycode = keycode
+end
+
+function Lit:on_press()
+    fw.send_key(self.m_keycode, true)
+end
+
+function Lit:on_release()
+    fw.send_key(self.m_keycode, false)
+end
+
+-------- OneShot
+-- Force the given keymap to trigger as a quick tap, ignoring holds.
+OneShot = class(Base)
+
+function OneShot:init(map)
+    Base.init(self)
+    self.m_map = map
+end
+
+function OneShot:on_press()
+    self.m_map:press()
+    self.m_map:release()
+end
+
+-------- Proxy
+-- If a keymap inherits from Proxy, the keymap engine calls on_proxy_press/release() 
+-- instead of on_press/release(). These proxy methods can layer additional logic on top 
+-- of the base handlers.
+Proxy = class(Base)
+
+function Proxy:init()
+    Base.init(self)
+end
+
+function Proxy:on_proxy_press() end
+function Proxy:on_proxy_release() end
+
+-------- Modifier
+-- On a press/release event, it calls on_modified_press/release() if the specified
+-- modifier is currently pressed, or on_press/release() otherwise.
+Modifier = class(Proxy)
+
+function Modifier:init(map_modifier)
+    Proxy.init(self)
+    self.m_map_modifier = map_modifier
+    self.m_is_modified = false
+end
+
+function Modifier:on_modified_press() end
+function Modifier:on_modified_release() end
+
+function Modifier:on_proxy_press()
+    assert( self.m_is_modified == false )
+    if self.m_map_modifier:is_pressed() then
+        self.m_is_modified = true
+        self:on_modified_press()
+    else
+        self:on_press()
+    end
+end
+
+function Modifier:on_proxy_release()
+    if self.m_is_modified then
+        self:on_modified_release()
+        self.m_is_modified = false
+    else
+        self:on_release()
+    end
+end
+
+-------- ModIf
+-- Given three parameters (map_modifier, map_modified and map_original), it acts as
+-- map_modified if map_modifier is currently pressed, or map_original otherwise.
+ModIf = class(Modifier)
+
+-- Flavors
+KEEP_MODIFIER = 0
+-- The modifier is kept pressing when the modified version is registered.
+
+UNDO_MODIFIER = 1
+-- The modifier is released and pressed again while the modified version is registered.
+
+function ModIf:init(map_modifier, map_modified, map_original, flavor)
+    Modifier.init(self, map_modifier)
+    self.m_map_modified = map_modified
+    self.m_map_original = map_original
+    self.m_flavor = flavor or KEEP_MODIFIER
+end
+
+function ModIf:on_press()
+    self.m_map_original:press()
+end
+
+function ModIf:on_release()
+    self.m_map_original:release()
+end
+
+function ModIf:on_modified_press()
+    if self.m_flavor == UNDO_MODIFIER then
+        self.m_map_modifier:release()
+    end
+    self.m_map_modified:press()
+end
+
+function ModIf:on_modified_release()
+    self.m_map_modified:release()
+    if self.m_flavor == UNDO_MODIFIER then
+        -- Since Base.m_press_count is a signed integer, calling press() here won't
+        -- actually re-press the modifier if it's already been physically released.
+        self.m_map_modifier:press()
+    end
+end
+
+-------- Defer
+-- [Defer mode]
+-- While in defer mode, all key events - except those targeting the "deferrer" (i.e.
+-- defer_owner()) - are deferred rather than processed immediately. These events remain
+-- queued and do *not* trigger their usual on_press()/release() methods. Instead, they
+-- are reported to the deferrer by invoking its on_other_press()/release() methods.
+-- Thus, during defer mode, all key events are effectively routed to the deferrer. The
+-- deferred events will be processed once the deferrer exits defer mode.
+-- Note: Nested deferral is not allowed - there can only be one active deferrer. See
+-- handle_key_event() for implementation details.
+Defer = class()
+
+function Defer:init()
+    self.m_slot_index1 = 0  -- Key slot that initiated defer mode.
+end
+
+function Defer:on_other_press() end
+function Defer:on_other_release() end
+
+function Defer:start_defer()  -- Start defer mode.
+    assert( self.m_slot_index1 == 0 )
+    self.m_slot_index1 = g_current_slot_index1
+    fw.defer_start(self)
+end
+
+function Defer:stop_defer()  -- Stop defer mode.
+    assert( self.m_slot_index1 ~= 0 )
+    self.m_slot_index1 = 0
+    fw.defer_stop()
+end
+
+-------- Timer
+Timer = class()
+
+function Timer:init(timeout_ms)
+    -- m_ctimer holds a userdata instance of the internal C++ class `_timer_t`.
+    self.m_ctimer = fw.timer_create(timeout_ms)
+    -- Closure used as the timer callback; captures `self` for invoking on_timeout().
+    self.m_callback = function() self:on_timeout() end
+
+    -- Note: No __gc() needed for this class; the callback is only referenced between
+    -- fw.timer_start() and fw.timer_stop(), so the Timer instance won't be collected
+    -- while the timer is active.
+end
+
+function Timer:on_timeout() end  -- Will be invoked on timeout.
+
+function Timer:start_timer()
+    fw.timer_start(self.m_ctimer, self.m_callback)
+end
+
+function Timer:stop_timer()
+    fw.timer_stop(self.m_ctimer)
+end
+
+function Timer:timer_is_running()
+    return fw.timer_is_running(self.m_ctimer)
+end
+
+-------- TapHold
+local TapHold = class(Base, Defer, Timer)
+
+-- Flavors
+TAP_PREFERRED = 0
+-- The output decision is made when the tapping_term_ms has expired or the tap-hold key
+-- is released. The press or release of any other keys within the tapping_term_ms does
+-- not affect the decision, but will register when the decision is made.
+
+QUICK_TAP_PREFERRED = 1
+-- The hold behavior is triggered when tapping_term_ms has expired. If a press or a
+-- release (including the release of the tap-hold key itself) is made during the the
+-- period the tap behavior is triggered.
+
+HOLD_PREFERRED = 2  -- Or 'hold on other key press' mode
+-- The hold behavior is triggered when tapping_term_ms has expired or another key is
+-- pressed within this period. If a key that has been pressed previously is released
+-- during the period it does not affect the decision, but will register when the decision
+-- is made.
+
+BALANCED = 3  -- Or 'permissive hold' mode
+-- The hold behavior is triggered when the tapping_term_ms has expired or another key is
+-- pressed AND released within this period. If a key that has been pressed previously is
+-- released during the period it does not affect the decision and will register
+-- immediately without waiting for the decision.
+
+function TapHold:init(map_tap, map_hold, flavor, tapping_term_ms)
+    Base.init(self)
+    Defer.init(self)
+    Timer.init(self, tapping_term_ms or TAPPING_TERM_MS)
+    self.m_map_tap = map_tap
+    self.m_map_hold = map_hold
+    self.m_map_chosen = false
+    self.m_flavor = flavor or TAP_PREFERRED
+end
+
+function TapHold:help_decide(map_to_choose)
+    -- stop_timer(), press(), and stop_defer() are order-independent and may be called in
+    -- any sequence.
+    self:stop_timer()
+    map_to_choose:press()
+    self.m_map_chosen = map_to_choose
+    self:stop_defer()
+end
+
+function TapHold:decide_tap()
+    self:help_decide(self.m_map_tap)
+end
+
+function TapHold:decide_hold()
+    self:help_decide(self.m_map_hold)
+end
+
+function TapHold:on_press()
+    assert( self.m_map_chosen == false )
+    self:start_timer()
+    self:start_defer()
+end
+
+function TapHold:on_release()
+    if not self.m_map_chosen then
+        -- Note: on_release() gets called during defer mode on the keymaps that have
+        -- called start_defer(). In this case, the (deferrer's) on_release() may be
+        -- invoked before any deferred events targeting non-deferrer slots have been
+        -- handled, potentially disrupting the original event execution order (i.e. the
+        -- deferrer's release occurring before other presses). This is acceptable because
+        -- we trigger both press() and release() at once for m_map_tap (the tapping key),
+        -- not m_map_hold (the holding key), and the tapping key's release timing is not
+        -- critical. However, if the tapping key were sensitive to release timing (e.g. a
+        -- modifier), we would need to modify the keymap engine to notify the deferrer
+        -- twice upon its release: once to trigger the tapping key's press (via e.g.
+        -- bool on_early_release()), and again to trigger its normal release (via
+        -- on_release()).
+        fw.log("TapHold ["..g_current_slot_index1.."] decide tap on release")
+        self:decide_tap()
+    end
+    self.m_map_chosen:release()
+    self.m_map_chosen = false
+end
+
+function TapHold:on_timeout()
+    fw.log("TapHold [--] decide hold on timeout")
+    self:decide_hold()
+end
+
+function TapHold:on_other_press()
+    if self.m_flavor == QUICK_TAP_PREFERRED then
+        fw.log("TapHold ["..g_current_slot_index1.."] decide tap on other press")
+        self:decide_tap()
+
+    elseif self.m_flavor == HOLD_PREFERRED then
+        fw.log("TapHold ["..g_current_slot_index1.."] decide hold on other press")
+        self:decide_hold()
+    end
+end
+
+function TapHold:on_other_release()
+    if self.m_flavor == QUICK_TAP_PREFERRED then
+        fw.log("TapHold ["..g_current_slot_index1.."] decide tap on other release")
+        self:decide_tap()
+
+    elseif self.m_flavor == BALANCED then
+        if fw.defer_is_pending(g_current_slot_index1, true) == false then
+            -- If this is the release of an "other" key whose press occurred before our
+            -- tapping_term, we execute it now and no longer defer it.
+            -- Note: In this case, the press for the tapping or holding key will be
+            -- registered after the other key's release, breaking the original event
+            -- order. This is mostly acceptable, but if the other key is a modifier, it
+            -- will end up being released too early.
+            return true
+        end
+
+        fw.log("TapHold ["..g_current_slot_index1..
+                "] decide hold on other press and then release")
+        self:decide_hold()
+    end
+end
+
+-------- TapDance
+-- Similar to QMK's ACTION_TAP_DANCE_FN_ADVANCED(), only function names differ.
+--  • on_press() is called each time the tap dance key is pressed.
+--  • on_finish() is invoked when the tap dance finishes:
+--      - either after tapping_term_ms has elapsed since the last press,
+--      - or when any other key is pressed within tapping_term_ms.
+--    on_release() is then called immediately after.
+--  • Alternatively, calling finish() manually (e.g. from on_press()) finishes the tap
+--    dance. In this case, on_finish() is skipped and on_release() will be called later
+--    when the key is (physically) released.
+--  • Therefore, on_release() is always called - either after on_finish(), or directly 
+--    after an explicit finish() and key release.
+--  • Call sequence is typically: on_press(), on_press(), ..., [on_finish()], and
+--    on_release().
+--  • Use .get_step() inside on_press/finish/release() to get the current tap count.
+TapDance = class(Proxy, Defer, Timer)
+
+function TapDance:init(tapping_term_ms)
+    Proxy.init(self)
+    Defer.init(self)
+    Timer.init(self, tapping_term_ms or TAPPING_TERM_MS)
+    -- m_step is incremented before each on_press() call, and reset to 0 after
+    -- on_release().
+    self.m_step = 0
+    -- Although m_step = 0 could be used to indicate that the dance is finished, we use
+    -- a separate flag so that on_release() can still access m_step.
+    self.m_is_finished = true
+end
+
+-- Todo: Would we better have a parameter to on_finish() that will indicate whether
+-- on_finish() is called from on_timeout() or from on_other_press() (i.e. interrupted by
+-- other key)?
+function TapDance:on_finish() end
+
+function TapDance:finish()
+    -- Will skip calling on_finish().
+    self:stop_timer()
+    self:stop_defer()
+    self.m_is_finished = true
+end
+
+function TapDance:get_step()
+    return self.m_step
+end
+
+function TapDance:on_proxy_press()
+    self.m_step = self.m_step + 1
+    if self.m_step == 1 then
+        assert( self.m_is_finished )
+        self.m_is_finished = false  -- Start the dance.
+        self:start_defer()
+    end
+
+    self:start_timer()  -- (Re)start the timer.
+    self:on_press()
+end
+
+function TapDance:on_proxy_release()
+    if self.m_is_finished then
+        self:on_release()
+        self.m_step = 0
+    end
+end
+
+function TapDance:on_timeout()
+    self:stop_defer()
+    self.m_is_finished = true  -- Finish the dance.
+    self:on_finish()
+    if not self:is_pressed() then
+        self:on_release()  -- Trigger a late release notification.
+        self.m_step = 0
+    end
+end
+
+function TapDance:on_other_press()
+    self:stop_timer()
+    self:on_timeout()
+end
+
+-------- TapDouble
+-- Trigger `map_once` on the first tap, and `map_twice` on the second tap.
+-- If held:
+--  - Press-and-hold for the first time holds `map_once`.
+--  - Tap once, then press-and-hold holds `map_twice`.
+TapDouble = class(TapDance)
+
+function TapDouble:init(map_once, map_twice, tapping_term_ms)
+    TapDance.init(self, tapping_term_ms)  -- tapping_term_ms can be nil.
+    self.m_map_once = map_once
+    self.m_map_twice = map_twice
+end
+
+function TapDouble:on_press()
+    if self:get_step() == 1 then
+        self.m_map_once:press()
+    else
+        self.m_map_once:release()
+        self.m_map_twice:press()
+        self:finish()
+    end
+end
+
+function TapDouble:on_release()
+    if self:get_step() == 1 then
+        self.m_map_once:release()
+    else
+        self.m_map_twice:release()
+    end
+end
+
+-------- Custom keymaps
+local ___   = Pseudo()
+local FN    = Pseudo()
+local FN2   = Pseudo()
+
+local F1    = Lit("F1")
+local F2    = Lit("F2")
+local F3    = Lit("F3")
+local F4    = Lit("F4")
+local F5    = Lit("F5")
+local F6    = Lit("F6")
+local F7    = Lit("F7")
+local F8    = Lit("F8")
+local F9    = Lit("F9")
+local F10   = Lit("F10")
+local F11   = Lit("F11")
+local F12   = Lit("F12")
+
+local LEFT  = Lit("LEFT")
+local RIGHT = Lit("RIGHT")
+local UP    = Lit("UP")
+local DOWN  = Lit("DOWN")
+
+local HOME  = Lit("HOME")
+local END   = Lit("END")
+local PGUP  = Lit("PGUP")
+local PGDN  = Lit("PGDN")
+
+local SPACE = Lit("SPACE")
+local LCTRL = Lit("LCTRL")
+local RCTRL = Lit("RCTRL")
+local LSHFT = Lit("LSHFT")
+local RSHFT = Lit("RSHFT")
+
+-- Hold TAB -> FN2
+local tTAB = TapHold(Lit("TAB"), FN2, HOLD_PREFERRED)
+
+-- Tap LCTRL -> ESC
+local tLCTRL = TapHold(Lit("ESC"), LCTRL, HOLD_PREFERRED)
+
+-- Hold ENTER -> FN
+local tENTER = TapHold(Lit("ENTER"), FN, HOLD_PREFERRED)
+
+-- Hold SPACE -> RSHFT
+local tSPACE = TapHold(SPACE, RSHFT, BALANCED)
+
+-- FN + P -> PrtScr
+local mP = ModIf(FN, Lit("PRTSCR"), Lit("P"))
+
+-- FN + [ -> Break/Pause
+local mLBRAC = ModIf(FN, Lit("PAUSE"), Lit("["))
+
+-- FN + DOWN -> SCRLOCK
+-- Most Linux Desktops do not handle SCRLOCK but Windows does.
+local mDOWN = ModIf(FN, Lit("SCRLOCK"), DOWN)
+-- Todo: Custom lamp_t that enables a jiggler while SCRLOCK lamp is on.
+
+-- FN2 + H/J/K/L -> arrow keys
+-- FN2 + FN + H/J/K/L -> HOME/PGDN/PGUP/END
+local mH = ModIf(FN2, ModIf(FN, HOME, LEFT), Lit("H"))
+local mJ = ModIf(FN2, ModIf(FN, PGDN, DOWN), Lit("J"))
+local mK = ModIf(FN2, ModIf(FN, PGUP, UP), Lit("K"))
+local mL = ModIf(FN2, ModIf(FN, END, RIGHT), Lit("L"))
+
+-- FN + BKSP -> DEL
+local mBKSP = ModIf(FN, Lit("DEL"), Lit("BKSP"))
+-- Or local mBKSP = ModIf(RSHFT, Lit("DEL"), Lit("BKSP"))
+
+-- FN + ` = POWER
+local mGRV = ModIf(FN, Lit("POWER"), Lit("`"))
+
+local mLSHFT = ModIf(tSPACE, SPACE, LSHFT)
+-- Todo: t_SPC + LSFT = SPC, Double LSFT = CapsLock, LSFT (when CapsLock on) = CapsLock
+
+local m1 = ModIf(FN, F1, TapHold(Lit("1"), OneShot(F1), QUICK_TAP_PREFERRED))
+local m2 = ModIf(FN, F2, TapHold(Lit("2"), OneShot(F2), QUICK_TAP_PREFERRED))
+local m3 = ModIf(FN, F3, TapHold(Lit("3"), OneShot(F3), QUICK_TAP_PREFERRED))
+local m4 = ModIf(FN, F4, TapHold(Lit("4"), OneShot(F4), QUICK_TAP_PREFERRED))
+local m5 = ModIf(FN, F5, TapHold(Lit("5"), OneShot(F5), QUICK_TAP_PREFERRED))
+local m6 = ModIf(FN, F6, TapHold(Lit("6"), OneShot(F6), QUICK_TAP_PREFERRED))
+local m7 = ModIf(FN, F7, TapHold(Lit("7"), OneShot(F7), QUICK_TAP_PREFERRED))
+local m8 = ModIf(FN, F8, TapHold(Lit("8"), OneShot(F8), QUICK_TAP_PREFERRED))
+local m9 = ModIf(FN, F9, TapHold(Lit("9"), OneShot(F9), QUICK_TAP_PREFERRED))
+local m0 = ModIf(FN, F10, TapHold(Lit("0"), OneShot(F10), QUICK_TAP_PREFERRED))
+local mMINUS = ModIf(FN, F11, TapHold(Lit("-"), OneShot(F11), QUICK_TAP_PREFERRED))
+local mEQUAL = ModIf(FN, F12, TapHold(Lit("="), OneShot(F12), QUICK_TAP_PREFERRED))
+
+-- Not so useful:
+-- local tRIGHT = TapDouble(RIGHT, END)
+
+-------- Create the keymap table `g_keymaps[]`.
+local function keymap_table(entries)
+    local keymaps = {}
+    for i, entry in ipairs(entries) do
+        if type(entry) == "string" then
+            keymaps[i] = Lit(entry)
+        else
+            assert( entry.press, "keymaps["..i.."]" )  -- It must be an instance of Base.
+            keymaps[i] = entry
         end
     end
 
-    return table
+    return keymaps
 end
 
-local keymaps = keymap_table {
-    "`", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-", "=", "BKSP", "HOME",
-    "TAB", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "[", "]", "\\", "END",
-    "LCTRL", "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'", ___, "ENTER", "PGUP",
-    "LSHIFT", ___, "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", "RSHIFT", "UP", "PGDN",
-    "LALT", "LGUI", FN, ___, ___, ___, "SPACE", ___, ___, ___, "RCTRL", "RALT", "LEFT", "DOWN", mRIGHT
+g_keymaps = keymap_table {
+    mGRV, m1, m2, m3, m4, m5, m6, m7, m8, m9, m0, mMINUS, mEQUAL, mBKSP, HOME,
+    tTAB, "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", mLBRAC, "]", "\\", END,
+    tLCTRL, "A", "S", "D", "F", "G", mH, mJ, mK, mL, ";", "'", ___, tENTER, PGUP,
+    mLSHFT, ___, "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", RSHFT, UP, PGDN,
+    "LALT", "LGUI", FN, ___, ___, ___, tSPACE, ___, ___, ___, RCTRL, "RALT", LEFT, DOWN, RIGHT
 }
+
 
 
 -- It is necessary to manually assign the module table to package.loaded["keymap"],
 -- as this module will be loaded using a simplified version of require() provided by
 -- the firmware.
-package.loaded[...] = keymaps  -- The vararg (...) resolves to the module name "keymap".
+package.loaded[...] = Module
+    -- The vararg (...) resolves to the module name "keymap".
 
+-- Clean up local objects that are no longer referenced.
+collectgarbage("collect")
 -- Output the memory usage after the module table has been completely populated.
 print("Current Lua memory usage (KB):", collectgarbage("count"))
 
-return keymaps
+return Module

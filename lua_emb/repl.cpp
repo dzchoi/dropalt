@@ -5,7 +5,7 @@
 #include "stdio_base.h"         // for stdio_write()
 
 extern "C" {
-#include "lua.h"
+// #include "lua.h"
 #include "lauxlib.h"            // declares luaL_*().
 }
 

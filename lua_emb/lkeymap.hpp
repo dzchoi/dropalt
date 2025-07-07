@@ -8,7 +8,8 @@ namespace lua {
 // Note: The module must insert its own table into package.loaded[] and return it.
 void load_keymap();
 
-// Keymap engine that triggers all on_*_press/release() callbacks.
+// C++ counterpart to Lua’s Module.handle_key_event(); delegates key event handling to
+// the core keymap engine in Lua.
 void handle_key_event(unsigned slot_index1, bool is_press);
 
 }

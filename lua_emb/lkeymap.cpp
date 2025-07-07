@@ -4,15 +4,12 @@
 #include "riotboot/slot.h"      // for riotboot_slot_get_hdr(), ...
 
 extern "C" {
-#include "lua.h"
+// #include "lua.h"
 #include "lauxlib.h"            // declares luaL_*().
 }
 
-#include "key_event_queue.hpp"  // for key::event_queue::deferrer(), ...
 #include "lkeymap.hpp"
-#include "main_thread.hpp"      // for press_or_release()
-#include "map.hpp"              // for key::map_t::_delete(), ...
-#include "lua.hpp"              // for lua::L, l_message()
+#include "lua.hpp"              // for lua::L, status_t
 
 
 
@@ -36,43 +33,6 @@ static const char* _reader(lua_State*, void* arg, size_t* psize)
     *psize = slot1_image_size;
     slot1_image_size = 0;
     return (const char*)SLOT1_IMAGE_OFFSET;
-}
-
-// keymap:press() -> void
-// Note: Lua interacts solely with base map_t instances. Responsibility for handling
-// derived types lies in C++.
-static int _press(lua_State* L)
-{
-    key::map_t* obj = static_cast<key::map_t*>(luaL_checkudata(L, 1, "map_t"));
-    obj->press();
-    // ( -- keymap )
-    return 0;
-}
-
-// keymap:release() -> void
-static int _release(lua_State* L)
-{
-    key::map_t* obj = static_cast<key::map_t*>(luaL_checkudata(L, 1, "map_t"));
-    obj->release();
-    // ( -- keymap )
-    return 0;
-}
-
-// keymap:is_pressed() -> bool
-static int _is_pressed(lua_State* L)
-{
-    key::map_t* obj = static_cast<key::map_t*>(luaL_checkudata(L, 1, "map_t"));
-    lua_pushboolean(L, obj->is_pressed());
-    // ( -- keymap bool )
-    return 1;
-}
-
-static int __gc(lua_State* L)
-{
-    // ( keymap -- )
-    key::map_t* obj = static_cast<key::map_t*>(lua_touserdata(L, -1));
-    obj->_delete();
-    return 0;
 }
 
 void load_keymap()
@@ -101,30 +61,7 @@ void load_keymap()
         lua_error(L);  // Trigger _panic(L) with the error message.
     // ( -- chunk )
 
-    // Create a common metatable called "map_t" for all map_t and child instances.
-    // Note: This must be created before invoking the keymap module below, as it depends
-    // on the metatable.
-    luaL_newmetatable(L, "map_t");
-    lua_pushcfunction(L, __gc);
-    lua_setfield(L, -2, "__gc");
-    // ( -- chunk metatable )
-
-    // Create the __index method table in the metatable.
-    lua_newtable(L);
-    lua_pushcfunction(L, _press);
-    lua_setfield(L, -2, "press");
-    lua_pushcfunction(L, _release);
-    lua_setfield(L, -2, "release");
-    lua_pushcfunction(L, _is_pressed);
-    lua_setfield(L, -2, "is_pressed");
-    // ( -- chunk metatable index-table )
-
-    lua_setfield(L, -2, "__index");
-    // ( -- chunk metatable )
-    lua_pop(L, 1);
-    // ( -- chunk )
-
-    // Invoke the keymap module outside a protected environment; any runtime errors will
+    // Invoke the keymap module outside a protected environment; any runtime error will
     // trigger `_panic(L)`.
     lua_pushstring(L, "keymap");  // "keymap" is the module name.
     lua_call(L, 1, 1);
@@ -132,38 +69,27 @@ void load_keymap()
     assert( lua_istable(L, -1) );
     // ( -- module-table )
 
-    // Store the module table in the registry using the unique key `&load_keymap`..
-    lua_pushlightuserdata(L, (void*)&load_keymap);
-    lua_insert(L, -2);  // Swap the top two values.
-    // ( -- &load_keymap module-table )
+    // Store the Lua function `handle_key_event()` in the registry under the key
+    // `&hadle_key_event`.
+    lua_pushlightuserdata(L, (void*)&handle_key_event);
+    lua_getfield(L, -2, "handle_key_event");
+    assert( lua_isfunction(L, -1) );
+    // ( -- module-table &handle_key_event handle_key_event )
     lua_settable(L, LUA_REGISTRYINDEX);
-    // ( -- )
+    // ( -- module-table )
+    lua_settop(L, 0);
 }
 
 void handle_key_event(unsigned slot_index1, bool is_press)
 {
-    const char* const press_or_release = ::press_or_release(is_press);
-
-    // Execute the event if in normal mode.
-    if ( !::key::event_queue::deferrer() ) {
-        LOG_DEBUG("Map: [%u] handle %s\n", slot_index1, press_or_release);
-
-        lua_pushlightuserdata(L, (void*)&load_keymap);
-        lua_gettable(L, LUA_REGISTRYINDEX);
-        lua_pushinteger(L, slot_index1);
-        lua_gettable(L, -2);  // Retrieve the keymap from module-table[slot_index1].
-        lua_remove(L, -2);
-        // ( -- userdata )
-
-        // Invoke _press/_release() outside a protected environment; any runtime errors
-        // will trigger `_panic(L)`.
-        is_press ? _press(L) : _release(L);
-        // ( -- userdata )
-
-        return lua_settop(L, 0);
-    }
-
-    assert( false );
+    lua_pushlightuserdata(L, (void*)&handle_key_event);
+    lua_gettable(L, LUA_REGISTRYINDEX);
+    // ( -- handle_key_event )
+    lua_pushinteger(L, slot_index1);
+    lua_pushboolean(L, is_press);
+    // ( -- handle_key_event slot_index1 is_press )
+    lua_call(L, 2, 0);  // Invoke handle_key_event() outside a protected environment.
+    // ( -- )
 }
 
 }

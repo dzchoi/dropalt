@@ -4,14 +4,14 @@
 #include "log.h"                // for get/set_log_mask()
 #include "thread.h"             // for thread_isr_stack_usage(), ...
 extern "C" {
-#include "lua.h"
+// #include "lua.h"
 #include "lauxlib.h"
 }
 
-#include "if.hpp"               // for if_t::_create()
-#include "literal.hpp"          // for literal_t::_create()
-#include "map.hpp"              // for map_t::_create()
+#include "hid_keycodes.hpp"     // for keycode_to_name[]
+#include "key_queue.hpp"        // for key_queue::start_defer(), ...
 #include "persistent.hpp"       // for persistent::_get/_set(), ...
+#include "timer.hpp"            // for _timer_t::create(), ...
 #include "usb_thread.hpp"       // for usb_thread::send_press/release()
 
 
@@ -49,6 +49,14 @@ static int fw_led0(lua_State* L)
         LED0_ON;
     else
         LED0_TOGGLE;
+    return 0;
+}
+
+// fw.log(string) -> void
+static int fw_log(lua_State* L)
+{
+    const char* message = luaL_checkstring(L, 1);
+    LOG_DEBUG("%s\n", message);
     return 0;
 }
 
@@ -270,6 +278,24 @@ static int fw_stack_usage(lua_State* L)
     return lua_gettop(L);
 }
 
+// fw.keycode(string keyname) -> int | nil
+// Note: This uses an unoptimized linear search to find the keyname.
+static int fw_keycode(lua_State* L)
+{
+    const char* keyname = luaL_checkstring(L, 1);
+    constexpr int NUM_KEYCODES = sizeof(keycode_to_name) / sizeof(keycode_to_name[0]);
+
+    int result = KC_NO;  // KC_NO (= 0) is not a valid keycode.
+    for ( int keycode = KC_A ; keycode < NUM_KEYCODES ; keycode++ )
+        if ( __builtin_strcmp(keyname, keycode_to_name[keycode]) == 0 ) {
+            result = keycode;
+            break;
+        }
+
+    lua_pushinteger(L, result);
+    return result != KC_NO;
+}
+
 // fw.send_key(int keycode, bool is_press) -> void
 static int fw_send_key(lua_State* L)
 {
@@ -284,11 +310,15 @@ static int fw_send_key(lua_State* L)
 int luaopen_fw(lua_State* L)
 {
     static constexpr luaL_Reg fw_lib[] = {
+        { "defer_start", key_queue::defer_start },
+        { "defer_stop", key_queue::defer_stop },
+        { "defer_owner", key_queue::defer_owner },
+        { "defer_is_pending", key_queue::defer_is_pending },
+        { "defer_remove_last", key_queue::defer_remove_last },
+        { "keycode", fw_keycode },
         { "led0", fw_led0 },
+        { "log", fw_log },
         { "log_mask", fw_log_mask },
-        { "map_if", key::if_t::_create },
-        { "map_literal", key::literal_t::_create },
-        { "map_pseudo", key::map_t::_create },
         { "nvm", nullptr },  // placeholder for the `nvm` table
         { "nvm_clear", fw_nvm_clear },
         { "product_serial", fw_product_serial },
@@ -296,6 +326,10 @@ int luaopen_fw(lua_State* L)
         { "send_key", fw_send_key },
         { "stack_usage", fw_stack_usage },
         { "system_reset", fw_system_reset },
+        { "timer_create", _timer_t::create },
+        { "timer_is_running", _timer_t::is_running },
+        { "timer_start", _timer_t::start },
+        { "timer_stop", _timer_t::stop },
         { nullptr, nullptr }
     };
 
