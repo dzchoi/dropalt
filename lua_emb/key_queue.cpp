@@ -17,6 +17,8 @@ extern "C" {
 mutex_t key_queue::m_access_lock = MUTEX_INIT;
 mutex_t key_queue::m_full_lock = MUTEX_INIT;
 
+static constexpr size_t QUEUE_SIZE = 16;  // must be a power of two.
+static_assert( (QUEUE_SIZE > 0) && ((QUEUE_SIZE & (QUEUE_SIZE - 1)) == 0) );
 key_queue::entry_t key_queue::m_buffer[QUEUE_SIZE];
 
 size_t key_queue::m_push = 0;
@@ -25,11 +27,11 @@ size_t key_queue::m_pop = 0;
 
 int key_queue::m_rdeferrer = LUA_NOREF;
 
-bool (*key_queue::m_next_event)(entry_t*) = &key_queue::try_pop;
+bool (*key_queue::m_get)(entry_t*) = &key_queue::try_pop;
 
 
 
-bool key_queue::push(unsigned slot_index1, bool is_press, uint32_t timeout_us)
+bool key_queue::push(entry_t event, uint32_t timeout_us)
 {
     // Wait until the queue is not full.
     if ( timeout_us == 0 )
@@ -38,24 +40,12 @@ bool key_queue::push(unsigned slot_index1, bool is_press, uint32_t timeout_us)
         return false;
 
     mutex_lock(&m_access_lock);
-
-    // Lazy cleanup of the queue.
-    if ( m_push == QUEUE_SIZE ) {
-        assert( m_pop > 0 );  // Because the queue is no longer full.
-        __builtin_memmove(&m_buffer[0], &m_buffer[m_pop],
-            (QUEUE_SIZE - m_pop) * sizeof(entry_t));
-        m_push -= m_pop;
-        m_peek -= m_pop;
-        m_pop = 0;
-    }
-
-    // Push the new event.
-    m_buffer[m_push++] = {{ uint8_t(slot_index1), is_press }};
-
+    m_buffer[m_push++ & (QUEUE_SIZE - 1)] = event;
+    bool not_full = (m_push - m_pop) < QUEUE_SIZE;
     mutex_unlock(&m_access_lock);
 
-    // Unlok m_full_lock if the queue is not full.
-    if ( m_push < QUEUE_SIZE )
+    // Release m_full_lock unless the queue is full.
+    if ( not_full )
         mutex_unlock(&m_full_lock);
 
     return true;
@@ -71,8 +61,8 @@ bool key_queue::try_pop(entry_t* pevent)
     }
 
     if ( pevent ) {
-        *pevent = m_buffer[m_pop++];
-        // Here reset the peek point!
+        *pevent = m_buffer[m_pop++ & (QUEUE_SIZE - 1)];
+        // Here, reset the peek point!
         m_peek = m_pop;
     }
 
@@ -91,7 +81,7 @@ bool key_queue::try_peek(entry_t* pevent)
     }
 
     if ( pevent )
-        *pevent = m_buffer[m_peek++];
+        *pevent = m_buffer[m_peek++ & (QUEUE_SIZE - 1)];
 
     mutex_unlock(&m_access_lock);
     return true;
@@ -105,7 +95,7 @@ int key_queue::defer_start(lua_State* L)
     assert( main_thread::is_active() );
 
     m_rdeferrer = luaL_ref(L, LUA_REGISTRYINDEX);
-    m_next_event = &key_queue::try_peek;
+    m_get = &key_queue::try_peek;
     return 0;
 }
 
@@ -118,7 +108,7 @@ int key_queue::defer_stop(lua_State* L)
 
     luaL_unref(L, LUA_REGISTRYINDEX, m_rdeferrer);
     m_rdeferrer = LUA_NOREF;
-    m_next_event = &key_queue::try_pop;
+    m_get = &key_queue::try_pop;
     return 0;
 }
 
@@ -138,8 +128,8 @@ int key_queue::defer_is_pending(lua_State* L)
 
     mutex_lock(&m_access_lock);
     bool found = false;
-    for ( size_t i = m_pop ; i < m_peek ; i++ )
-        if ( m_buffer[i].value == event.value ) {
+    for ( size_t i = m_pop ; i != m_peek ; i++ )
+        if ( m_buffer[i & (QUEUE_SIZE - 1)].value == event.value ) {
             found = true;
             break;
         }
@@ -159,9 +149,9 @@ int key_queue::defer_remove_last(lua_State*)
         return 0;
     }
 
+    for ( size_t i = m_peek - 1 ; i != m_pop ; i-- )
+        m_buffer[i & (QUEUE_SIZE - 1)] = m_buffer[(i - 1) & (QUEUE_SIZE - 1)];
     m_pop++;
-    __builtin_memmove(&m_buffer[m_pop], &m_buffer[m_pop - 1],
-        (m_peek - m_pop) * sizeof(entry_t));
 
     mutex_unlock(&m_access_lock);
     mutex_unlock(&m_full_lock);  // No harm if m_full_lock was not locked.

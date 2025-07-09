@@ -19,8 +19,10 @@
 
 void key_event_queue_t::push(key_event_t event, bool wait_if_full)
 {
-    LOG_DEBUG("USB_HID: queue %s (0x%x %s)\n",
-        press_or_release(event.is_press), event.keycode, keycode_to_name[event.keycode]);
+    // Todo: Why isn't this log being displayed?
+    // LOG_DEBUG("USB_HID: queue %s (0x%x %s)\n",
+    //     press_or_release(event.is_press),
+    //     event.keycode, keycode_to_name[event.keycode]);
 
     if ( mutex_trylock(&m_not_full) == 0 && wait_if_full ) {
         // push() is designed to be called in thread context with interrupts disabled to

@@ -246,11 +246,11 @@ end
 ModIf = class(Modifier)
 
 -- Flavors
-KEEP_MODIFIER = 0
--- The modifier is kept pressing when the modified version is registered.
+KEEP_MODIFIER = 0   -- (default)
+-- The modifier remains pressed when map_modified is triggered.
 
 UNDO_MODIFIER = 1
--- The modifier is released and pressed again while the modified version is registered.
+-- The modifier is released and pressed again when map_modified is triggered.
 
 function ModIf:init(map_modifier, map_modified, map_original, flavor)
     Modifier.init(self, map_modifier)
@@ -346,7 +346,7 @@ end
 local TapHold = class(Base, Defer, Timer)
 
 -- Flavors
-TAP_PREFERRED = 0
+TAP_PREFERRED = 0  -- (default)
 -- The output decision is made when the tapping_term_ms has expired or the tap-hold key
 -- is released. The press or release of any other keys within the tapping_term_ms does
 -- not affect the decision, but will register when the decision is made.
@@ -644,6 +644,9 @@ local mGRV = ModIf(FN, Lit("POWER"), Lit("`"))
 local mLSHFT = ModIf(tSPACE, SPACE, LSHFT)
 -- Todo: t_SPC + LSFT = SPC, Double LSFT = CapsLock, LSFT (when CapsLock on) = CapsLock
 
+-- Tap RSHFT -> INS
+local tRSHFT = TapHold(Lit("INS"), RSHFT, HOLD_PREFERRED)
+
 local m1 = ModIf(FN, F1, TapHold(Lit("1"), OneShot(F1), QUICK_TAP_PREFERRED))
 local m2 = ModIf(FN, F2, TapHold(Lit("2"), OneShot(F2), QUICK_TAP_PREFERRED))
 local m3 = ModIf(FN, F3, TapHold(Lit("3"), OneShot(F3), QUICK_TAP_PREFERRED))
@@ -679,7 +682,7 @@ g_keymaps = keymap_table {
     mGRV, m1, m2, m3, m4, m5, m6, m7, m8, m9, m0, mMINUS, mEQUAL, mBKSP, HOME,
     tTAB, "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", mLBRAC, "]", "\\", END,
     tLCTRL, "A", "S", "D", "F", "G", mH, mJ, mK, mL, ";", "'", ___, tENTER, PGUP,
-    mLSHFT, ___, "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", RSHFT, UP, PGDN,
+    mLSHFT, ___, "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", tRSHFT, UP, PGDN,
     "LALT", "LGUI", FN, ___, ___, ___, tSPACE, ___, ___, ___, RCTRL, "RALT", LEFT, DOWN, RIGHT
 }
 

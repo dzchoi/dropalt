@@ -1,5 +1,6 @@
 #pragma once
 
+#include "mutex.h"              // for mutex_t
 #include "thread.h"             // for thread_t, thread_get_status()
 
 #include "config.hpp"           // for DEBOUNCE_PRESS_MS, DEBOUNCE_RELEASE_MS
@@ -38,6 +39,8 @@ private:
     static_assert( DEBOUNCE_RELEASE_MS < (1u << 6) );
 
     static bounce_state_t m_states[];
+
+    static mutex_t m_sleep_lock;
 
     static uint32_t m_wakeup_us;
 

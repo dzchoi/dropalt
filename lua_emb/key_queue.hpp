@@ -25,13 +25,11 @@ public:
     // Note: If the queue fills up exclusively with deferred events, push() will fail,
     // potentially causing the matrix_thread to hang. Increasing QUEUE_SIZE may resolve
     // this.
-    static bool push(unsigned slot_index1, bool is_press, uint32_t timeout_us =0);
+    static bool push(entry_t event, uint32_t timeout_us =0);
 
     // Retrieve the next event from the queue and return true if successful. Do dry run
     // if pevent is NULL.
-    static bool next_event(entry_t* pevent =nullptr) {  // implicitly inline
-        return m_next_event(pevent);
-    }
+    static bool get(entry_t* pevent =nullptr) { return m_get(pevent); }
 
     // Start or stop defer mode.
     static int defer_start(lua_State* L);  // ( deferrer -- )
@@ -51,8 +49,7 @@ private:
     static mutex_t m_access_lock;  // Locked when accessing the queue.
     static mutex_t m_full_lock;    // Locked when the queue is full.
 
-    static constexpr size_t QUEUE_SIZE = 16;
-    static entry_t m_buffer[QUEUE_SIZE];
+    static entry_t m_buffer[];
 
     // Starting indices for queue access operations
     // Events occurring between m_pop and m_peek are considered deferred.
@@ -64,8 +61,8 @@ private:
     // Reference to the Lua Defer instance who started the defer mode.
     static int m_rdeferrer;
 
-    // next_event() will execute try_pop() in normal mode, or try_peek() in defer mode.
-    static bool (*m_next_event)(entry_t*);
+    // m_get() will execute try_pop() in normal mode, or try_peek() in defer mode.
+    static bool (*m_get)(entry_t*);
 
     // Pop off a key event from the queue if available. Do dry run if pevent is NULL.
     static bool try_pop(entry_t* pevent);

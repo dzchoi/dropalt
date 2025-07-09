@@ -1,6 +1,7 @@
 #include "board.h"              // for THREAD_PRIO_MATRIX
 #include "log.h"
 #include "matrix.h"             // for matrix_init(), matrix_scan(), ...
+#include "mutex.h"              // for mutex_lock(), mutex_unlock()
 #include "periph_conf.h"        // for NUM_MATRIX_SLOTS
 #include "thread.h"             // for thread_create(), thread_sleep(), ...
 #include "ztimer.h"             // for ztimer_now(), ztimer_periodic_wakeup(), ...
@@ -19,6 +20,9 @@ thread_t* matrix_thread::m_pthread = nullptr;
     char matrix_thread::m_thread_stack[THREAD_STACKSIZE_SMALL];
 #endif
 
+// Start matrix_thread by sleeping; will wake up on an interrupt.
+mutex_t matrix_thread::m_sleep_lock = MUTEX_INIT_LOCKED;
+
 matrix_thread::bounce_state_t matrix_thread::m_states[NUM_MATRIX_SLOTS];
 
 uint32_t matrix_thread::m_wakeup_us = 0;
@@ -30,11 +34,11 @@ void matrix_thread::init()
     m_pthread = thread_get_unchecked( thread_create(
         m_thread_stack, sizeof(m_thread_stack),
         THREAD_PRIO_MATRIX,
-        THREAD_CREATE_SLEEPING | THREAD_CREATE_STACKTEST,
+        THREAD_CREATE_STACKTEST,
         _thread_entry, nullptr, "matrix_thread") );
 
     // Initialize the matrix GPIO pins and start ISR for detecting GPIO_RISING.
-    matrix_init(&_debouncer, &_isr_any_key_down, nullptr);
+    matrix_init(&_debouncer, &_isr_any_key_down, &m_sleep_lock);
 }
 
 void matrix_thread::_debouncer(unsigned slot_index, bool pressing)
@@ -69,9 +73,9 @@ void matrix_thread::_debouncer(unsigned slot_index, bool pressing)
 
 NORETURN void* matrix_thread::_thread_entry(void*)
 {
-    // Note that this thread is created with THREAD_CREATE_SLEEPING and remains sleeping
-    // until an interrupt occurs.
     while ( true ) {
+        mutex_lock(&m_sleep_lock);  // Zzz
+
         matrix_scan();
 
         uint8_t any_pressed = 0;
@@ -101,27 +105,28 @@ NORETURN void* matrix_thread::_thread_entry(void*)
             // ensure precise sleep duration.
             ztimer_periodic_wakeup(  // Zzz
                 ZTIMER_USEC, &m_wakeup_us, MATRIX_SCAN_PERIOD_US);
+            mutex_unlock(&m_sleep_lock);
         }
 
         // Stay in the first scan until a press is detected, scanning the matrix
-        // continuously (for 8 ms) rather than periodically. (We know that an interrupt
-        // has been triggered though it may be due to spurious noise.)
+        // continuously rather than periodically. (We know that an interrupt has been
+        // triggered though it may be due to spurious noise.)
         else if ( m_first_scan > 0u ) {
             m_first_scan--;  // Loop repeats if m_first_scan == 0.
+            mutex_unlock(&m_sleep_lock);
         }
 
         // When all keys are released we go back to sleep, allowing the interrupt to
         // handle subsequent key detection.
         else {
-            LOG_DEBUG("Matrix: ---- sleep\n");
             ztimer_release(ZTIMER_USEC);
             matrix_enable_interrupt();
-            thread_sleep();  // Zzz
+            // The thread will sleep until the interrupt releases m_sleep_lock.
         }
     }
 }
 
-void matrix_thread::_isr_any_key_down(void*)
+void matrix_thread::_isr_any_key_down(void* arg)
 {
     // Prepare to wake up for the first scan.
     matrix_disable_interrupt();
@@ -129,5 +134,5 @@ void matrix_thread::_isr_any_key_down(void*)
     m_first_scan = MATRIX_FIRST_SCAN_MAX_COUNT - 1;
     ztimer_acquire(ZTIMER_USEC);
     m_wakeup_us = ztimer_now(ZTIMER_USEC);
-    thread_wakeup(thread_getpid_of(m_pthread));
+    mutex_unlock(static_cast<mutex_t*>(arg));
 }

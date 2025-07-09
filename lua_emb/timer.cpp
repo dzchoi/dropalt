@@ -28,7 +28,10 @@ int _timer_t::start(lua_State* L)
     assert( that != nullptr );
 
     luaL_checktype(L, 2, LUA_TFUNCTION);
-    assert( that->m_rcallback == LUA_NOREF );
+    if ( that->m_rcallback != LUA_NOREF ) {
+        // This case can happen when restarting the timer.
+        luaL_unref(L, LUA_REGISTRYINDEX, that->m_rcallback);
+    }
     that->m_rcallback = luaL_ref(L, LUA_REGISTRYINDEX);
     // ( -- userdata )
 

@@ -105,9 +105,10 @@ bool main_thread::signal_key_event(unsigned slot_index, bool is_press, uint32_t 
     else
         LOG_INFO("Emulate %s [%u]\n", press_or_release(is_press), slot_index1);
 
-    if ( unlikely(!key_queue::push(slot_index1, is_press, timeout_us)) ) {
-        // Failure from key_queue::push() is unrecoverable, indicating that the key event
-        // queue is completely filled with deferred events.
+    if ( unlikely(!key_queue::push({{ uint8_t(slot_index1), is_press }}, timeout_us)) )
+    {
+        // Failure from key_queue::push() is unrecoverable, indicating that the key
+        // event queue is completely filled with deferred events.
         LOG_ERROR("Main: key_queue::push() failed\n");
         assert( false );
         // return false;
@@ -199,7 +200,7 @@ NORETURN void* main_thread::_thread_entry(void*)
 
         // External key events from key_queue are handled one at a time.
         key_queue::entry_t event;
-        if ( key_queue::next_event(&event) ) {
+        if ( key_queue::get(&event) ) {
             lua::handle_key_event(event.slot_index1, event.is_press);
 
             unsigned state = irq_disable();
