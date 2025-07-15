@@ -57,9 +57,10 @@ static void read_rows_on_col(unsigned col)
 }
 #endif
 
-// GPIO pins for the matrix are expected to function as outputs for Col and inputs for
-// Row, meaning DIODE_DIRECTION is set to ROW2COL in QMK. If using COL2ROW,
-// read_cols_on_row() should be used instead. See quantum/matrix.c in QMK for details.
+// GPIO pins for the matrix are configured with columns as outputs and rows as inputs,
+// corresponding to DIODE_DIRECTION = ROW2COL in QMK. For COL2ROW setups, use
+// read_cols_on_row() instead. Refer to quantum/matrix.c in QMK for implementation
+// details.
 void matrix_init(debouncer_t debouncer, gpio_cb_t isr, void* arg)
 {
     _debouncer = debouncer;
@@ -70,8 +71,15 @@ void matrix_init(debouncer_t debouncer, gpio_cb_t isr, void* arg)
         select_col(col);
     }
 
+#if MODULE_PERIPH_GPIO_TAMPER_WAKE
+#error MODULE_PERIPH_GPIO_TAMPER_WAKE is not compatible with custom use of gpio_init_int() for level-triggered GPIO_HIGH.
+#endif
+
+    // Use level-triggered (GPIO_HIGH = 0x4) interrupts instead of edge-triggered ones,
+    // to ensure pin state changes during interrupt setup are not missed.
+    static const unsigned GPIO_HIGH = 0x4;
     for ( unsigned row = 0 ; row < MATRIX_ROWS ; row++ )
-        (void)gpio_init_int(row_pins[row], GPIO_IN_PD, GPIO_RISING, isr, arg);
+        (void)gpio_init_int(row_pins[row], GPIO_IN_PD, GPIO_HIGH, isr, arg);
 }
 
 void matrix_enable_interrupt(void)

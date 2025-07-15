@@ -14,7 +14,7 @@ void matrix_init(debouncer_t debouncer, gpio_cb_t isr, void* arg);
 // Enable interrupt-based scan mode.
 void matrix_enable_interrupt(void);
 
-// Enable periodic scan mode.
+// Enable active scan mode.
 void matrix_disable_interrupt(void);
 
 // Scan all keys on the matrix.

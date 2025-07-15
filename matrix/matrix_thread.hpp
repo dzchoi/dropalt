@@ -44,17 +44,17 @@ private:
 
     static uint32_t m_wakeup_us;
 
-    static unsigned m_first_scan;
+    static int m_min_scan_count;
 
     // thread body
     static void* _thread_entry(void* arg);
 
     // Uses asymmetric variation of the integration debouncing algorithm.
     // (See https://www.kennethkuhn.com/electronics/debounce.c)
-    //  - Asymmetric: detect press faster than release or vice versa.
-    //  - Per-key: separate debouncer per each key.
-    //  - Periodic scan while any key is being pressed, whereas interrupt-based scan
-    //    after all keys are released.
+    //  - Asymmetric: detects press and release events with different detection delays.
+    //  - Per-key: maintains a separate debouncer for each key.
+    //  - Scan mode: uses active (polling) scan while any key is pressed; switches to
+    //    interrupt-based scanning once all keys are released.
     static void _debouncer(unsigned slot_index, bool pressing);
 
     static void _isr_any_key_down(void* arg);

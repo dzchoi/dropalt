@@ -140,7 +140,7 @@ void usbus_hid_device_ext_t::_transfer_handler(
             // received from the host. (No need to execute _ep_unready(hidx->ep_in->ep)
             // here, since it is already done automatically by the usbus driver.)
             ztimer_remove(ZTIMER_MSEC, &hidx->tx_timer);
-            LOG_DEBUG("USB_HID: --------\n");
+            // LOG_DEBUG("USB_HID: --------\n");
             hidx->on_transfer_complete(true);
         }
         else {

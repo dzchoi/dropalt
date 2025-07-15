@@ -27,7 +27,7 @@ matrix_thread::bounce_state_t matrix_thread::m_states[NUM_MATRIX_SLOTS];
 
 uint32_t matrix_thread::m_wakeup_us = 0;
 
-unsigned matrix_thread::m_first_scan = 0;
+int matrix_thread::m_min_scan_count = 0;
 
 void matrix_thread::init()
 {
@@ -99,8 +99,9 @@ NORETURN void* matrix_thread::_thread_entry(void*)
             any_pressed |= state.value;
         }
 
-        if ( any_pressed ) {
-            m_first_scan = 0;
+        // If any key is pressed or if the minimum scan count hasn't been hit, we
+        // continue scanning.
+        if ( --m_min_scan_count > 0 || any_pressed ) {
             // ztimer_periodic_wakeup() is used instead of ztimer_set_timeout_flag() to
             // ensure precise sleep duration.
             ztimer_periodic_wakeup(  // Zzz
@@ -108,17 +109,14 @@ NORETURN void* matrix_thread::_thread_entry(void*)
             mutex_unlock(&m_sleep_lock);
         }
 
-        // Stay in the first scan until a press is detected, scanning the matrix
-        // continuously rather than periodically. (We know that an interrupt has been
-        // triggered though it may be due to spurious noise.)
-        else if ( m_first_scan > 0u ) {
-            m_first_scan--;  // Loop repeats if m_first_scan == 0.
-            mutex_unlock(&m_sleep_lock);
-        }
-
-        // When all keys are released we go back to sleep, allowing the interrupt to
-        // handle subsequent key detection.
+        // Otherwise, we return to sleep and rely on the interrupt to detect the next
+        // key press.
+        // Note: Level-triggered interrupts are quite reliable and won't miss key presses,
+        // even during the re-enablement. Therefore, it's safe to enter sleep as early as
+        // possible. However, additional detection within the interrupt handler is
+        // required before reading the matrix.
         else {
+            // LOG_DEBUG("Matrix: ---------> @%lu\n", ztimer_now(ZTIMER_MSEC));
             ztimer_release(ZTIMER_USEC);
             matrix_enable_interrupt();
             // The thread will sleep until the interrupt releases m_sleep_lock.
@@ -128,11 +126,15 @@ NORETURN void* matrix_thread::_thread_entry(void*)
 
 void matrix_thread::_isr_any_key_down(void* arg)
 {
-    // Prepare to wake up for the first scan.
+    // Suppress further triggers in case the interrupt is refired while being disabled.
+    if ( m_min_scan_count > 0 )
+        return;
+
+    // Prepare to wake up for the active scan.
     matrix_disable_interrupt();
-    static_assert( MATRIX_FIRST_SCAN_MAX_COUNT >= 1 );
-    m_first_scan = MATRIX_FIRST_SCAN_MAX_COUNT - 1;
+    m_min_scan_count = DEBOUNCE_PRESS_MS;
     ztimer_acquire(ZTIMER_USEC);
     m_wakeup_us = ztimer_now(ZTIMER_USEC);
+    // LOG_DEBUG("Matrix: <--------- @%lu\n", ztimer_now(ZTIMER_MSEC));
     mutex_unlock(static_cast<mutex_t*>(arg));
 }
