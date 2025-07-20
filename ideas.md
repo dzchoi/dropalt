@@ -1,32 +1,6 @@
-* How to check the max stack size and detect the stack overflow?
-
 * Redefine Riot-independent #define constants using "static const" and "static inline".
 
-* Configure the automatic switchover feature in config.hpp.
-
 * Change m_pthread->flags directly instead calling thread_flags_set(), if we don't need to yield to other threads at this moment, and there is no other threads or interrupt that can change it simultaneously (So irq_disable() is not necessary).
-
-* lua.hpp to include lauxlib.h
-
-[Compile multiple Lua files]
-* E.g. luac -o combined.luac file1.lua file2.lua file3.lua
-* See https://www.lua.org/source/5.3/luac.c.html#combine
-```
-  for (i=0; i<argc; i++)
-  {
-    const char* filename=IS("-") ? NULL : argv[i];
-    if (luaL_loadfile(L,filename)!=LUA_OK) fatal(lua_tostring(L,-1));
-  }
-  f=combine(L,argc);
-  ...
-  lua_lock(L);
-  luaU_dump(L,f,writer,D,stripping);
-  lua_unlock(L);
-```
-* `luaU_dump()` is used instead of `lua_dump()`.
-  `lua_dump()` operates on a LClosure (Lua function) at the top of the stack and calls your custom writer function to output the bytecode.
-  `luaU_dump()` operates directly on a `Proto` structure (the compiled representation of a Lua function), and `lua_dump()` calls `luaU_dump()` internally.
-* [Chained module composition] Each module shall be compiled as an anonymous function and shall be composed with each other, the result(s) resturned from previous module will be passed to the next module as argument(s). The first module will take the module name as its only argument, and the final module will return the module table as its only result.
 
 * USB: Is the USB access delay (m_delay_usb_accessible|_tmo_usb_accessible) still necessary on recent Linux?
 
@@ -34,7 +8,9 @@
 
 * Switchover: Is DTE disconnected when switchover happens manually?
 
-* RGB: Precise color accuracy isn't necessary — keycaps give everything a reddish hue.
+* Configure the automatic switchover feature in config.hpp.
+
+* RGB: Precise color accuracy isn't necessary — keycaps show everything in a reddish hue.
 
 * `assert( false )` and `assert( status == LUA_OK )` are not the proper way to shutdown. Use abort(), lua_error() or luaL_error() instead.
   `assert()` for only "non-trivial" logical error.
@@ -52,6 +28,7 @@
 
 [Size optimization]
 * Binary size is also affected by .data section. Walk through those variables that initialize to non-zero values.
+* LOG_DEBUG() and fw.log() add '\n' at the end automatically.
 * Replace printf() with cout, calling usbus_cdc_acm_flush() when '\n' is hit. LOG_*() can also be implemented using an ostream.
 
 * Use MODULE_CORE_IDLE_THREAD to enable CPU sleep when idle.
@@ -67,6 +44,13 @@
 
 * Bootloader as a shared library
   The bootloader, rather than the firmware, could function as a shared library (.so) because it undergoes fewer changes. This shared library could potentially allocate a reset vector at address 0. Additionally, symbols exported from the bootloader might be able to resolve those in the firmware.
+
+[Keymap recovery]
+* Default keymaps are stored in a byte array in the firmware so that it is selected when a "custom" keymaps at flash slot 1 fails to load (or run).
+
+[ADC]
+* Simultaneous measurements for ADC0 and ADC1.
+* Adjustable threshold values (ADC_CON1_NOMINAL) in NVM?
 
 * Store a format string and its parameters for a log
   All parameters will be 4 bytes in size, except for doubles.

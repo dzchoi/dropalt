@@ -3,11 +3,6 @@
 #include "log.h"
 #include "riotboot/slot.h"      // for riotboot_slot_get_hdr(), ...
 
-extern "C" {
-// #include "lua.h"
-#include "lauxlib.h"            // declares luaL_*().
-}
-
 #include "lkeymap.hpp"
 #include "lua.hpp"              // for lua::L, status_t
 
@@ -69,14 +64,17 @@ void load_keymap()
     assert( lua_istable(L, -1) );
     // ( -- module-table )
 
-    // Store the Lua function `handle_key_event()` in the registry under the key
-    // `&hadle_key_event`.
+    // Store the Lua keymap driver in the registry under the key `&hadle_key_event`.
     lua_pushlightuserdata(L, (void*)&handle_key_event);
-    lua_getfield(L, -2, "handle_key_event");
-    assert( lua_isfunction(L, -1) );
+    int type = lua_rawgeti(L, -2, 1);  // Retrieve the first entry in the table.
+    assert( type == LUA_TFUNCTION );
     // ( -- module-table &handle_key_event handle_key_event )
     lua_settable(L, LUA_REGISTRYINDEX);
     // ( -- module-table )
+
+    // Clean up the local objects in the module that are no longer referenced.
+    lua_gc(L, LUA_GCCOLLECT, 0);
+    LOG_DEBUG("Lua: current memory usage = %d KB\n", lua_gc(L, LUA_GCCOUNT, 0));
     lua_settop(L, 0);
 }
 

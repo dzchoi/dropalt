@@ -4,12 +4,8 @@
 #include "periph_conf.h"        // for NUM_MATRIX_SLOTS
 #include "ztimer.h"             // for ztimer_mutex_lock_timeout()
 
-extern "C" {
-// #include "lua.h"
-#include "lauxlib.h"            // declares luaL_*().
-}
-
 #include "key_queue.hpp"
+#include "lua.hpp"
 #include "main_thread.hpp"      // for main_thread::is_active()
 
 
@@ -24,8 +20,6 @@ key_queue::entry_t key_queue::m_buffer[QUEUE_SIZE];
 size_t key_queue::m_push = 0;
 size_t key_queue::m_peek = 0;
 size_t key_queue::m_pop = 0;
-
-int key_queue::m_rdeferrer = LUA_NOREF;
 
 bool (*key_queue::m_get)(entry_t*) = &key_queue::try_pop;
 
@@ -87,36 +81,28 @@ bool key_queue::try_peek(entry_t* pevent)
     return true;
 }
 
-// ( deferrer -- )
-int key_queue::defer_start(lua_State* L)
+bool key_queue::terminal_full()
 {
-    LOG_DEBUG("Map: start defer\n");
-    assert( m_rdeferrer == LUA_NOREF );
-    assert( main_thread::is_active() );
+    mutex_lock(&m_access_lock);
+    bool result = ((m_push - m_peek) == QUEUE_SIZE);
+    mutex_unlock(&m_access_lock);
+    return result;
+}
 
-    m_rdeferrer = luaL_ref(L, LUA_REGISTRYINDEX);
+// ( -- )
+int key_queue::defer_start(lua_State*)
+{
+    // assert( main_thread::is_active() );
     m_get = &key_queue::try_peek;
     return 0;
 }
 
 // ( -- )
-int key_queue::defer_stop(lua_State* L)
+int key_queue::defer_stop(lua_State*)
 {
-    LOG_DEBUG("Map: stop defer\n");
-    assert( m_rdeferrer != LUA_NOREF );
-    assert( main_thread::is_active() );
-
-    luaL_unref(L, LUA_REGISTRYINDEX, m_rdeferrer);
-    m_rdeferrer = LUA_NOREF;
+    // assert( main_thread::is_active() );
     m_get = &key_queue::try_pop;
     return 0;
-}
-
-// ( -- deferrer | nil )
-int key_queue::defer_owner(lua_State* L)
-{
-    lua_rawgeti(L, LUA_REGISTRYINDEX, m_rdeferrer);
-    return 1;
 }
 
 // ( slot_index1 is_press -- true | false )

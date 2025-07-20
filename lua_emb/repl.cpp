@@ -4,11 +4,6 @@
 #include "log.h"                // for get_log_mask()
 #include "stdio_base.h"         // for stdio_write()
 
-extern "C" {
-// #include "lua.h"
-#include "lauxlib.h"            // declares luaL_*().
-}
-
 #include "config.hpp"           // for ENABLE_LUA_REPL
 #include "lua.hpp"              // for lua::L, l_message()
 #include "repl.hpp"

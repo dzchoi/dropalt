@@ -31,17 +31,18 @@ public:
     // if pevent is NULL.
     static bool get(entry_t* pevent =nullptr) { return m_get(pevent); }
 
-    // Start or stop defer mode.
-    static int defer_start(lua_State* L);  // ( deferrer -- )
-    static int defer_stop(lua_State* L);   // ( -- )
+    // Check if the queue is full with all deferred events.
+    static bool terminal_full();
 
-    static int defer_owner(lua_State* L);  // ( -- deferrer | nil )
+    // Start or stop defer mode.
+    static int defer_start(lua_State* L);  // ( -- )
+    static int defer_stop(lua_State* L);   // ( -- )
 
     // Check if an event on the given slot is deferred (i.e. if it was peeked).
     static int defer_is_pending(lua_State* L);  // ( slot_index1 is_press -- true | false )
 
     // Remove the most recent deferred event from the queue.
-    static int defer_remove_last(lua_State*);  // ( -- )
+    static int defer_remove_last(lua_State* L);  // ( -- )
 
 private:
     constexpr key_queue() =delete;  // Ensure a static class
@@ -57,9 +58,6 @@ private:
     static size_t m_push;
     static size_t m_peek;
     static size_t m_pop;
-
-    // Reference to the Lua Defer instance who started the defer mode.
-    static int m_rdeferrer;
 
     // m_get() will execute try_pop() in normal mode, or try_peek() in defer mode.
     static bool (*m_get)(entry_t*);

@@ -1,5 +1,5 @@
 #include "assert.h"
-#include "board.h"              // for _sheap, _eheap
+#include "board.h"              // for _sheap, _eheap, system_reset()
 #include "cpu.h"                // for RSTC
 #include "event.h"              // for event_queue_init(), event_get(), ...
 #include "irq.h"                // for irq_disable(), irq_restore()
@@ -100,22 +100,24 @@ bool main_thread::signal_key_event(unsigned slot_index, bool is_press, uint32_t 
     // Convert `slot_index` to `slot_index1`, since Lua array indices start from 1.
     unsigned slot_index1 = slot_index + 1;
 
-    if ( timeout_us )
-        LOG_DEBUG("Matrix: %s [%u]\n", press_or_release(is_press), slot_index1);
-    else
-        LOG_INFO("Emulate %s [%u]\n", press_or_release(is_press), slot_index1);
+    LOG_DEBUG("Matrix: %s [%u] @%lu\n",
+        press_or_release(is_press), slot_index1, ztimer_now(ZTIMER_MSEC));
 
-    if ( unlikely(!key_queue::push({{ uint8_t(slot_index1), is_press }}, timeout_us)) )
-    {
-        // Failure from key_queue::push() is unrecoverable, indicating that the key
-        // event queue is completely filled with deferred events.
-        LOG_ERROR("Main: key_queue::push() failed\n");
-        assert( false );
-        // return false;
+    if ( likely(key_queue::push({{ uint8_t(slot_index1), is_press }}, timeout_us)) ) {
+        set_thread_flags(FLAG_KEY_EVENT);
+        return true;
     }
 
-    set_thread_flags(FLAG_KEY_EVENT);
-    return true;
+    LOG_ERROR("Main: key_queue::push() failed\n");
+
+    // If the key event queue is full with all deferred events, recovery is impossible.
+    // Trigger a system reset to restore operability.
+    if ( unlikely(key_queue::terminal_full()) )
+        system_reset();
+
+    // Otherwise, discard surplus events. Presses may be lost, but missed releases will
+    // be reissued by the debouncer.
+    return false;
 }
 
 NORETURN void* main_thread::_thread_entry(void*)

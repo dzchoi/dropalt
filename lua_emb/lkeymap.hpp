@@ -5,11 +5,12 @@
 namespace lua {
 
 // Load the "keymap" module from flash memory.
-// Note: The module must insert its own table into package.loaded[] and return it.
+// Note: The module must manually assign a non-nil value to `package.loaded["keymap"]`
+// and return its module table.
 void load_keymap();
 
-// C++ counterpart to Lua’s Module.handle_key_event(); delegates key event handling to
-// the core keymap engine in Lua.
+// C++ wrapper for the keymap driver in Lua. Dynamically dispatches firmware-level key
+// input to user-defined key mapping logic.
 void handle_key_event(unsigned slot_index1, bool is_press);
 
 }

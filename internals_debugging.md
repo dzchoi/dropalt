@@ -121,6 +121,13 @@ Backtrace stopped: previous frame identical to this frame (corrupt stack?)
 (gdb) quit
 ```
 
+* `fw.stack_usage()` in Lua shows the current stack usage.
+   - ISR stack: 576 / 1024 bytes
+   - main stack: 1380 / 2048 bytes
+   - usbhub_thread stack: 552 / 1024 bytes
+   - usbus stack: 932 / 1024 bytes
+   - matrix_thread stack: 608 / 1024 bytes
+
 #### Hardfault when jumping to nullptr.
 ```
 2023-06-03 20:50:54,761 # Context before hardfault:

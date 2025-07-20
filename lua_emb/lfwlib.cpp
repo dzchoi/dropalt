@@ -3,13 +3,10 @@
 #include "board.h"              // for system_reset(), sam0_flashpage_aux_get(), ...
 #include "log.h"                // for get/set_log_mask()
 #include "thread.h"             // for thread_isr_stack_usage(), ...
-extern "C" {
-// #include "lua.h"
-#include "lauxlib.h"
-}
 
 #include "hid_keycodes.hpp"     // for keycode_to_name[]
 #include "key_queue.hpp"        // for key_queue::start_defer(), ...
+#include "lua.hpp"
 #include "persistent.hpp"       // for persistent::_get/_set(), ...
 #include "timer.hpp"            // for _timer_t::create(), ...
 #include "usb_thread.hpp"       // for usb_thread::send_press/release()
@@ -52,11 +49,106 @@ static int fw_led0(lua_State* L)
     return 0;
 }
 
-// fw.log(string) -> void
+static intptr_t loggable_value(lua_State* L, int i)
+{
+    switch ( lua_type(L, i) ) {
+        case LUA_TNIL:
+            return -1;
+
+        case LUA_TBOOLEAN:
+            return lua_toboolean(L, i);
+
+        case LUA_TNUMBER:
+            if ( lua_isinteger(L, i) )
+                return lua_tointeger(L, i);
+            else
+                // This converts a float to an integer numerically.
+                // Note: Even if the float's bit pattern is preserved via casting to
+                // intptr_t, '%f' formatting will not work as expected. In variadic
+                // functions, C automatically promotes float arguments to 8-byte doubles
+                // (Default Argument Promotion Rules) - even on 32-bit systems like
+                // Cortex-M4F. This remains true even when using printf_float() from
+                // newlib-nano. In our case, since fw_log() passes all arguments as
+                // 4-byte values, '%f' will not receive valid double data, and may print
+                // 0.0, garbage, or misinterpret memory.
+                return (int)lua_tonumber(L, i);
+
+        case LUA_TSTRING:
+            return (intptr_t)lua_tostring(L, i);
+
+        default:
+            return (intptr_t)lua_topointer(L, i);
+    }
+}
+
+// fw.log(value...) -> void
+// Lightweight printf-style logger optimized for embedded Lua environment.
+// Avoids luaL_tolstring() to prevent allocating temporary strings, minimizing garbage
+// collection pressure during frequent logging.
+
+// Note: This function is specifically designed for 32-bit ARM architecture that support
+// the Thumb-2 instruction set (typically ARMv7-A/M). It relies on AAPCS (ARM
+// Architecture Procedure Call Standard), which passes the first four function arguments
+// in r0–r3 and additional arguments via the stack.
+#if !( defined(__ARM_ARCH) && (__ARM_ARCH >= 7) && defined(__thumb__) )
+    #error "fw_log() requires Thumb-2 and ARMv7 or newer architecture"
+#endif
+
+// Note: It supports only '%d', '%s' and '%p' based on each argument type.
+//  - %d for integers, floats (converted numerically to integers), booleans (0/1), or
+//    nil (-1).
+//  - %s for strings (passed as a C string)
+//  - %p for tables, functions, or userdata (passed as raw pointers, e.g. 0xXXXX)
 static int fw_log(lua_State* L)
 {
-    const char* message = luaL_checkstring(L, 1);
-    LOG_DEBUG("%s\n", message);
+    const char* format = luaL_checkstring(L, 1);
+    int argc = lua_gettop(L);
+
+    // Push extra arguments (from index 4 and beyond) onto the C stack.
+    const int extras = argc - 3;
+    if ( extras > 0 ) {
+        __asm__ volatile (
+            "sub sp, sp, %[sz]\n"
+            :
+            : [sz] "r" (extras * sizeof(intptr_t))
+        );
+
+        while ( argc > 3 ) {
+            __asm__ volatile (
+                "str %[val], [sp, %[offset]]\n"
+                :
+                : [val] "r" (loggable_value(L, argc)),
+                  [offset] "r" ((argc - 4) * sizeof(intptr_t))
+            );
+            argc--;
+        }
+    }
+
+    // Call log_backup(LOG_DEBUG, ...) via inline assembly.
+    __asm__ volatile (
+        "mov r0, %[level]\n"
+        "mov r1, %[a1]\n"
+        "mov r2, %[a2]\n"
+        "mov r3, %[a3]\n"
+        "bl log_backup\n"
+        :
+        : [level] "I" (LOG_DEBUG),  // immediate constant
+          [a1] "r" (format),
+          [a2] "r" (loggable_value(L, 2)),
+          [a3] "r" (loggable_value(L, 3))
+        : "r0", "r1", "r2", "r3", "lr"
+    );
+
+    // Restore the C stack.
+    if ( extras > 0 ) {
+        __asm__ volatile (
+            "add sp, sp, %[sz]\n"
+            :
+            : [sz] "r" (extras * sizeof(intptr_t))
+        );
+    }
+
+    lua_settop(L, 0);
     return 0;
 }
 
@@ -312,7 +404,6 @@ int luaopen_fw(lua_State* L)
     static constexpr luaL_Reg fw_lib[] = {
         { "defer_start", key_queue::defer_start },
         { "defer_stop", key_queue::defer_stop },
-        { "defer_owner", key_queue::defer_owner },
         { "defer_is_pending", key_queue::defer_is_pending },
         { "defer_remove_last", key_queue::defer_remove_last },
         { "keycode", fw_keycode },

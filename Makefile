@@ -11,7 +11,7 @@ APPLICATION := dropalt-fw
 CONFIG_HPP := config.hpp
 
 # Version numbers encoded in USB device descriptor
-DEVICE_VER := 0x0081            # bcdDevice =  0.81 for the firmware
+DEVICE_VER := 0x0082            # bcdDevice =  0.82 for the firmware
 HUB_DEVICE_VER := 0x2410        # bcdDevice = 24.10 for Hub
 CFLAGS += -DDEVICE_VER=$(DEVICE_VER) -DHUB_DEVICE_VER=$(HUB_DEVICE_VER)
 

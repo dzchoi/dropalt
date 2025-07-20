@@ -7,6 +7,11 @@
 
 #include "log.h"
 
+extern "C" {
+// #include "lua.h"
+#include "lauxlib.h"            // declares luaL_*().
+}
+
 
 
 // Output an error message in printf() fashion, automatically appending a newline
@@ -19,8 +24,6 @@
 #define _l_message_v(format, ...)  LOG(LOG_LUA_ERROR, format "\n", __VA_ARGS__)
 
 
-
-struct lua_State;
 
 constexpr int LUA_NOSTATUS = INT_MIN;
 
