@@ -63,13 +63,13 @@ void state_determine_host::begin()
         v_extra->schedule_cancel();
 
     // Disconnect the current host.
-    // Be aware that disabling upstream mux (setting SR_CTRL_E_UP_N = 1) or selecting a
-    // different host (changing SR_CTRL_S_UP) will disconnect the current host, and once
-    // disconnected a remote wake-up will likely no longer work when we switch back to it.
-    // After the disconnection the FLAG_USB_SUSPEND event (hence process_usb_suspend())
-    // will follow immediately but it is ignored in state_determine_host state. It also
-    // disconnects the data line (SR_CTRL_E_DN1_N) of the extra port but the power line
-    // (SR_CTRL_E_VBUS_x) is intact.
+    // Note: Disabling the upstream mux (setting SR_CTRL_E_UP_N = 1) or selecting a
+    // different host (changing SR_CTRL_S_UP) disconnects the current host, breaking the
+    // data (D+) line. The data line of the extra port (SR_CTRL_E_DN1_N) is also
+    // disconnected, but the power line (SR_CTRL_E_VBUS_x) remains active.
+    // Immediately after disconnection, the FLAG_USB_SUSPEND event is triggered, and
+    // process_usb_suspend() is invoked. This event, however, is ignored while in
+    // state_determine_host.
     usbhub_disable_all_ports();
 
     uint8_t desired_port = USB_PORT_1;  // Default value for "last_host_port".

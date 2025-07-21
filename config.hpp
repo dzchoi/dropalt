@@ -26,14 +26,14 @@ constexpr bool ENABLE_NKRO = true;
 // overridden and set to 10 ms.
 constexpr uint8_t KEYBOARD_REPORT_INTERVAL_MS = 10;
 
-// While USB is suspended, key events are stored in the event queue to be processed once
-// USB reconnects. These events remain in the queue for this duration, which should
-// exceed the typical switchover time (~1 second).
-constexpr uint32_t SUSPENDED_KEY_EVENT_LIFETIME_MS = 4 *MS_PER_SEC;
+// On Linux, first few key events can be missed during boot or USB resume. A short delay
+// is introduced before transmitting key events to ensure reliability.
+constexpr uint32_t USB_RESUME_SETTLE_MS = 200;
 
-// Wait before USB becomes accessible after resumption. A delay that's too short may
-// cause buffered key events from suspend mode to be missed upon USB resume.
-constexpr uint32_t DELAY_USB_ACCESSIBLE_AFTER_RESUMED_MS = 500;
+// While USB is suspended, key events are stored in the event queue to be processed once
+// USB resumes. These events remain in the queue for a duration that must exceed the
+// typical switchover time (~1 second).
+constexpr uint32_t USB_SUSPEND_EVENT_TIMEOUT_MS = 4 *MS_PER_SEC;  // 4 seconds
 
 // If false, power to the extra port will be cut off during USB suspend.
 constexpr bool KEEP_CHARGING_EXTRA_DEVICE_DURING_SUSPEND = true;

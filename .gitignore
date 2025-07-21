@@ -1,4 +1,5 @@
 .build/
+.drafts/
 .vscode/settings.json
 *.tar
 *.tgz

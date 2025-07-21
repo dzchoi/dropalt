@@ -19,9 +19,9 @@ usbus_t usb_thread::m_usbus;
 
 usbus_hid_keyboard_t* usb_thread::m_hid_keyboard = nullptr;
 
-// Any log outputs before initializing the usb_thread will be lost, as the log buffer
-// (cdcacm->tsrb) is not yet set up. Once the usb_thread is running, logs will be put
-// into the buffer and transmitted to the host, potentially delayed until the host
+// Any log output generated before usb_thread is initialized will be lost, since the log
+// buffer (cdcacm->tsrb) hasn't been set up yet. Once usb_thread is running, logs are
+// buffered and transmitted to the host—though delivery may be delayed until the host
 // connects.
 void usb_thread::init()
 {
@@ -52,7 +52,6 @@ void usb_thread::send_remote_wake_up()
     // controller after 5 ms of inactivity on the USB bus. When the controller sends the
     // Upstream Resume INTFLAG.WAKEUP is set and INTFLAG.SUSPEND is cleared.
     // The CTRLB.UPRSM is cleared at the end of the transmitting Upstream Resume."
-
     UsbDevice* const device = ((sam0_common_usb_t*)m_usbus.dev)->config->device;
     if ( is_state_suspended() && (device->CTRLB.reg & USB_DEVICE_CTRLB_UPRSM) == 0 ) {
         device->CTRLB.reg |= USB_DEVICE_CTRLB_UPRSM;

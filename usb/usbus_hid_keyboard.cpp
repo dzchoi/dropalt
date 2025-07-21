@@ -1,4 +1,3 @@
-// Disabling logs will not compile keycode_to_name[] in hid_keycodes.hpp.
 // #define LOCAL_LOG_LEVEL LOG_NONE
 
 #include "assert.h"             // for assert()
@@ -7,7 +6,7 @@
 #include "mutex.h"              // for mutex_lock(), mutex_unlock(), ...
 #include "ztimer.h"             // for ztimer_set(), ztimer_remove()
 
-#include "config.hpp"           // for DELAY_USB_ACCESSIBLE_AFTER_RESUMED_MS, ...
+#include "config.hpp"           // for USB_RESUME_SETTLE_MS, ...
 #include "main_thread.hpp"      // for signal_usb_resume(), signal_lamp_state(), ...
 // #include "lamp.hpp"             // for lamp_iter, lamp_id()
 // #include "rgb_thread.hpp"       // for signal_usb_suspend(), signal_usb_resume()
@@ -19,16 +18,17 @@
 
 void key_event_queue_t::push(key_event_t event, bool wait_if_full)
 {
-    // Todo: Why isn't this log being displayed?
+    // Todo: Why isn't this log displayed?
     // LOG_DEBUG("USB_HID: queue %s (0x%x %s)\n",
     //     press_or_release(event.is_press),
     //     event.keycode, keycode_to_name[event.keycode]);
 
     if ( mutex_trylock(&m_not_full) == 0 && wait_if_full ) {
-        // push() is designed to be called in thread context with interrupts disabled to
-        // maintain thread safety. When waiting for a mutex here, however, interrupts and
-        // other threads must be allowed to run to prevent deadlock. While a condition
-        // variable could serve the same purpose, using interrupts minimizes the footprint.
+        // push() is intended to execute in thread context with interrupts disabled,
+        // ensuring thread safety. However, when waiting for a mutex here, interrupts
+        // and other threads must be allowed to run to avoid deadlock. A condition
+        // variable could be used, but enabling interrupts offers a lower-footprint
+        // alternative in this context.
         unsigned state = irq_enable();
         mutex_lock(&m_not_full);  // wait until it is unlocked.
         irq_restore(state);
@@ -92,31 +92,44 @@ void usbus_hid_keyboard_t::help_usb_init(
                                USB_EP_DIR_IN,
                                epsize);
 
-    // Interrupt endpoint polling rate in ms
+    // Set the polling interval for the interrupt IN endpoint.
     ep_in->interval = ep_interval_ms;
     usbus_enable_endpoint(ep_in);
 
-    // This will return the bInterfaceNumber of the added interface, which is also
-    // accessible via hid->iface->idx. However, saving it is likely unnecessary, as all
-    // operations can directly retrieve it from the hid that they oprate on.
+    // This call returns the bInterfaceNumber of the newly added interface, which is
+    // also accessible via hid->iface->idx. Explicitly saving it is usually unnecessary,
+    // since most operations can retrieve it directly from the hid instance they operate
+    // on.
     usbus_add_interface(usbus, &iface);
 }
 
 void usbus_hid_keyboard_t::on_reset()
 {
+    // Restore the default full-featured protocol (1) after USB reset.
     set_protocol(1);
 
-    // The m_report_updated and m_press_yet_to_submit will be reset later when USB is
-    // accessible. m_led_lamp_state will also be reset separately when indicated from host
+    // Reset the report state to prevent residual keypresses from leaking into the next
+    // environment. For example, exiting BIOS via Ctrl+Alt+Del may leave keys logically
+    // active. The new environment will call on_reset() to flush prior key state in this
+    // case.
+    // However, if the old environment remains alive during a switchover, residual key
+    // states may persist (especially on Windows) if the old environment doesn't
+    // explicitly clear them. This can be mitigated by manually calling on_reset() and
+    // submit_report() before performing switchover, but mapping a non-physical key
+    // to the switchover trigger avoids this scenario altogether.
+    clear_report();
+    m_report_updated = 0;
+    m_press_yet_to_submit = KC_NO;
+
+    // Note: m_led_lamp_state will be reset separately when received from host
     // (_hdlr_receive_data()).
 
-    // The main_thread does not monitor the flag yet.
-    main_thread::signal_usb_reset();
+    // main_thread::signal_usb_reset();  // Not used.
 }
 
 void usbus_hid_keyboard_t::on_suspend()
 {
-    ztimer_remove(ZTIMER_MSEC, &m_delay_usb_accessible);
+    ztimer_remove(ZTIMER_MSEC, &m_timer_resume_settle);
     m_is_usb_accessible = false;
 
     // These threads should be created before usb_thread is.
@@ -134,53 +147,59 @@ void usbus_hid_keyboard_t::on_resume()
     main_thread::signal_usb_resume();
 }
 
-void usbus_hid_keyboard_t::_tmo_usb_accessible(void* arg)
+void usbus_hid_keyboard_t::_tmo_resume_settle(void* arg)
 {
     usbus_hid_keyboard_t* const hidx = static_cast<usbus_hid_keyboard_t*>(arg);
     ztimer_remove(ZTIMER_MSEC, &hidx->m_timer_clear_queue);
 
-    LOG_DEBUG("USB_HID: USB accessible\n");
+    LOG_DEBUG("USB_HID: USB accessible @%lu\n", ztimer_now(ZTIMER_MSEC));
     hidx->m_is_usb_accessible = true;
-    usbus_event_post(hidx->usbus, &hidx->m_event_reset_transfer);
+
+    if ( hidx->m_key_event_queue.not_empty() ) {
+        // Begin processing key events that were queued while USB was inaccessible.
+        usbus_event_post(hidx->usbus, &hidx->m_event_transfer_complete);
+    }
 }
 
-// Low-latency key registering algorithm:
-//  Note that Low-latency here means that there will be no or little delay between a key
-//  event occurring and sending the event to the host. The basic idea of this algorithm
-//  is ensuring that
-//   - no two presses are reported in the same packet frame*, and
-//   - a press and its release are not reported in the same packet frame.
+// Low-latency key reporting algorithm:
+// "Low-latency" here refers to minimal delay between a key event and its transmission
+// to the host. The basic idea of this algorithm is ensuring:
+//   - No two key presses are reported in the same packet frame*.
+//   - A press and its corresponding release are not reported within the same frame.
 //
-//  1. If it is the first key event (press/release) in current packet frame, we update the
-//     report and submit it to the host immediately.
-//  2. For a second key event in the current packet frame, we update the report,
-//     overwriting the existing report, but do not submit it. We will submit it at the
-//     start of next packet frame instead.
-//  3. For any subsequent event, we also update the report and do not submit it, except
-//     for the following events, which shall be delayed to process until the current
-//     packet frame ends and any further events shall be delayed too.
-//      = a press,
-//      = the release whose press was updated at step 2 or 3, and
-//      = a modifier release if there was any prior press at step 2 or 3.
-//  4. At the start of the next packet frame, i.e. when the host acknowledges the
-//     submission of the first report at step 1,
-//      = if report has been further updated at step 2 or 3 above, we submit the updated
-//        report now, which will be counted as the first report in the new packet frame,
-//      = then resume processing any delayed events.
+// 1. If the key event (press/release) is the first in the current packet frame:
+//    - Update the report.
+//    - Submit it to the host immediately.
+// 2. If it's the second event in the current packet frame:
+//    - Update the report, overwriting the previous contents.
+//    - Do not submit; the updated report will be sent at the start of the next frame.
+// 3. For any additional events:
+//    - If the event is
+//        = A key press,
+//        = A release whose corresponding press was reported in step 2 or 3,
+//        = A modifier release, if ANY press was reported in step 2 or 3.
+//     then delay it (along with all subsequent events) until the current packet frame
+//     is delivered to the host.
+//    - Otherwise, update the report without submitting and repeat step 3.
+// 4. At the start of the next packet frame (after the host acknowledges the submission
+//    made in step 1):
+//    - If the report was updated during step 2 or 3, submit it now, and this acts as
+//      step 1 for the new frame.
+//    - Resume processing any delayed events from step 3.
 //
-// * This condition, however, could be mitigated in 6KRO protocol. Even in NKRO protocol,
-//   we could report a non-modifier press along with a modifier press in the same frame.
+// * This condition, however, can be relaxed in 6KRO mode. Even in NKRO mode, a
+//   non-modifier press can be reported alongside a modifier press in the same frame.
 
-// This method is not thread-safe, but it is always invoked either from usb_thread or from
-// a client thread via report_event(), both of which ensure thread-safety. To maintain
-// the correct event order when sending to the host, this method must not be called again
-// within the same packet frame after returning false. report_event() and
-// on_transfer_complete() adhere to this constraint.
+// This method is not thread-safe, but is always invoked either from usb_thread or via
+// report_event() from client thread — both contexts ensure thread safety. To preserve
+// event ordering when sending to the host, this method must not be called again within
+// the same packet frame if returning false. Both report_event() and
+// on_transfer_complete() respect this constraint.
 bool usbus_hid_keyboard_t::try_report_event(uint8_t keycode, bool is_press)
 {
     if ( m_report_updated > 1 )
-        if ( is_press || keycode == m_press_yet_to_submit ||
-             ( m_press_yet_to_submit != KC_NO && keycode >= KC_LCTRL ) )
+        if ( is_press || keycode == m_press_yet_to_submit
+          || ( m_press_yet_to_submit != KC_NO && keycode >= KC_LCTRL ) )
             return false;
 
     if ( update_report(keycode, is_press) ) {
@@ -200,23 +219,23 @@ bool usbus_hid_keyboard_t::try_report_event(uint8_t keycode, bool is_press)
     return true;
 }
 
-// This method is supposed to execute from a client thread (main_thread).
+// This method is supposed to execute from client thread (main_thread).
 void usbus_hid_keyboard_t::report_event(uint8_t keycode, bool is_press)
 {
     unsigned state = irq_disable();  // Disable preemption by usb_thread or interrupt.
 
-    // When USB is in suspended mode, key events are still added to the event queue to
-    // ensure they take effect once USB reconnects. These events remain in the queue only
-    // for SUSPENDED_KEY_EVENT_LIFETIME_MS.
-    if ( !m_is_usb_accessible ) {
-        LOG_DEBUG("USB_HID: key event in suspend mode\n");
+    // While USB is suspended, key events are still added to the event queue so they can
+    // take effect once USB resumes. These events remain in the queue only for
+    // USB_SUSPEND_EVENT_TIMEOUT_MS.
+    if ( unlikely(!m_is_usb_accessible) ) {
+        LOG_DEBUG("USB_HID: key %s in suspend mode\n", press_or_release(is_press));
         if ( is_press )
             usb_thread::send_remote_wake_up();
         m_key_event_queue.push({keycode, is_press});
 
-        // Start m_timer_clear_queue, or extend m_timer_clear_queue if it is already
+        // Start m_timer_clear_queue, or extend its duration if the timer is already
         // running.
-        ztimer_set(ZTIMER_MSEC, &m_timer_clear_queue, SUSPENDED_KEY_EVENT_LIFETIME_MS);
+        ztimer_set(ZTIMER_MSEC, &m_timer_clear_queue, USB_SUSPEND_EVENT_TIMEOUT_MS);
     }
 
     else if ( m_key_event_queue.not_empty() || !try_report_event(keycode, is_press) )
@@ -233,31 +252,33 @@ void usbus_hid_keyboard_t::submit_report()
     usbus_event_post(usbus, &tx_ready);
 }
 
-// This method is called from an event handler (via m_event_reset_transfer or
-// usbdev_ep_esr()) in usb_thread context. However, it would be OK to be called from
-// an interrupt context, since submit_report() and try_report_event() below only throw an
-// event along with some memory operations performed.
+// This method is invoked from an event handler (e.g. m_event_transfer_complete or
+// usbdev_ep_esr()) within usb_thread context. However, it is safe to call from
+// interrupt context as well, since submit_report() and try_report_event() only post
+// events and perform lightweight memory operations.
 void usbus_hid_keyboard_t::on_transfer_complete(bool was_successful)
 {
-    assert( m_is_usb_accessible );
+    // If USB suspends during an active transfer, do nothing here — on_reset() is
+    // responsible for resetting the report state data.
+    if ( unlikely(!m_is_usb_accessible) )
+        return;
 
     if ( was_successful && m_report_updated > 1 ) {
         LOG_DEBUG("USB_HID: register deferred events\n");
-        // This needs fixing Riot's _usbus_thread() to be able to handle multiple events
-        // on event queue, as this submit_report() can triggers another event while
-        // handling an event.
+        // Calling submit_report() here will post a new event while another event is
+        // being handled, which requires Riot's _usbus_thread() to be updated to handle
+        // multiple queued events per invocation.
         submit_report();
         m_report_updated = 1;
     }
     else {
-        occupied = 0;
         m_report_updated = 0;
     }
     m_press_yet_to_submit = KC_NO;
 
-    // Process remaining key events in the queue, pushing as many as possible to the new
-    // packet frame. When we encounter an event that cannot be pushed we quit, as we will
-    // be invoked again at the next packet frame.
+    // Process remaining events from the key event queue, pushing as many as fit into
+    // the packet frame. If an event cannot be pushed, exit early and resume processing
+    // at the next frame.
     key_event_queue_t::key_event_t event;
     while ( m_key_event_queue.peek(event)
       && try_report_event(event.keycode, event.is_press) )
@@ -266,20 +287,24 @@ void usbus_hid_keyboard_t::on_transfer_complete(bool was_successful)
 
 
 
-// * Keyboard report is 8-byte array which retains states of 8 modifiers and 6 keys.
-// byte |0       |1       |2       |3       |4       |5       |6       |7
-// -----+--------+--------+--------+--------+--------+--------+--------+--------
-// desc |mods    |reserved|keys[0] |keys[1] |keys[2] |keys[3] |keys[4] |keys[5]
+// Keyboard HID report formats:
 //
-// * It is exended to 16 bytes to retain 120 keys + 8 mods for NKRO mode.
-// byte |0       |1       |2       |3       |4       |5       |6        ... |15
-// -----+--------+--------+--------+--------+--------+--------+--------     +--------
-// desc |mods    |bits[0] |bits[1] |bits[2] |bits[3] |bits[4] |bits[5]  ... |bit[14]
+// * Standard 8-byte report (6KRO):
+//   Retains the state of 8 modifier keys and up to 6 concurrent key presses.
+//   byte |0       |1       |2       |3       |4       |5       |6       |7
+//   -----+--------+--------+--------+--------+--------+--------+--------+--------
+//   desc |mods    |reserved|keys[0] |keys[1] |keys[2] |keys[3] |keys[4] |keys[5]
 //
-// * mods retain state of 8 modifiers.
-//  bit |0       |1       |2       |3       |4       |5       |6       |7
-// -----+--------+--------+--------+--------+--------+--------+--------+--------
-// desc |Lcontrol|Lshift  |Lalt    |Lgui    |Rcontrol|Rshift  |Ralt    |Rgui
+// * Extended 16-byte report (NKRO):
+//   Supports up to 120 keys + 8 modifiers using a bitfield.
+//   byte |0       |1       |2       |3       |4       |5       |6        ... |15
+//   -----+--------+--------+--------+--------+--------+--------+--------     +--------
+//   desc |mods    |bits[0] |bits[1] |bits[2] |bits[3] |bits[4] |bits[5]  ... |bit[14]
+//
+// * Modifier key bit assignments (shared for both formats):
+//    bit |0       |1       |2       |3       |4       |5       |6       |7
+//   -----+--------+--------+--------+--------+--------+--------+--------+--------
+//   desc |Lcontrol|Lshift  |Lalt    |Lgui    |Rcontrol|Rshift  |Ralt    |Rgui
 
 bool usbus_hid_keyboard_t::help_update_bits(uint8_t& bits, uint8_t keycode, bool is_press)
 {
@@ -290,10 +315,7 @@ bool usbus_hid_keyboard_t::help_update_bits(uint8_t& bits, uint8_t keycode, bool
         return false;
     }
 
-    if ( is_press )
-        bits |= mask;
-    else
-        bits &= ~mask;
+    is_press ? bits |= mask : bits &= ~mask;
     return true;
 }
 
@@ -309,7 +331,7 @@ bool usbus_hid_keyboard_t::help_update_skro_report(
                 return false;
             }
             else {
-                while ( ++i < SKRO_KEYS_SIZE && keys[i] )
+                while ( ++i < SKRO_KEYS_SIZE && keys[i] != KC_NO )
                     keys[i-1] = keys[i];
                 keys[--i] = KC_NO;
                 return true;
@@ -369,11 +391,10 @@ void usbus_hid_keyboard_t::_hdlr_receive_data(
     //     if ( lamp_state & (uint8_t(1) << it->lamp_id()) )
     //         main_thread::signal_lamp_state(&*it);
 
-    // Begin the m_delay_usb_accessible timer upon receiving the first data
-    // (led_lamp_state) from the host.
+    // Start m_timer_resume_settle only after receiving the first host-initiated data
+    // (e.g. LED Set_Report), not immediately upon usbus_control invoking on_resume().
     if ( !hidx->m_is_usb_accessible )
-        ztimer_set(ZTIMER_MSEC,
-            &hidx->m_delay_usb_accessible, DELAY_USB_ACCESSIBLE_AFTER_RESUMED_MS);
+        ztimer_set(ZTIMER_MSEC, &hidx->m_timer_resume_settle, USB_RESUME_SETTLE_MS);
 }
 
 void usbus_hid_keyboard_tl<NKRO>::set_protocol(uint8_t protocol)

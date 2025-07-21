@@ -2,6 +2,13 @@
 
 Supports both 6KRO and NKRO, configurable through firmware.
 
+#### Typing ahead
+Users can type even while the USB connection is inactive; typed keys will be delivered automatically once the connection is restored.
+
+However:
+- A maximum of **16 keys** can be queued.
+- Queued keys expire after **4 seconds**, and are discarded to prevent stale input.
+
 #### USB hub
 The built-in USB hub supports two USB ports. One port can be connected to the keyboard, while the other port can be used for additional devices such as a mouse or smartphone. 
 

@@ -12,12 +12,13 @@ class usb_thread {
 public:
     static void init();
 
-    // Attempting a remote wake-up on a suspended but disconnected host may fail due to
-    // host OS restrictions. However, it remains allowed as a precaution (see
-    // usbus_hid_keyboard_t::report_press()). Additionally, remote wake-up can be sent to
-    // a non-existent host (e.g., an unconnected port), causing the USB driver (SAM D5x
-    // HW module) to immediately suspend and initiate an automatic switchover (see
-    // usbport::help_process_usb_suspend()).
+    // Send a remote wakeup to the host if it is suspended. If the data (D+) line is
+    // already disconnected (e.g. due to switchover, cable disconnect, or power-down),
+    // the host will simply ignore the wakeup request. This does not affect how key
+    // events are backfilled into the key event queue during suspension.
+    // Note: While sending remote wakeup only when the data line is active can be
+    // helpful, Linux and Windows often maintain an active connection during shutdown,
+    // making it unreliable to distinguish between suspend and full shutdown.
     static void send_remote_wake_up();
 
     static bool is_state_configured() { return m_usbus.state == USBUS_STATE_CONFIGURED; }

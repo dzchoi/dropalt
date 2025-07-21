@@ -151,8 +151,8 @@ NORETURN void* main_thread::_thread_entry(void*)
             if ( flags & FLAG_DTE_ENABLED )
                 LOG_DEBUG("Main: DTE enabled\n");
 
-            // Todo: Is DTE disconnected when switchover happens manually???
-            if ( flags & FLAG_DTE_DISABLED ) {
+            // FLAG_DTE_DISABLED is not signaled on switchover, but FLAG_USB_SUSPEND is.
+            if ( flags & (FLAG_DTE_DISABLED | FLAG_USB_SUSPEND) ) {
                 timed_stdin::disable();
                 lua::repl::stop();
                 LOG_DEBUG("Main: DTE disabled\n");
@@ -222,11 +222,11 @@ NORETURN void* main_thread::_thread_entry(void*)
                 lua::repl::execute();
         }
 
-        if ( flags & FLAG_TIMEOUT ) {
-            LOG_DEBUG("Main: v_5v=%d v_con1=%d v_con2=%d fsmstatus=0x%x @%lu\n",
-                adc::v_5v.read(), adc::v_con1.read(), adc::v_con2.read(),
-                usb_thread::fsmstatus(),
-                ztimer_now(ZTIMER_MSEC));
-        }
+        // if ( flags & FLAG_TIMEOUT ) {
+        //     LOG_DEBUG("Main: v_5v=%d v_con1=%d v_con2=%d fsmstatus=0x%x @%lu\n",
+        //         adc::v_5v.read(), adc::v_con1.read(), adc::v_con2.read(),
+        //         usb_thread::fsmstatus(),
+        //         ztimer_now(ZTIMER_MSEC));
+        // }
     }
 }

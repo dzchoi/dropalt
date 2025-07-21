@@ -186,3 +186,47 @@ Backtrace stopped: previous frame identical to this frame (corrupt stack?)
         debug_log("Watchdog reset at PC: 0x%08X", savedPC);
     }
     ```
+
+# Debugging USB (Capture USB traffic directly using `usbmon`)
+
+- Enable the usbmon module
+```
+$ sudo modprobe usbmon
+```
+
+- Find the Bus# and the Device ID for "Drop ALT" and "Drop Hub".
+```
+$ lsusb
+  Bus 003 Device 018: ID 04d8:eed3 Microchip Technology, Inc. Drop ALT
+  Bus 003 Device 017: ID 04d8:eec5 Microchip Technology, Inc. Drop Hub
+```
+
+- Start capturing raw USB traffic (on Bus 3). Stop with Ctrl+C.
+```
+$ sudo cat /sys/kernel/debug/usb/usbmon/3u >/tmp/3u.log
+```
+
+- Investigate /tmp/3u.log
+```
+ffff94cc297c5c80 3631660527 S Co:3:018:0 s 21 0a 0000 0002 0000 0
+ffff94cc297c5c80 3631662500 C Co:3:018:0 0 0
+--> USB_HID: request: 0xa type: 0x21 value: 0 length: 0 state: 0
+
+ffff94cc297c5c80 3631662517 S Ci:3:018:0 s 81 06 2200 0002 0039 57 <
+ffff94cc297c5c80 3631665501 C Ci:3:018:0 0 57 = 05010906 a1010507 19e029e7 15002501 95087501 81020507 190029f7 15002501
+--> USB_HID: request: 0xa type: 0x21 value: 0 length: 0 state: 0
+
+ffff94cc297c52c0 3631665587 S Co:3:018:0 s 21 09 0200 0002 0001 1 = 00
+ffff94cc297c52c0 3631668501 C Co:3:018:0 0 1 >
+--> USB_HID: request: 0x9 type: 0x21 value: 2 length: 1 state: 0
+    USB_HID: request: 0x9 type: 0x21 value: 2 length: 1 state: 3
+    USB_HID: set led_lamp_state=0x0 @1307
+
+ffff94cc297c5c80 3631665654 S Ii:3:018:3 -115:8 32 <  (Host's interrupt IN request)
+ffff94cc297c5c80 3631674523 C Ii:3:018:3 0:8 32 = 00100000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+--> USB_HID: register press (0x4 A)
+
+ffff94cc297c5c80 3631674524 S Ii:3:018:3 -115:8 32 <
+ffff94cc297c5c80 3631682522 C Ii:3:018:3 0:8 32 = 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+--> USB_HID: register release (0x4 A)
+```

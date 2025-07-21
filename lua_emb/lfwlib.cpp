@@ -10,6 +10,7 @@
 #include "persistent.hpp"       // for persistent::_get/_set(), ...
 #include "timer.hpp"            // for _timer_t::create(), ...
 #include "usb_thread.hpp"       // for usb_thread::send_press/release()
+#include "usbhub_thread.hpp"    // for usbhub_thread::request_usbport_switchover()
 
 
 
@@ -399,6 +400,16 @@ static int fw_send_key(lua_State* L)
     return 0;
 }
 
+// fw.switchover() -> void
+// Note: When executing fw.switchover(), ensure no physical keys are held down in the
+// old environment (especially on Windows), as residual key states may cause unintended
+// input behavior after switchover. See comments in usbus_hid_keyboard_t::on_reset().
+static int fw_switchover(lua_State*)
+{
+    usbhub_thread::request_usbport_switchover();
+    return 0;
+}
+
 int luaopen_fw(lua_State* L)
 {
     static constexpr luaL_Reg fw_lib[] = {
@@ -417,6 +428,7 @@ int luaopen_fw(lua_State* L)
         { "send_key", fw_send_key },
         { "stack_usage", fw_stack_usage },
         { "system_reset", fw_system_reset },
+        { "switchover", fw_switchover },
         { "timer_create", _timer_t::create },
         { "timer_is_running", _timer_t::is_running },
         { "timer_start", _timer_t::start },

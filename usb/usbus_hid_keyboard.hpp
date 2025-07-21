@@ -8,10 +8,6 @@
 #include "usb_descriptor.hpp"
 #include "usbus_hid_device.hpp"
 
-// Note that physical key press/release events are generated from matrix_thread, sent to
-// main_thread, converted into USB keycodes, and finally reported to usb_thread through
-// usbus_hid_keyboard.
-
 
 
 class key_event_queue_t {
@@ -22,10 +18,11 @@ public:
     static_assert( sizeof(key_event_t) == 2 );
 
     // These methods are NOT thread-safe. It is the caller's responsibility to ensure
-    // thread safety. push() is invoked by report_event() from the client thread
-    // (main_thread) with interrupts disabled. The remaining methods are exclusively
-    // executed by usb_thread, which has the highest priority, ensuring they run without
-    // preemption.
+    // safe access and synchronization.
+    // - push() is invoked by report_event() from the client thread (main_thread),
+    //   with interrupts disabled.
+    // - The remaining methods are used exclusively by usb_thread, which runs at the
+    //   highest priority and is not preempted.
 
     void push(key_event_t event, bool wait_if_full =false);
     bool pop();
@@ -36,11 +33,12 @@ public:
     bool peek(key_event_t& event) const;
 
 private:
-    // The usbus_hid_device_t::in_lock serves as m_not_full, preventing the queue from
-    // overflowing by locking when full. It does not protect simultaneous access to
-    // usbus_hid_device_t::in_buf, which is inherently safeguarded since submit_report()
-    // is exclusively invoked from usb_thread, not from other threads or interrupts.
-    mutex_t& m_not_full;  // The mutex must be initialized already.
+    // The original usbus_hid_device_t::in_lock is repurposed as m_not_full, used to
+    // prevent queue overflow by locking when full. It no longer guards concurrent
+    // access to usbus_hid_device_t::in_buf, as submit_report() is exclusively called
+    // from usb_thread (not from any lower-priority thread or from interrupts), ensuring
+    // inherent thread safety without additional locking.
+    mutex_t& m_not_full;  // must be initialized already.
 
     static constexpr size_t QUEUE_SIZE = 32;  // must be a power of two.
     static_assert( (QUEUE_SIZE > 0) && ((QUEUE_SIZE & (QUEUE_SIZE - 1)) == 0) );
@@ -59,23 +57,24 @@ public:
     void on_suspend() override;
     void on_resume() override;
 
-    // Note that lamp state can be changed only by the host, in response to KC_CAPSLOCK.
+    // Note that lamp state is updated only by the host in response to KC_CAPSLOCK,
+    // typically via a SET_REPORT request.
     uint8_t get_lamp_state() const { return m_led_lamp_state; }
 
     uint8_t get_protocol() const override { return m_keyboard_protocol; }
 
-    // 6KRO is utilized regardless of whether protocol is set to 0 or 1.
+    // 6KRO is used by default, regardless of whether the protocol is set to Boot (0) or
+    // Report (1).
     void set_protocol(uint8_t protocol) override { m_keyboard_protocol = protocol; }
 
     // These two user-facing methods register key press/release events to the host. They
-    // are thread-safe and remain non-blocking as long as m_key_event_queue is not full.
-    // If the queue is full and USB is accessible, they block the caller thread
-    // (main_thread). However, if USB is not accessible, they do not block; instead,
-    // they discard the oldest events when the queue is full or clear the entire queue if
-    // no key event has occurred for SUSPENDED_KEY_EVENT_LIFETIME_MS.
-    // There is no need to introduce an explicit delay between consecutive calls, as this
-    // is handled internally. You can call report_press() and report_release() back-to-
-    // back for the same key.
+    // are thread-safe, and non-blocking as long as the key event queue is not full. If
+    // the queue is full and USB is accessible, the caller thread (main_thread) will
+    // block until space becomes available. If USB is not accessible, the methods remain
+    // non-blocking and silently discard the oldest events.
+    // Note: No explicit delay between consecutive calls is required — this is handled
+    // internally. You can safely call report_press() and report_release() back-to-back
+    // for the same key.
     void report_press(uint8_t keycode) { report_event(keycode, true); }
     void report_release(uint8_t keycode) { report_event(keycode, false); }
 
@@ -86,44 +85,47 @@ protected:
 
     uint8_t m_led_lamp_state = 0;
 
-    // 0 = Boot protocol, 1 = Report protocol (default)
-    // Note that only the host (e.g. bios) can pull it down to Boot protocol, using
-    // USB_HID_REQUEST_SET_PROTOCOL. Keyboard device cannot set it to 0 on its own.
+    // The device defaults to Report protocol (1), but will switch to Boot protocol (0)
+    // if explicitly instructed by the host (e.g. BIOS) via a SET_PROTOCOL request.
     uint8_t m_keyboard_protocol = 1;
 
-    // On a Linux host, USB is not immediately accessible after usbus->state transitions
-    // to USBUS_STATE_CONFIGURED (i.e. usbus_is_active() becomes true). A short delay is
-    // introduced before using USB to ensure stability.
+    // On Linux, the input subsystem (evdev) may not yet be ready to deliver HID reports
+    // to user space, even though the USB subsystem has successfully received and
+    // acknowledged them. This results in USB being inaccessible immediately after
+    // usbus->state transitions to USBUS_STATE_CONFIGURED (or when usbus_is_active()
+    // returns true). A flag introduces a brief delay to block event reporting until the
+    // system stabilizes.
     bool m_is_usb_accessible = false;
 
-    ztimer_t m_delay_usb_accessible = {
-        .callback = _tmo_usb_accessible,
-        .arg = this,
-    };
-    static void _tmo_usb_accessible(void* arg);
+    ztimer_t m_timer_resume_settle = { .callback = _tmo_resume_settle, .arg = this };
+    static void _tmo_resume_settle(void* arg);
 
-    // Indicator if the report has been submitted to the host in the current packet frame.
-    // (0 = not updated nor submitted, 1 = submitted, 2+ = submitted but updated further)
+    // Indicates the report's submission status during the current packet frame:
+    // - 0: Report has not been updated or submitted.
+    // - 1: Report has been submitted without further changes.
+    // - 2+: Report was submitted, then updated again (requires re-submission).
     uint8_t m_report_updated = 0;
 
-    // Key press that has been updated in the report but not submitted.
+    // Key press that has been added in the report but not submitted to the host.
     uint8_t m_press_yet_to_submit = KC_NO;
 
-    // Queue to buffer the key events received from the client thread as necessary.
+    // Key event queue used as an inter-thread buffer between the client thread
+    // (main_thread) and usb_thread.
     key_event_queue_t m_key_event_queue { in_lock };
 
-    // Try to report a key event in the current packet frame, return false if not
+    // Try to report a key event within the current packet frame, return false if not
     // possible.
     bool try_report_event(uint8_t keycode, bool is_press);
 
-    // Report a key event in the current packet frame if possible. Otherwise put it in
-    // the event queue so that it can be reported in next packet frame(s).
+    // Report a key event during the current packet frame if possible. Otherwise put it
+    // in the key event queue so that it can be reported in next packet frame(s).
     void report_event(uint8_t keycode, bool is_press);
 
-    // Timer to wait for SUSPENDED_KEY_EVENT_LIFETIME_MS. The event queue is cleared via
-    // an event (m_event_clear_queue) from the timer handler. If the queue were cleared
-    // directly within the timer handler (on interrupt context), all related functions
-    // would need to be wrapped with irq_disable/enable() to ensure thread safety.
+    // Timer to wait for USB_SUSPEND_EVENT_TIMEOUT_MS before clearing the key event
+    // queue, used when events are backfilled while USB is inaccessible.
+    // Note: The key event queue is cleared by posting m_event_clear_queue from the
+    // timer callback. Directly clearing it in the timer callback (from interrupt
+    // context) would require irq_disable()/irq_enable() wrapping for thread safety.
     ztimer_t m_timer_clear_queue = {
         .callback = [](void* arg) {
             usbus_hid_keyboard_t* const hidx = static_cast<usbus_hid_keyboard_t*>(arg);
@@ -141,25 +143,30 @@ protected:
         this  // .arg
     };
 
-    // Submit the current report to the host.
+    // Submit the current packet frame (report) to the host.
     void submit_report();
 
-    // Called when the current packet frame is delivered to the host successfully, or
-    // when it failed, or when USB becomes accessible.
+    // Called after a packet frame is delivered to the host — whether delivery succeeded,
+    // failed, or USB has just become accessible. It will choose the appropriate
+    // follow-up action.
     void on_transfer_complete(bool was_successful) override;
 
-    // Used by submit_report() to copy the report to in_buf.
+    // Used by submit_report() to copy the current report to in_buf.
     virtual void fill_in_buf() =0;
 
-    // Update the report and return true if successful. This private method is used by
-    // report_press/release().
+    // Clear the report forcefully.
+    virtual void clear_report() =0;
+
+    // Update the current packet frame (report) and return true if successful.
+    // Internally used by report_press/release().
     virtual bool update_report(uint8_t keycode, bool is_press) =0;
 
     bool help_update_bits(uint8_t& bits, uint8_t keycode, bool is_press);
     bool help_update_skro_report(uint8_t keys[], uint8_t keycode, bool is_press);
     bool help_update_nkro_report(uint8_t bits[], uint8_t keycode, bool is_press);
 
-    // Handle (in usb_thread context) the data packet received from the host.
+    // Handle a data packet received from the host within the usb_thread context.
+    // Typically used to process SET_REPORT requests.
     static void _hdlr_receive_data(usbus_hid_device_t* hid, uint8_t* data, size_t len);
 };
 
@@ -201,6 +208,10 @@ private:
         __builtin_memcpy(in_buf, m_report.raw, KEYBOARD_EPSIZE);
     }
 
+    void clear_report() override {
+        __builtin_memset(m_report.raw, 0, KEYBOARD_EPSIZE);
+    }
+
     bool update_report(uint8_t keycode, bool is_press) override {
         return keycode >= KC_LCTRL
             ? help_update_bits(m_report.mods, keycode, is_press)
@@ -211,9 +222,12 @@ private:
 template<>
 class usbus_hid_keyboard_tl<NKRO>: public usbus_hid_keyboard_t {
 public:
-    // The endpoint report size that we provide to the host in HID report descriptor.
-    // Even so we should follow the current protocol; in Report protocol we report as we
-    // provided, but in Boot protocol we report as 6KRO keyboard.
+    // Defines the endpoint report size advertised in the HID report descriptor.
+    // While NKRO_REPORT_SIZE reflects full NKRO capability, the actual report format
+    // depends on the protocol:
+    // - Report protocol: full NKRO report is used.
+    // - Boot protocol: falls back to standard 6KRO format.
+    // See how xkro_report_key() changes its behavior.
     static constexpr size_t KEYBOARD_EPSIZE = NKRO_REPORT_SIZE;
     static inline const auto report_desc = array_of(NkroReportDescriptor);
 
@@ -248,13 +262,17 @@ private:
         __builtin_memcpy(in_buf, m_report.raw, KEYBOARD_EPSIZE);
     }
 
+    void clear_report() override {
+        __builtin_memset(m_report.raw, 0, KEYBOARD_EPSIZE);
+    }
+
     bool update_report(uint8_t keycode, bool is_press) override {
         return keycode >= KC_LCTRL
             ? help_update_bits(m_report.mods, keycode, is_press)
             : (this->*xkro_report_key)(keycode, is_press);
     }
 
-    // This pointer-to-method is changed according to the current protocol.
+    // Pointer to the active report method, selected based on the current protocol.
     bool (usbus_hid_keyboard_tl::*xkro_report_key)(uint8_t keycode, bool is_press) =
         &usbus_hid_keyboard_tl::nkro_report_key;
 

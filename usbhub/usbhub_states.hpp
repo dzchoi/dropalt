@@ -104,7 +104,7 @@ private:
 
 
 class state_usb_suspend: public usbhub_state {
-// Will stay until USB is resumed, or until a switchover or remote wake-up is triggered.
+// Will stay until USB is resumed, or until a switchover or remote wakeup is triggered.
 public:
     static state_usb_suspend& obj(){
         static state_usb_suspend obj;

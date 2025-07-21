@@ -117,6 +117,26 @@ function Lit:on_release()
     fw.send_key(self.m_keycode, false)
 end
 
+-------- Function
+-- Function(func1 [, func2]) invokes func1() on press and optionally func2() on release.
+Function = class(Base)
+
+function Function:init(func1, func2)
+    Base.init(self)
+    self.m_func1 = func1
+    self.m_func2 = func2
+end
+
+function Function:on_press()
+    self.m_func1()
+end
+
+function Function:on_release()
+    if self.m_func2 then
+        self.m_func2()
+    end
+end
+
 -------- OneShot
 -- Force the given keymap to trigger as a quick tap, ignoring holds.
 OneShot = class(Base)

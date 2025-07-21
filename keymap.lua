@@ -13,6 +13,8 @@
 -- For example, the package module does not define non_existent_function() and thus
 -- package.non_existent_function("nop") will cause a crash!
 
+local fw = require "fw"
+
 
 
 -------- Custom keymaps
@@ -46,19 +48,16 @@ local PGUP  = Lit("PGUP")
 local PGDN  = Lit("PGDN")
 
 local SPACE = Lit("SPACE")
-local LCTRL = Lit("LCTRL")
-local RCTRL = Lit("RCTRL")
 local LSHFT = Lit("LSHFT")
 local RSHFT = Lit("RSHFT")
-
--- Hold TAB -> FN2
-local tTAB = TapHold(Lit("TAB"), FN2, HoldOnPress)
+local LCTRL = Lit("LCTRL")
+local RCTRL = Lit("RCTRL")
 
 -- Tap FN -> ESC
 local tFN = TapHold(Lit("ESC"), FN, HoldOnPress)
 
--- Hold ENTER -> RCTRL
-local tENTER = TapHold(Lit("ENTER"), RCTRL, HoldOnPress)
+-- Hold ENTER -> FN
+local tENTER = TapHold(Lit("ENTER"), FN, HoldOnPress)
 
 -- Tap SPACE -> SPACE, Hold SPACE -> RSHFT, Tap + Tap + Hold Space -> Space
 local tSPACE = TapHold(SPACE, RSHFT, HoldOnRelease|QuickRelease)
@@ -70,9 +69,6 @@ local mLSHFT = ModIf(tSPACE, SPACE, LSHFT)
 
 -- Tap RSHFT -> INS
 local tRSHFT = TapHold(INS, RSHFT, HoldOnPress|QuickRelease)
-
--- FN + ` = POWER
-local mGRV = ModIf(FN, Lit("POWER"), Lit("`"))
 
 -- FN + n or hold n -> Fn
 local QuickTap = TapOnPress|TapOnRelease|HoldIsTap
@@ -109,6 +105,20 @@ local mBKSP = ModIf(FN, DEL, Lit("BKSP"))
 local mDOWN = ModIf(FN, Lit("SCRLOCK"), DOWN)
 -- Todo: Custom lamp_t that enables a jiggler while SCRLOCK lamp is on.
 
+-- ENTER + ` -> POWER
+local mGRV = ModIf(tENTER, Lit("POWER"), Lit("`"))
+
+-- ENTER + TAB -> fw.switchover(), Hold TAB -> FN2
+-- Note: When executing fw.switchover(), ensure no physical keys are left pressed in the
+-- old environment (especially on Windows). For example, if tENTER were mapped to press
+-- CTRL in this mapping, that modifier could remain active in the old environment unless
+-- explicitly released ("ghost key symptom").
+local mTAB = ModIf(tENTER, Function(fw.switchover),
+    TapHold(Lit("TAB"), FN2, HoldOnPress))
+
+-- ENTER + B -> fw.reboot_to_bootloader()
+local mB = ModIf(tENTER, Function(fw.reboot_to_bootloader), Lit("B"))
+
 -- Not so useful:
 -- local tRIGHT = TapSeq(RIGHT, END)
 
@@ -129,9 +139,9 @@ end
 
 g_keymaps = keymap_table {
     mGRV, m1, m2, m3, m4, m5, m6, m7, m8, m9, m0, mMINUS, mEQUAL, mBKSP, DEL,
-    tTAB, "Q", "W", "E", "R", "T", "Y", "U", "I", "O", mP, mLBRAC, "]", "\\", HOME,
+    mTAB, "Q", "W", "E", "R", "T", "Y", "U", "I", "O", mP, mLBRAC, "]", "\\", HOME,
     tFN, "A", "S", "D", "F", "G", mH, mJ, mK, mL, ";", "'", ___, tENTER, PGUP,
-    mLSHFT, ___, "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", tRSHFT, UP, PGDN,
+    mLSHFT, ___, "Z", "X", "C", "V", mB, "N", "M", ",", ".", "/", tRSHFT, UP, PGDN,
     "LALT", "LGUI", LCTRL, ___, ___, ___, tSPACE, ___, ___, ___, RCTRL, "RALT", LEFT, mDOWN, RIGHT
 }
 
