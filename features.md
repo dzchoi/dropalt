@@ -15,13 +15,20 @@ The built-in USB hub supports two USB ports. One port can be connected to the ke
 You can even connect two PCs to these ports and seamlessly switch between them. Additionally, it supports automatic "switchover", which automatically switches to the other PC when the current one disconnects.
 
 #### Bootloader
-The new bootloader, built on ["riotboot"](https://api.riot-os.org/group__bootloader__riotboot.html), serves as a replacement for the original [mdloader](https://github.com/Massdrop/mdloader) bootloader. It supports the DFU protocol and is fully compatible with [`dfu-util`](https://dfu-util.sourceforge.net/). The flash memory is organized into two distinct slots:
+The new bootloader, built on ["riotboot"](https://api.riot-os.org/group__bootloader__riotboot.html), serves as a replacement for the old [mdloader](https://github.com/Massdrop/mdloader) and supports the DFU protocol. It is fully compatible with [`dfu-util`](https://dfu-util.sourceforge.net/).
+
+Flash memory is organized into two distinct slots:
 - Slot 0: Firmware
 - Slot 1: Lua bytecode (the keymap module)
 
-To enter the bootloader (so called DFU mode), you can press the external Reset pin. Or if the firmware encounters a critical error (e.g a runtime error when executing Lua bytecode), the bootloader will automatically be entered.
+You can enter the bootloader (DFU mode) using either of the following methods:
+- Press the external Reset pin.
+- Call `fw.reboot_to_bootloader()` from the Lua REPL or trigger it via a keymap.
+Note: If a critical error occurs (e.g. a runtime error when executing Lua bytecode), the system automatically enters DFU mode as a failsafe.
 
-You can:
+To boot into the firmware from the bootloader, simply press Enter.
+
+DFU Commands
 - Flash firmware:
   > $ dfu-util --alt 0 --download `firmware.bin`
 - Flash Lua bytecode:

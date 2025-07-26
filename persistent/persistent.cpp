@@ -1,5 +1,6 @@
 #include "log.h"
 #include "seeprom.h"            // for seeprom_*()
+#include "usb2422.h"            // for USB_PORT_1
 
 #include "persistent.hpp"
 
@@ -14,8 +15,11 @@ void persistent::init()
     seeprom_init();
     seeprom_unbuffered();  // Enable unbuffered mode.
 
-    if ( begin()->uint8 == 0xff )  // If not initialized,
+    if ( begin()->uint8 == 0xff ) {  // If not initialized,
         begin()->size2 = SEEPROM_SIZE2;  // == log2(SEEPROM_SIZE)
+        // Note: Bootloader requires `last_host_port` to be the first entry in NVM.
+        persistent::set("last_host_port", USB_PORT_1);
+    }
 }
 
 bool persistent::_create(const char* name, const void* value, size_t value_size, uint8_t value_type)

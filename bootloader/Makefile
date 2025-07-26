@@ -11,7 +11,7 @@
 APPLICATION := dropalt-boot
 
 # Version numbers encoded in USB device descriptor
-DEVICE_VER := 0x0090            # bcdDevice =  0.90 for bootloader
+DEVICE_VER := 0x0091            # bcdDevice =  0.91 for bootloader
 HUB_DEVICE_VER := 0x2410        # bcdDevice = 24.10 for Hub
 CFLAGS += -DDEVICE_VER=$(DEVICE_VER) -DHUB_DEVICE_VER=$(HUB_DEVICE_VER)
 
@@ -26,6 +26,7 @@ BOARD := board-dropalt
 LTO = 1
 
 # RIOT modules
+FEATURES_REQUIRED += periph_gpio_irq   # for gpio_init_int()
 FEATURES_REQUIRED += no_idle_thread
 FEATURES_REQUIRED += periph_pm
 USEMODULE += riotboot_flashwrite
@@ -36,9 +37,10 @@ USEMODULE += ztimer_usec
 
 # Subdirectory modules
 EXTERNAL_MODULE_DIRS += $(CURDIR)/..
+USEMODULE += dropalt_backup_ram
+USEMODULE += dropalt_seeprom
 USEMODULE += dropalt_sr_595
 USEMODULE += dropalt_usb2422
-USEMODULE += dropalt_backup_ram
 
 # No CDC ACM connected
 LOG_LEVEL = LOG_NONE

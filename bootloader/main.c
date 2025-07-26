@@ -5,19 +5,17 @@
 #include "compiler_hints.h"     // for UNREACHABLE()
 #include "cpu.h"                // for RSTC
 #include "panic.h"              // for core_panic_t
-#include "riotboot/bootloader_selection.h"  // for BTN_BOOTLOADER_PIN
+#include "periph/gpio.h"        // for gpio_init(), gpio_init_int(), ...
+// #include "riotboot/bootloader_selection.h"  // for BTN_BOOTLOADER_PIN
 #include "riotboot/magic.h"     // for RIOTBOOT_MAGIC_ADDR, RIOTBOOT_MAGIC_NUMBER
 #include "riotboot/slot.h"      // for riotboot_slot_jump(), ...
+#include "seeprom.h"            // for seeprom_init(), seeprom_sync(), ...
 #include "sr_exp.h"             // for sr_exp_init()
 #include "thread.h"             // for thread_create(), sched_task_exit(), ...
 #include "usb/usbus.h"          // for usbus_init(), usbus_create(), ...
 #include "usb_dfu.h"            // for usbus_dfu_init(), ...
 #include "usb2422.h"            // for usbhub_*()
 #include "ztimer.h"             // for ztimer_init(), ztimer_periodic_wakeup(), ...
-
-#ifdef BTN_BOOTLOADER_PIN
-#include "periph/gpio.h"
-#endif
 
 
 
@@ -34,15 +32,52 @@ static void riotboot_usb_init(void)
     usbus_create(_usbus_stack, USBUS_STACKSIZE, USBUS_PRIO, USBUS_TNAME, &usbus);
 }
 
-static void wait_for_host_connection(uint8_t starting_port)
+static uint8_t nvm_init(void)
+{
+    nvm_user_page_t user_page = *sam0_flashpage_aux_cfg();
+
+    // Set up SEEPROM if not set up yet. Changes will take effect after reset.
+    if ( user_page.smart_eeprom_blocks != SEEPROM_SBLK
+      || user_page.smart_eeprom_page_size != SEEPROM_PSZ ) {
+        user_page.smart_eeprom_blocks = SEEPROM_SBLK;
+        user_page.smart_eeprom_page_size = SEEPROM_PSZ;
+        char* s = (char*)sam0_flashpage_aux_get(0);
+        s = (*s == '\xff' ? NULL : __builtin_strdup(s));
+
+        // Erase the USER page while preserving the reserved section (the first 32 bytes).
+        sam0_flashpage_aux_reset(&user_page);
+
+        // Restore the product serial.
+        if ( s ) {
+            sam0_flashpage_aux_write(0, s, __builtin_strlen(s) + 1);
+            __builtin_free(s);
+        }
+
+        reboot_to_bootloader();
+        UNREACHABLE();
+    }
+
+    seeprom_init();
+    seeprom_sync();
+
+    // Try to read `persistent::get("last_host_port", port)` directly from NVM, taking
+    // advantage of its position as the first entry.
+    if ( *(uint32_t*)seeprom_addr(0) == 0x73616c15u )  // 's', 'a', 'l', 0x15
+        return *(uint8_t*)seeprom_addr(__builtin_strlen("last_host_port") + 2);
+
+    // Clear NVM if it is not in right format.
+    *(uint8_t*)seeprom_addr(0) = 0xff;
+    return USB_PORT_1;
+}
+
+static void wait_for_host_connection(uint8_t port)
 {
     ztimer_acquire(ZTIMER_MSEC);
 
     uint32_t now_ms = ztimer_now(ZTIMER_MSEC);
     uint32_t then_ms = now_ms;
 
-    // Start with starting_port.
-    usbhub_select_host_port(starting_port);
+    usbhub_select_host_port(port);
 
     while ( !usbhub_is_active() ) {
         // Switch to the other port after 1 sec.
@@ -69,40 +104,25 @@ NORETURN static void* _main(void* arg)
     // Initialize ztimer before starting DFU mode.
     ztimer_init();
 
+    // Initialize NVM and read `last_host_port` if available.
+    uint8_t starting_port = nvm_init();
+
     // Create and run the usbus thread.
     riotboot_usb_init();
 
-    // Set up the USB2422 in the background.
+    // Set up the USB2422 hub.
     usbhub_init();
-    wait_for_host_connection(USB_PORT_1);
+    wait_for_host_connection(starting_port);
+
+    // Enable matrix interrupt to catch a key press.
+    void matrix_enable(void);
+    matrix_enable();
 
     // Indicate that DFU mode is ready.
     LED0_ON;
 
     // Remove this thread from scheduler.
     sched_task_exit();
-}
-
-static void allocate_seeprom(void)
-{
-    nvm_user_page_t user_page = *sam0_flashpage_aux_cfg();
-
-    if ( user_page.smart_eeprom_blocks != SEEPROM_SBLK
-      || user_page.smart_eeprom_page_size != SEEPROM_PSZ ) {
-        user_page.smart_eeprom_blocks = SEEPROM_SBLK;
-        user_page.smart_eeprom_page_size = SEEPROM_PSZ;
-        char* s = (char*)sam0_flashpage_aux_get(0);
-        s = (*s == '\xff' ? NULL : __builtin_strdup(s));
-
-        // Erase the USER page while preserving the reserved section (the first 32 bytes).
-        sam0_flashpage_aux_reset(&user_page);
-
-        // Restore the product serial.
-        if ( s ) {
-            sam0_flashpage_aux_write(0, s, __builtin_strlen(s) + 1);
-            __builtin_free(s);
-        }
-    }
 }
 
 
@@ -142,9 +162,6 @@ NORETURN void kernel_init(void)
     // Welcome to the DFU mode!
     irq_disable();
 
-    // Allocate SEEPROM if not allocated yet. Changes will take effect after reset.
-    allocate_seeprom();
-
     static char _main_stack[THREAD_STACKSIZE_MAIN];
     thread_create(_main_stack, sizeof(_main_stack),
                   THREAD_PRIORITY_MAIN,
@@ -153,6 +170,32 @@ NORETURN void kernel_init(void)
 
     // Call context switching upon exit.
     cpu_switch_context_exit();
+}
+
+static const gpio_t col = col_pins[13];  // Matrix column that contains ENTER key.
+static const gpio_t row = row_pins[2];   // Matrix row that contains ENTER key.
+// For testing:
+// static const gpio_t col = col_pins[14];  // RIGHT key.
+// static const gpio_t row = row_pins[4];   // RIGHT key.
+
+void matrix_disable(void)
+{
+    gpio_irq_disable(row);
+}
+
+NORETURN static void _isr_jump_to_application(void* arg)
+{
+    (void)arg;
+    matrix_disable();
+    system_reset();
+}
+
+void matrix_enable(void)
+{
+    gpio_init(col, GPIO_OUT);
+    gpio_set(col);
+    gpio_init_int(row, GPIO_IN_PD, GPIO_RISING, _isr_jump_to_application, NULL);
+    gpio_irq_enable(row);
 }
 
 NORETURN void core_panic(core_panic_t crash_code, const char* message)

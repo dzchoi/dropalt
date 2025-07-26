@@ -159,6 +159,9 @@ static int dfu_class_control_req(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_se
             }
 
             else if ( dfu->dfu_state != USB_DFU_STATE_DFU_DL_SYNC ) {
+                void matrix_disable(void);
+                // Disable matrix interrupt during firmware flashing.
+                matrix_disable();
                 dfu->dfu_state = USB_DFU_STATE_DFU_DL_SYNC;
             }
 

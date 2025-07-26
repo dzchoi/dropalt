@@ -7,7 +7,7 @@
 #include <utility>              // for std::swap()
 #include "adc.hpp"              // for sync_measure(), is_host_connected(), ...
 #include "config.hpp"           // for DEBUG_LED_BLINK_PERIOD_MS, ...
-#include "persistent.hpp"       // for persistent "last_host_port"
+#include "persistent.hpp"       // for persistent `last_host_port`
 #include "usbhub_states.hpp"
 
 
@@ -72,7 +72,7 @@ void state_determine_host::begin()
     // state_determine_host.
     usbhub_disable_all_ports();
 
-    uint8_t desired_port = USB_PORT_1;  // Default value for "last_host_port".
+    uint8_t desired_port = USB_PORT_1;  // Default value for `last_host_port`.
     persistent::get("last_host_port", desired_port);
     LOG_DEBUG("USBHUB: try port %d first @%lu\n", desired_port, ztimer_now(ZTIMER_MSEC));
 
