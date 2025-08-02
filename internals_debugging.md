@@ -88,6 +88,7 @@ set `DEVELHELP = 1` in Makefile along with `CFLAGS += -DDEBUG_ASSERT_VERBOSE`.
 * The same serial (e.g. /dev/ttyACM0) in the host can be used for CDC-ACM.
 
 #### Stack overflow
+* The MPU (Memory Protection Unit) protects the initial stack — used before any threads are created and also serving as the ISR stack — but it does not protect thread stacks.
 * Use thread_measure_stack_free() for threads created with THREAD_CREATE_STACKTEST.
 * Use thread_stack_print() and thread_print_stack().
 * See test_utils_print_stack_usage() in the module with the same name.
@@ -178,6 +179,7 @@ Backtrace stopped: previous frame identical to this frame (corrupt stack?)
         WDT->INTFLAG.reg = WDT_INTFLAG_EW;
     }
     ```
+  - See wdt_setup_reboot_with_callback().
   - After the system resets, check the reset cause register to confirm that the reset was triggered by the watchdog. The SAMD51J has a Reset Cause (RCAUSE) register that indicates the source of the reset.
     ```
     if (RSTC->RCAUSE.bit.WDT) {

@@ -206,17 +206,14 @@ static const i2c_conf_t i2c_config[] = {
         .gclk_src = SAM0_GCLK_PERIPH,
         .flags    = I2C_FLAG_RUN_STANDBY,
 #ifdef MODULE_PERIPH_DMA
-        // Todo: Use of .tx_trigger = SERCOM0_DMAC_ID_TX for I2C DMA transfer may cause
-        //  an indefinite wait since the current implementation of i2c_write_bytes() for
-        //  MODULE_PERIPH_DMA (actually, dma_wait() in riot/cpu/sam0_common/periph/dma.c)
-        //  does not handle transfer errors. When keyboard is powered up by plugging into
-        //  the host USB port the i2c transfer to USB2422 fails sometimes even though
-        //  v_5v is stable. (This can also happen with non-DMA transfer but it handles
-        //  transfer failures.)
-        //  This could be fixed by dma_wait() doing timed-wait or by isr_dmac() handling
-        //  DMAC_INTPEND_TERR, but using non-DMA is not so bad considering that this I2C
-        //  transfer is performed only once at power up and it adds ~30 ms to the time
-        //  when using DMA transfer.
+        // Note: Using .tx_trigger = SERCOM0_DMAC_ID_TX for I2C DMA transfer may
+        // occasionally hang, when powering the keyboard via a USB cable. The I2C
+        // transfer to USB2422 might fail if the device isn't fully initialized, which
+        // can cause the DMA transaction to stall.
+        // This can be worked around by modifying dma_wait() to use a timed wait and
+        // retrying the transfer (which may take several hundred milliseconds). However,
+        // using non-DMA I2C is acceptable here, as the transfer only occurs once at
+        // power-up and incurs a ~30 ms overhead compared to DMA.
         .tx_trigger = DMA_TRIGGER_DISABLED,
         .rx_trigger = DMA_TRIGGER_DISABLED,
 #endif

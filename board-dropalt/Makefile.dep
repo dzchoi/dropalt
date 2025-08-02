@@ -11,6 +11,7 @@ endif
 
 ifneq (,$(filter dropalt_is31fl3733 dropalt_usb2422,$(USEMODULE)))
     FEATURES_REQUIRED += periph_i2c
+    FEATURES_REQUIRED += periph_dma     # Enable DMA for I2C transfer
 endif
 
 ifneq (,$(filter dropalt_seeprom,$(USEMODULE)))

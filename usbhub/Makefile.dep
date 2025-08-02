@@ -8,3 +8,4 @@ USEMODULE += dropalt_adc_get
 USEMODULE += dropalt_sr_595
 USEMODULE += dropalt_usb2422
 USEMODULE += persistent
+USEMODULE += rgb                    # for rgb_thread::signal_v_5v_report()

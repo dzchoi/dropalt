@@ -9,7 +9,7 @@
 #include "config.hpp"           // for USB_RESUME_SETTLE_MS, ...
 #include "main_thread.hpp"      // for signal_usb_resume(), signal_lamp_state(), ...
 // #include "lamp.hpp"             // for lamp_iter, lamp_id()
-// #include "rgb_thread.hpp"       // for signal_usb_suspend(), signal_usb_resume()
+#include "rgb_thread.hpp"       // for signal_usb_suspend(), signal_usb_resume()
 #include "usb_thread.hpp"       // for send_remote_wake_up()
 #include "usbhub_thread.hpp"    // for signal_usb_suspend(), signal_usb_resume()
 #include "usbus_hid_keyboard.hpp"
@@ -133,17 +133,17 @@ void usbus_hid_keyboard_t::on_suspend()
     m_is_usb_accessible = false;
 
     // These threads should be created before usb_thread is.
-    // if constexpr ( RGB_DISABLE_WHEN_USB_SUSPENDS )
-    //     rgb_thread::obj().signal_usb_suspend();
     usbhub_thread::signal_usb_suspend();
+    if constexpr ( RGB_DISABLE_DURING_USB_SUSPEND )
+        rgb_thread::signal_usb_suspend();
     main_thread::signal_usb_suspend();
 }
 
 void usbus_hid_keyboard_t::on_resume()
 {
-    // if constexpr ( RGB_DISABLE_WHEN_USB_SUSPENDS )
-    //     rgb_thread::obj().signal_usb_resume();
     usbhub_thread::signal_usb_resume();
+    if constexpr ( RGB_DISABLE_DURING_USB_SUSPEND )
+        rgb_thread::signal_usb_resume();
     main_thread::signal_usb_resume();
 }
 

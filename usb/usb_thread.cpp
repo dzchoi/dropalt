@@ -1,7 +1,7 @@
 #include "assert.h"
 #include "log.h"
 #include "usbus_ext.h"          // for usbus_t, usbus_init(), usbus_create(), ...
-#include "thread.h"             // for thread_get()
+#include "thread.h"             // for thread_get_unchecked()
 
 #include "config.hpp"           // for ENABLE_NKRO, ENABLE_CDC_ACM
 #include "usb_thread.hpp"
@@ -39,7 +39,7 @@ void usb_thread::init()
     // Create "usbus" thread.
     usbus_create(
         m_thread_stack, sizeof(m_thread_stack), THREAD_PRIO_USB, USBUS_TNAME, &m_usbus);
-    m_pthread = thread_get(m_usbus.pid);
+    m_pthread = thread_get_unchecked(m_usbus.pid);
     assert( m_pthread != nullptr );
 }
 

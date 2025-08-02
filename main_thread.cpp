@@ -3,13 +3,14 @@
 #include "cpu.h"                // for RSTC
 #include "event.h"              // for event_queue_init(), event_get(), ...
 #include "irq.h"                // for irq_disable(), irq_restore()
+#include "is31fl3733.h"
 #include "log.h"                // for set_log_mask()
 #include "periph/wdt.h"         // for wdt_kick()
 #include "thread.h"             // for thread_get_active()
 #include "thread_flags.h"       // for thread_flags_set(), thread_flags_wait_any()
 #include "ztimer.h"             // for ztimer_set_timeout_flag()
 
-#include "adc.hpp"              // for adc::v_5v, v_con1, v_con2
+#include "adc.hpp"              // for adc::init()
 #include "lua.hpp"              // for lua::init()
 #include "config.hpp"           // for ENABLE_CDC_ACM, ENABLE_LUA_REPL
 #include "key_queue.hpp"        // for key_queue::push(), ...
@@ -18,6 +19,7 @@
 #include "matrix_thread.hpp"    // for matrix_thread::init()
 #include "persistent.hpp"       // for persistent::init()
 #include "repl.hpp"             // for lua::repl::init(), ...
+#include "rgb_thread.hpp"       // for rgb_thread::init()
 #include "timed_stdin.hpp"      // for timed_stdin::wait_for_input(), ...
 #include "usb_thread.hpp"       // for usb_thread::init()
 #include "usbhub_thread.hpp"    // for usbhub_thread::init()
@@ -42,13 +44,12 @@ NORETURN void main_thread::init()
     m_pthread = thread_get_active();
 
     // Initialize subsystems in the order of dependency.
+    adc::init();         // Invokes v_5v.wait_for_stable_5v().
     persistent::init();  // Initialize NVM. (See `last_host_port` for a usage example.)
+    rgb_thread::init();  // Consumes signals from usbhub_thread and usb_thread.
     usbhub_thread::init();
     usb_thread::init();  // printf() will work from this point, displaying on the host.
-    // rgb::init();
-    matrix_thread::init();
-
-    // RGB_LED related code should be in rgb::init().
+    matrix_thread::init();  // Produces signals to main_thread.
 
     // Refer to riot/cpu/sam0_common/include/vendor/samd51/include/component/rstc.h
     // for the meaning of each bit. For instance, 0x40 indicates a system reset.
@@ -126,6 +127,11 @@ NORETURN void* main_thread::_thread_entry(void*)
     event_queue_init(&m_event_queue);
 
     lua::init();
+
+    // Temporary solid color LEDs that will be turned on on USB resume.
+    for ( unsigned led_id = 0 ; led_id < KEY_LED_COUNT ; led_id++ )
+        is31_set_color(IS31_LEDS[led_id], 0, 255, 127);  // Spring Green
+    is31_refresh_colors();
 
     bool has_input = false;
     thread_flags_t flags;

@@ -1,12 +1,9 @@
-#include "adc_get.h"            // for adc_init() and adc_configure()
-#include "board.h"              // for ADC_LINE_*
 #include "event.h"              // for event_queue_init(), event_get()
-#include "sr_exp.h"             // for sr_exp_init()
 #include "thread.h"             // for thread_create(), thread_get_unchecked()
 #include "thread_flags.h"       // for thread_flags_wait_any()
 #include "usb2422.h"            // for usbhub_init()
 
-#include "adc.hpp"              // for adc::init(), wait_for_stable_5v(), ...
+#include "adc.hpp"              // for adc::v_5v.schedule_periodic()
 #include "usbhub_states.hpp"    // for usbhub_state::init(), ...
 #include "usbhub_thread.hpp"
 
@@ -21,13 +18,6 @@ event_queue_t usbhub_thread::m_queue;
 
 void usbhub_thread::init()
 {
-    // Initialize Shift Register.
-    sr_exp_init();
-
-    adc::init();
-
-    adc::v_5v.wait_for_stable_5v();
-
     m_pthread = thread_get_unchecked( thread_create(
         m_thread_stack, sizeof(m_thread_stack),
         THREAD_PRIO_USBHUB,
@@ -40,13 +30,13 @@ NORETURN void* usbhub_thread::_thread_entry(void*)
     // event_queue_init() should be called from the queue-owning thread.
     event_queue_init(&m_queue);
 
+    // Initialize the usbhub state machine.
+    usbhub_state::init();
+
     // Initialize USB2422.
     // Could be called from usbhub_thread::init(), but usbhub_init() will take a while
     // and we may better call it from thread context.
     usbhub_init();
-
-    // Initialize the usbhub state machine.
-    usbhub_state::init();
 
     // Continuously monitor the v_5v.
     adc::v_5v.schedule_periodic();

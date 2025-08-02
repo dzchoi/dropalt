@@ -54,6 +54,7 @@ EXTERNAL_MODULE_DIRS += $(CURDIR)
 USEMODULE += log_backup
 USEMODULE += lua_emb
 USEMODULE += matrix
+USEMODULE += rgb
 USEMODULE += usbhub
 USEMODULE += usb
 
@@ -64,9 +65,9 @@ USEPKG += tlsf
 USEMODULE += tlsf-malloc
 LINKFLAGS += -Wl,--allow-multiple-definition
 
-# Size of both the initial stack (before creating any tasks) and the ISR stack.
-# The default ISR_STACKSIZE (=512 bytes) may not be enough for LOG_ERROR() in
-# hard_fault_handler().
+# Size of the initial stack — used before any threads are created and also serving as
+# the ISR stack. The default ISR_STACKSIZE (=512 bytes) may not be enough for
+# LOG_ERROR() in hard_fault_handler().
 CFLAGS += -DISR_STACKSIZE=1024
 
 # As to the stack, each C API function called from Lua operates on the main thread's

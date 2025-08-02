@@ -1,7 +1,9 @@
 #include "backup_ram.h"         // for backup_ram_init()
 #include "board.h"
+#include "mpu.h"                // for mpu_configure(), mpu_enable(), ...
 #include "periph/gpio.h"
 #include "periph/wdt.h"
+#include "sr_exp.h"             // for sr_exp_init()
 #ifndef RIOTBOOT
 #include "tlsf-malloc.h"        // for tlsf_add_global_pool()
 #endif
@@ -129,10 +131,25 @@ void board_init(void)
 #endif
 
 #ifndef RIOTBOOT
+    // Nullptr access protection
+    // Once the firmware boots, we relocate the vector table and protect the first 32
+    // bytes at 0x00000000 to catch null and near-null pointer dereferences (e.g.
+    // 0->foo), which will raise a Mem Manage fault if accessed.
+    mpu_disable();
+    mpu_configure(
+        0,  // MPU region #0 (MPU_NOEXEC_RAM also uses region #0 but is not active)
+        0,  // RAM base address 0x00000000
+        MPU_ATTR(1, AP_NO_NO, 0, 1, 0, 1, MPU_SIZE_32B)  // No exec/read/write
+    );
+    mpu_enable();
+
     // Bootloader does not use WDT.
     wdt_setup_reboot(0u, WDT_TIMEOUT_MS);
     wdt_start();
 #endif
+
+    // Initialize Shift Register.
+    sr_exp_init();
 
     // Set GCLK_SOURCE_DFLL in USB recovery mode.
     // Todo: Check the DFLL status register to see if the DFLL is locked to the SOF_1KHZ

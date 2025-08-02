@@ -7,7 +7,7 @@
 
 #include "adc.hpp"
 #include "usbhub_thread.hpp"    // for signal_event(), signal_v_5v_report(), ...
-// #include "rgb_thread.hpp"       // for signal_v_5v_report()
+#include "rgb_thread.hpp"       // for signal_v_5v_report()
 
 
 
@@ -23,6 +23,8 @@ void adc::init()
     adc_init(ADC_LINE_CON1);
     adc_init(ADC_LINE_CON2);
     adc_configure(ADC0, ADC_RES_12BIT);
+
+    v_5v.wait_for_stable_5v();
 }
 
 void adc::async_measure()
@@ -56,8 +58,8 @@ void adc::_sync_measure()
 void adc_v_5v::_isr_signal_report()
 {
     update_level();
-    // rgb_thread::obj().signal_v_5v_report();
     usbhub_thread::signal_v_5v_report();
+    rgb_thread::signal_v_5v_report();
 }
 
 void adc_v_con::_isr_signal_report()

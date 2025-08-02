@@ -10,8 +10,11 @@
 * Rename key_queue -> main_key_events, key_event_queue_t -> usb_key_events.
 * `assert( false )` and `assert( status == LUA_OK )` are not the proper way to shutdown. Use abort(), lua_error() or luaL_error() instead.
   `assert()` for only "non-trivial" logical error.
+* Manage all thread stack sizes in one place.
 
 [ADC]
+* Too Frequent calls to signal_v_5v_report() and signal_v_con_report() from ADC can unnecessarily wake up consumer threads, with most notifications ultimately ignored. Use callbacks (observer list) from ISR instead. Also provide a RAII-style guard class that disables the relevant IRQ (e.g. NVIC_DisableIRQ(ADC1_IRQn)) in its constructor and re-enables it in its destructor.
+  Thus, the decision logic in rgb_gcr::process_v_5v_report() can be implemented in the callback.
 * Simultaneous measurements for ADC0 and ADC1. `state_determine_host` can improve its scanning algorithm.
 * Adjustable threshold values (ADC_CON1_NOMINAL) in NVM?
 
@@ -22,9 +25,11 @@
 
 [Swithcover]
 * Configure the automatic switchover feature in config.hpp.
+* Switchover event should be given to Effects.
 
 [RGB]
 * Precise color accuracy isn't necessary — keycaps show everything in a reddish color.
+* RGB_ENABLED is turned on or off from Effects.
 
 * Tips
   - `typedef struct lua_State lua_State;`

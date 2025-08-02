@@ -10,7 +10,6 @@
 #include "riotboot/magic.h"     // for RIOTBOOT_MAGIC_ADDR, RIOTBOOT_MAGIC_NUMBER
 #include "riotboot/slot.h"      // for riotboot_slot_jump(), ...
 #include "seeprom.h"            // for seeprom_init(), seeprom_sync(), ...
-#include "sr_exp.h"             // for sr_exp_init()
 #include "thread.h"             // for thread_create(), sched_task_exit(), ...
 #include "usb/usbus.h"          // for usbus_init(), usbus_create(), ...
 #include "usb_dfu.h"            // for usbus_dfu_init(), ...
@@ -97,9 +96,6 @@ static void wait_for_host_connection(uint8_t port)
 NORETURN static void* _main(void* arg)
 {
     (void)arg;
-
-    // Initialize Shift Register.
-    sr_exp_init();
 
     // Initialize ztimer before starting DFU mode.
     ztimer_init();

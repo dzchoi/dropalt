@@ -13,4 +13,5 @@ else
     USEMODULE += stdio_null         # Or, avoid using stdio and UART at all.
 endif
 
+USEMODULE += rgb                    # for rgb_thread::signal_usb_suspend/resume()
 USEMODULE += usbhub                 # for usbhub_thread::signal_usb_suspend/resume()

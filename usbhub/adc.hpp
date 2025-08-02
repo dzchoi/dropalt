@@ -65,7 +65,8 @@ private:
     // Signal to usbhub_thread that result is ready.
     virtual void _isr_signal_report() =0;
 
-    // Measure v_5v every 32 ms and v_con1/con2 every 5 ms.
+    // Measure v_5v every RGB_GCR_CHANGE_PERIOD_MS and v_con1/con2 every
+    // EXTRA_PORT_MEASURING_PERIOD_MS.
     const uint32_t MEASURE_PERIOD_MS =
         line == ADC_LINE_5V ? RGB_GCR_CHANGE_PERIOD_MS : EXTRA_PORT_MEASURING_PERIOD_MS;
 

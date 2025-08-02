@@ -51,6 +51,13 @@ constexpr uint32_t DEBUG_LED_BLINK_PERIOD_MS = 1 *MS_PER_SEC;  // 1 second
 // Default retry period for connecting USB, if DEBUG_LED_BLINK_PERIOD_MS == 0.
 constexpr uint32_t DEFAULT_USB_RETRY_PERIOD_MS = 1 *MS_PER_SEC;  // 1 second
 
+// Turn off LEDs during USB suspend.
+constexpr bool RGB_DISABLE_DURING_USB_SUSPEND = true;
+
+// Max Global Current Control Register (GCR) value (0-255) will limit the brightness of
+// all RGB leds to reduce the power consumption.
+constexpr uint8_t RGB_LED_GCR_MAX = 255;
+
 // GCR changes slowly and gracefully, changing 1 GCR per this time period.
 constexpr uint32_t RGB_GCR_CHANGE_PERIOD_MS = 32;
 
