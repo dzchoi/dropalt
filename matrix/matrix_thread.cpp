@@ -41,9 +41,9 @@ void matrix_thread::init()
     matrix_init(&_debouncer, &_isr_any_key_down, &m_sleep_lock);
 }
 
-void matrix_thread::_debouncer(unsigned slot_index, bool pressing)
+void matrix_thread::_debouncer(unsigned mat_index, bool pressing)
 {
-    bounce_state_t& state = m_states[slot_index];
+    bounce_state_t& state = m_states[mat_index];
 
     if ( pressing ) {
         if ( state.pressing ) {
@@ -71,6 +71,59 @@ void matrix_thread::_debouncer(unsigned slot_index, bool pressing)
     }
 }
 
+// Convert `mat_index` to `slot_index`, skipping over unused indices and adding +1 to
+// align with Lua's 1-based array indexing.
+static inline unsigned map_index(unsigned mat_index)
+{
+    // 0  -> 1
+    // ...
+    // 41 -> 42
+    //
+    // 42 -> X
+    // 43 -> 43
+    // 44 -> 44
+    // 45 -> 45
+    //
+    // 46 -> X
+    // 47 -> 46
+    // ...
+    // 62 -> 61
+    //
+    // 63 -> X
+    // 64 -> X
+    // 65 -> X
+    // 66 -> 62  (SPACE)
+    //
+    // 67 -> X
+    // 68 -> X
+    // 69 -> X
+    // 70 -> 63
+    // ...
+    // 74 -> 67
+
+    // Branchless code:
+    // return mat_index
+    //     + (mat_index <  UNUSED_MATRIX_INDICES[0])   // 42
+    //     - (mat_index >= UNUSED_MATRIX_INDICES[1])   // 46
+    //     - (mat_index >= UNUSED_MATRIX_INDICES[2])   // 63
+    //     - (mat_index >= UNUSED_MATRIX_INDICES[3])   // 64
+    //     - (mat_index >= UNUSED_MATRIX_INDICES[4])   // 65
+    //     - (mat_index >= UNUSED_MATRIX_INDICES[5])   // 67
+    //     - (mat_index >= UNUSED_MATRIX_INDICES[6])   // 68
+    //     - (mat_index >= UNUSED_MATRIX_INDICES[7]);  // 69
+
+    // Branching code:
+    if ( mat_index < UNUSED_MATRIX_INDICES[0] )  // 42
+        return mat_index + 1;
+    if ( mat_index < UNUSED_MATRIX_INDICES[1] )  // 46
+        return mat_index;
+    if ( mat_index < UNUSED_MATRIX_INDICES[2] )  // 63
+        return mat_index - 1;
+    if ( mat_index < UNUSED_MATRIX_INDICES[5] )  // 67
+        return 62;  // Or mat_index - 4;
+    return mat_index - 7;
+}
+
 NORETURN void* matrix_thread::_thread_entry(void*)
 {
     while ( true ) {
@@ -81,11 +134,11 @@ NORETURN void* matrix_thread::_thread_entry(void*)
         uint8_t any_pressed = 0;
 
         // Notify main_thread of every key state change.
-        for ( unsigned slot_index = 0 ; slot_index < NUM_MATRIX_SLOTS ; slot_index++ ) {
-            bounce_state_t& state = m_states[slot_index];
+        for ( unsigned mat_index = 0 ; mat_index < NUM_MATRIX_SLOTS ; mat_index++ ) {
+            bounce_state_t& state = m_states[mat_index];
             if ( state.pressing != state.pressed ) {
                 if ( !main_thread::signal_key_event(
-                        slot_index, state.pressing, MATRIX_SCAN_PERIOD_US) ) {
+                  map_index(mat_index), state.pressing, MATRIX_SCAN_PERIOD_US) ) {
                     // If a key state change signal to main_thread fails, the key retains
                     // its previous state, and remains considered (still or yet to be)
                     // pressed to prevent matrix_thread from going to sleep.

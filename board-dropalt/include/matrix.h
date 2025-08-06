@@ -6,7 +6,7 @@
 extern "C" {
 #endif
 
-typedef void (*debouncer_t)(unsigned slot_index, bool pressing);
+typedef void (*debouncer_t)(unsigned mat_index, bool pressing);
 
 // Intialize the matrix.
 void matrix_init(debouncer_t debouncer, gpio_cb_t isr, void* arg);
@@ -21,6 +21,9 @@ void matrix_disable_interrupt(void);
 // Note: This can only be used after matrix_disable_interrupt() has been executed,
 // ensuring that GPIO output select pins are unlocked for input selection.
 void matrix_scan(void);
+
+// Indices of matrix slots not physically connected to key switches or LEDs.
+static const unsigned UNUSED_MATRIX_INDICES[] = { 42, 46, 63, 64, 65, 67, 68, 69 };
 
 #ifdef __cplusplus
 }

@@ -23,19 +23,18 @@ enum {
     SW_CS_TO_REGISTER_END
 };
 
-// LED mapping table:
-// Each entry maps a logical led_id to:
+// LED mapping table maps each slot_index to:
 //  - IS31FL3733 driver index (0 or 1)
 //  - PWM register number for the Green channel
 // Note:
-//  - led_id + 1 corresponds to the LED number silkscreened on the PCB
+//  - slot_index (1-105) corresponds to the LED number silkscreened on the PCB
 //  - RGB register offsets follow the IS31FL3733 standard:
 //    reg_r = reg_g + CS_LINE_COUNT and reg_b = reg_r + CS_LINE_COUNT
-//    E.g. if reg_g = A_2, then reg_r = B_2 and reg_b = C_2.
+//    E.g. if reg_g = G_2, then reg_r = H_2 and reg_b = I_2.
 typedef struct { uint8_t driver; uint8_t reg_g; } is31_led_t;
 static_assert( sizeof(is31_led_t) == 2 );
 static const is31_led_t IS31_LEDS[] = {
-    // /* led_id */ { driver,  reg_g },  // associated key name
+//  /* slot_index - 1 */ { driver,  reg_g },  // associated key name
     /*  0 */  { 1, A_2 },   // Esc
     /*  1 */  { 1, D_3 },   // 1
     /*  2 */  { 1, D_4 },   // 2

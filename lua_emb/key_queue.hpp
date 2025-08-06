@@ -13,7 +13,7 @@ struct lua_State;
 class key_queue {
 public:
     union entry_t {
-        struct { uint8_t slot_index1; bool is_press; };
+        struct { uint8_t slot_index; bool is_press; };
         uint16_t value;
     };
     static_assert( sizeof(entry_t) == sizeof(uint16_t) );
@@ -39,7 +39,7 @@ public:
     static int defer_stop(lua_State* L);   // ( -- )
 
     // Check if an event on the given slot is deferred (i.e. if it was peeked).
-    static int defer_is_pending(lua_State* L);  // ( slot_index1 is_press -- true | false )
+    static int defer_is_pending(lua_State* L);  // ( slot_index is_press -- true | false )
 
     // Remove the most recent deferred event from the queue.
     static int defer_remove_last(lua_State* L);  // ( -- )

@@ -11,7 +11,7 @@ class matrix_thread {
 public:
     static void init();
 
-    static bool is_pressed(unsigned slot_index) { return m_states[slot_index].pressed; }
+    static bool is_pressed(unsigned mat_index) { return m_states[mat_index].pressed; }
 
     static bool is_any_pressed() {
         // Note that the thread stays in STATUS_MUTEX_BLOCKED during
@@ -55,7 +55,7 @@ private:
     //  - Per-key: maintains a separate debouncer for each key.
     //  - Scan mode: uses active (polling) scan while any key is pressed; switches to
     //    interrupt-based scanning once all keys are released.
-    static void _debouncer(unsigned slot_index, bool pressing);
+    static void _debouncer(unsigned mat_index, bool pressing);
 
     static void _isr_any_key_down(void* arg);
 };

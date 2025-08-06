@@ -30,6 +30,15 @@
 [RGB]
 * Precise color accuracy isn't necessary — keycaps show everything in a reddish color.
 * RGB_ENABLED is turned on or off from Effects.
+* ADC measurement may be affected.
+* Effects should be implemented in Lua later.
+* Keymaps implement on_lamp_on/off() for an indicator lamp, but cannot process RGB lighting in on_press() because there can be nested keymaps invoked downstream.
+* Underglow leds (perimeter lighting)?
+
+[Lamp]
+* How to assign a lamp to a slot?
+  --> if the keymap inherits from `Lamp`.
+* Each Lamp is associated with a lamp indicator?
 
 * Tips
   - `typedef struct lua_State lua_State;`
@@ -49,16 +58,36 @@
 * Store a format string and its parameters for a log record.
   All parameters will be 4 bytes in size, except for doubles.
   Consider Default Argument Promotion Rules for variadic functions in C/C++.
+* C++ logger (Refer to C11 _Generic())
+```
+#define print(x) _Generic((x), \
+    int: print_int, \
+    float: print_float, \
+    double: print_double, \
+    char*: print_str, \
+    const char*: print_str \
+)(x)
+
+void print_int(int x) { printf("%d\n", x); }
+void print_float(float x) { printf("%f\n", x); }
+void print_double(double x) { printf("%lf\n", x); }
+void print_str(const char* x) { printf("%s\n", x); }
+```
 
 * Use MODULE_CORE_IDLE_THREAD to enable CPU sleep when idle.
 
 [Bootloader Updater]
 * Headerless application
 * E.g. `make riotboot/slot0` generates two binaries: one with a header and one without.
-* Generic updater that does not setup EEPROM.
-* Provides slot 0 in dfu-util to flash the real bootloader (at the first 16KB).
+* Generic updater that does not setup EEPROM. Can flash ANY bootloader of size <= 16KB.
+* `dfu-util` can flash a bootloader at slot 0.
+* Two types are generated: slot0.bin and slot0.xxx.bin
+* Provides slot 0 in dfu-util to flash the real bootloader.
 * Allocate and initialize SEEPROM, or hardfault will occur otherwise.
 * Maybe we could utilize an intermediary bootloader to flash the final bootloader, using memory banks and switching them.
+* Debug led pattern during execution?
+* Upload the existing bootloader:
+  Assuming it is the first(?) application placed immediately after the bootloader, it uploads the bootloader image of any size, excluding the trailing 0xFFs.
 
 [Bootloader]
 * Bootloader as a shared library

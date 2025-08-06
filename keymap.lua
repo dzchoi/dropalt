@@ -18,7 +18,6 @@ local fw = require "fw"
 
 
 -------- Custom keymaps
-local ___   = Pseudo()
 local FN    = Pseudo()
 local FN2   = Pseudo()
 
@@ -140,10 +139,10 @@ end
 g_keymaps = keymap_table {
     mGRV, m1, m2, m3, m4, m5, m6, m7, m8, m9, m0, mMINUS, mEQUAL, mBKSP, DEL,
     mTAB, "Q", "W", "E", "R", "T", "Y", "U", "I", "O", mP, mLBRAC, "]", "\\", HOME,
-    tFN, "A", "S", "D", "F", "G", mH, mJ, mK, mL, ";", "'", ___, tENTER, PGUP,
-    mLSHFT, ___, "Z", "X", "C", "V", mB, "N", "M", ",", ".", "/", tRSHFT, UP, PGDN,
-    "LALT", "LGUI", LCTRL, ___, ___, ___, tSPACE, ___, ___, ___, RCTRL, "RALT", LEFT, mDOWN, RIGHT
-}
+    tFN, "A", "S", "D", "F", "G", mH, mJ, mK, mL, ";", "'", tENTER, PGUP,
+    mLSHFT, "Z", "X", "C", "V", mB, "N", "M", ",", ".", "/", tRSHFT, UP, PGDN,
+    "LALT", "LGUI", LCTRL, tSPACE, RCTRL, "RALT", LEFT, mDOWN, RIGHT
+}  -- 67 keys
 
 
 

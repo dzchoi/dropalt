@@ -17,7 +17,7 @@ local fw = require "fw"
 TAPPING_TERM_MS = 200
 
 -------- Global variables
-g_current_slot_index1 = 0
+g_current_slot_index = 0
 g_keymaps = {}
 
 -------- Lightweight class implementation with multiple inheritance
@@ -281,7 +281,7 @@ Defer = class()
 
 -- Class variables shared with all instances
 Defer.owner = false      -- Defer owner is the head of the deferrer chain.
-Defer.slot_index1 = 0    -- Key slot index (common to all deferrers)
+Defer.slot_index = 0     -- Key slot index (common to all deferrers)
 
 function Defer:init()
     self.m_next = false  -- Link to the next deferrer
@@ -296,12 +296,12 @@ function Defer:start_defer()  -- Start defer mode.
 
     if not Defer.owner then
         Defer.owner = self
-        Defer.slot_index1 = g_current_slot_index1
+        Defer.slot_index = g_current_slot_index
         fw.defer_start()
         return
     end
 
-    assert( Defer.slot_index1 == g_current_slot_index1, "defer not stopped correctly?" )
+    assert( Defer.slot_index == g_current_slot_index, "defer not stopped correctly?" )
     local deferrer = Defer.owner
     while deferrer.m_next do
         deferrer = deferrer.m_next
@@ -320,7 +320,7 @@ function Defer:stop_defer()  -- Stop defer mode.
         -- traverse the downstream deferrers, even if the current deferrer called
         -- stop_defer() from its on_other_press/release().
         if not Defer.owner then
-            Defer.slot_index1 = 0
+            Defer.slot_index = 0
             fw.defer_stop()
         end
         return
@@ -456,7 +456,7 @@ function TapHold:decide_hold()
 end
 
 function TapHold:on_press()
-    self.m_my_slot = g_current_slot_index1
+    self.m_my_slot = g_current_slot_index
     fw.log("TapHold [%d] on_press()\n", self.m_my_slot)
     assert( self.m_map_chosen == false )
     self:start_timer()
@@ -507,7 +507,7 @@ end
 
 function TapHold:on_other_release()
     if self.m_flavor & QuickRelease ~= 0 then
-        if not fw.defer_is_pending(g_current_slot_index1, true) then
+        if not fw.defer_is_pending(g_current_slot_index, true) then
             -- Note: Returning true here releases the other key immediately, while
             -- delaying the deferrer's tap/hold decision. This causes the press for
             -- m_map_tap or m_map_hold to occur *after* the other key's release,
@@ -578,7 +578,7 @@ end
 
 function TapDance:on_proxy_press()
     self.m_step = self.m_step + 1
-    self.m_my_slot = g_current_slot_index1
+    self.m_my_slot = g_current_slot_index
     fw.log("TapDance [%d] on_proxy_press() m_step=%d\n", self.m_my_slot, self.m_step)
     if self.m_step == 1 then
         assert( self.m_is_finished )
@@ -662,28 +662,28 @@ package.loaded[...] = true  -- Vararg (...) here receives a single argument, "ke
 -- Core keymap driver (engine) responsible for processing key events and dispatching
 -- them to user-defined mappings. This function is returned and passed to the next
 -- script in the compilation chain.
-return function(slot_index1, is_press)
-    g_current_slot_index1 = slot_index1
+return function(slot_index, is_press)
+    g_current_slot_index = slot_index
     local press_or_release = is_press and "press" or "release"
 
     local deferrer = Defer.owner
     if deferrer then
         -- In defer mode, if the event targets the deferrer, execute it immediately.
-        if slot_index1 == Defer.slot_index1 then
-            fw.log("Map: [%d] handle deferrer %s\n", slot_index1, press_or_release)
+        if slot_index == Defer.slot_index then
+            fw.log("Map: [%d] handle deferrer %s\n", slot_index, press_or_release)
 
         -- In defer mode, if the event targets a slot other than the deferrer's, notify
         -- the deferrer first.
         else
             fw.log("Map: [%d] handle other %s @[%d]\n",
-                Defer.slot_index1, press_or_release, slot_index1)
+                Defer.slot_index, press_or_release, slot_index)
             if not deferrer:_other_event(is_press) then
                 return
             end
 
             -- If the deferrer has opted not to defer this event by returning a non-nil,
             -- execute it immediately.
-            fw.log("Map: [%d] execute immediate %s\n", slot_index1, press_or_release)
+            fw.log("Map: [%d] execute immediate %s\n", slot_index, press_or_release)
         end
 
         -- Note: Those two cases of executing events immediately during defer mode can
@@ -691,21 +691,21 @@ return function(slot_index1, is_press)
 
     -- Execute the event if in normal mode.
     else
-        fw.log("Map: [%d] handle %s\n", slot_index1, press_or_release)
+        fw.log("Map: [%d] handle %s\n", slot_index, press_or_release)
     end
 
-    -- rgb_thread::obj().signal_key_event(slot_index1, is_press)
+    -- rgb_thread::obj().signal_key_event(slot_index, is_press)
 
     if is_press then
-        g_keymaps[slot_index1]:_press()
+        g_keymaps[slot_index]:_press()
     else
-        g_keymaps[slot_index1]:_release()
+        g_keymaps[slot_index]:_release()
     end
 
     -- If we were in defer mode, remove the latest deferred event from the event queue,
     -- since it has already executed - either on the deferrer or on another slot.
-    -- Note: This deferred event (just peeked) should have .slot_index1 equal to the
-    -- current slot_index1. See the while-loop in main_thread.
+    -- Note: This deferred event (just peeked) should have .slot_index equal to the
+    -- current slot_index. See the while-loop in main_thread.
     if deferrer then
         fw.defer_remove_last()
     end

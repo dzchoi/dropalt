@@ -78,14 +78,14 @@ void load_keymap()
     lua_settop(L, 0);
 }
 
-void handle_key_event(unsigned slot_index1, bool is_press)
+void handle_key_event(unsigned slot_index, bool is_press)
 {
     lua_pushlightuserdata(L, (void*)&handle_key_event);
     lua_gettable(L, LUA_REGISTRYINDEX);
     // ( -- handle_key_event )
-    lua_pushinteger(L, slot_index1);
+    lua_pushinteger(L, slot_index);
     lua_pushboolean(L, is_press);
-    // ( -- handle_key_event slot_index1 is_press )
+    // ( -- handle_key_event slot_index is_press )
     lua_call(L, 2, 0);  // Invoke handle_key_event() outside a protected environment.
     // ( -- )
 }

@@ -105,12 +105,12 @@ int key_queue::defer_stop(lua_State*)
     return 0;
 }
 
-// ( slot_index1 is_press -- true | false )
+// ( slot_index is_press -- true | false )
 int key_queue::defer_is_pending(lua_State* L)
 {
-    int slot_index1 = luaL_checkinteger(L, 1);
+    int slot_index = luaL_checkinteger(L, 1);
     bool is_press = lua_toboolean(L, 2);
-    const entry_t event = {{ uint8_t(slot_index1), is_press }};
+    const entry_t event = {{ uint8_t(slot_index), is_press }};
 
     mutex_lock(&m_access_lock);
     bool found = false;

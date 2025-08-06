@@ -4,6 +4,7 @@
 #include "event.h"              // for event_queue_init(), event_get(), ...
 #include "irq.h"                // for irq_disable(), irq_restore()
 #include "is31fl3733.h"
+#include "led_conf.h"           // for KEY_LED_COUNT
 #include "log.h"                // for set_log_mask()
 #include "periph/wdt.h"         // for wdt_kick()
 #include "thread.h"             // for thread_get_active()
@@ -97,14 +98,11 @@ void main_thread::signal_event(event_t* event)
 
 bool main_thread::signal_key_event(unsigned slot_index, bool is_press, uint32_t timeout_us)
 {
-    assert( slot_index < NUM_MATRIX_SLOTS );
-    // Convert `slot_index` to `slot_index1`, since Lua array indices start from 1.
-    unsigned slot_index1 = slot_index + 1;
-
+    assert( slot_index <= KEY_LED_COUNT );
     LOG_DEBUG("Matrix: %s [%u] @%lu\n",
-        press_or_release(is_press), slot_index1, ztimer_now(ZTIMER_MSEC));
+        press_or_release(is_press), slot_index, ztimer_now(ZTIMER_MSEC));
 
-    if ( likely(key_queue::push({{ uint8_t(slot_index1), is_press }}, timeout_us)) ) {
+    if ( likely(key_queue::push({{ uint8_t(slot_index), is_press }}, timeout_us)) ) {
         set_thread_flags(FLAG_KEY_EVENT);
         return true;
     }
@@ -209,7 +207,7 @@ NORETURN void* main_thread::_thread_entry(void*)
         // External key events from key_queue are handled one at a time.
         key_queue::entry_t event;
         if ( key_queue::get(&event) ) {
-            lua::handle_key_event(event.slot_index1, event.is_press);
+            lua::handle_key_event(event.slot_index, event.is_press);
 
             unsigned state = irq_disable();
             m_pthread->flags |= FLAG_KEY_EVENT;
