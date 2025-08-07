@@ -2,10 +2,6 @@
 #include "assert.h"
 #include "log.h"
 
-extern "C" {
-#include "lauxlib.h"
-}
-
 #include "lua.hpp"              // for lua::L
 #include "main_thread.hpp"      // for main_thread::signal_event()
 #include "timer.hpp"
@@ -14,28 +10,36 @@ extern "C" {
 
 int _timer_t::create(lua_State* L)
 {
-    uint32_t timeout_ms = luaL_checkinteger(L, 1);
     void* memory = lua_newuserdata(L, sizeof(_timer_t));
-    new (memory) _timer_t(timeout_ms);
-    // ( -- timeout_ms userdata )
+    new (memory) _timer_t();
+    // ( -- userdata )
     return 1;
 }
 
 int _timer_t::start(lua_State* L)
 {
-    // ( -- userdata callback )
+    // ( -- userdata timeout_ms callback [repeated] )
     _timer_t* const that = static_cast<_timer_t*>(lua_touserdata(L, 1));
     assert( that != nullptr );
 
-    luaL_checktype(L, 2, LUA_TFUNCTION);
+    const int timeout_ms = luaL_checkinteger(L, 2);
+    assert( timeout_ms > 0 );
+
+    // Note that lua_toboolean(L, 4) returns false if the argument is absent or nil.
+    that->m_timeout_ms = lua_toboolean(L, 4) ? timeout_ms : 0;
+    lua_settop(L, 3);
+    // ( -- userdata timeout_ms callback )
+
+    luaL_checktype(L, 3, LUA_TFUNCTION);
     if ( that->m_rcallback != LUA_NOREF ) {
         // This case can happen when restarting the timer.
         luaL_unref(L, LUA_REGISTRYINDEX, that->m_rcallback);
     }
     that->m_rcallback = luaL_ref(L, LUA_REGISTRYINDEX);
-    // ( -- userdata )
+    // ( -- userdata timeout_ms )
 
-    ztimer_set(ZTIMER_MSEC, that, that->m_timeout_ms);
+    // Set the epoch to the current time.
+    that->m_epoch = ztimer_set(ZTIMER_MSEC, that, timeout_ms);
     return 0;
 }
 
@@ -43,11 +47,12 @@ int _timer_t::stop(lua_State* L)
 {
     _timer_t* const that = static_cast<_timer_t*>(lua_touserdata(L, 1));
     assert( that != nullptr );
-    ztimer_remove(ZTIMER_MSEC, that);
+    const bool result = ztimer_remove(ZTIMER_MSEC, that);
     luaL_unref(L, LUA_REGISTRYINDEX, that->m_rcallback);
     that->m_rcallback = LUA_NOREF;  // Also indicates that timeout is not expected.
-    // ( -- userdata )
-    return 0;
+    lua_pushboolean(L, result);
+    // ( -- userdata result )
+    return 1;
 }
 
 int _timer_t::is_running(lua_State* L)
@@ -77,9 +82,22 @@ void _timer_t::_hdlr_timeout(event_t* event)
         // Invoke the Lua callback function.
         lua_rawgeti(L, LUA_REGISTRYINDEX, that->m_rcallback);
         // ( -- callback )
-        lua_call(L, 0, 0);
-        luaL_unref(L, LUA_REGISTRYINDEX, that->m_rcallback);
-        that->m_rcallback = LUA_NOREF;
+
+        // Invoke the callback with an appropriate argument.
+        if ( that->m_timeout_ms > 0 ) {
+            // Safe to use ztimer_now() here: timers are scheduled back-to-back, with
+            // each new timer set from within the handler itself.
+            lua_pushinteger(L, ztimer_now(ZTIMER_MSEC) - that->m_epoch);
+            lua_call(L, 1, 1);
+            if ( lua_toboolean(L, -1) )
+                that->m_epoch = that->m_restart_ms;
+            lua_settop(L, 0);
+        }
+        else {
+            lua_call(L, 0, 0);
+            luaL_unref(L, LUA_REGISTRYINDEX, that->m_rcallback);
+            that->m_rcallback = LUA_NOREF;
+        }
         // ( -- )
     }
 
@@ -90,6 +108,11 @@ void _timer_t::_hdlr_timeout(event_t* event)
 void _timer_t::_tmo_key_timer(void* arg)
 {
     _timer_t* const that = static_cast<_timer_t*>(arg);
+
+    // Start the timer again if it is a repeated one.
+    if ( that->m_timeout_ms > 0 )
+        that->m_restart_ms = ztimer_set(ZTIMER_MSEC, that, that->m_timeout_ms);
+
     // Use an event to execute the timeout handler (_hdlr_timeout()) in thread context,
     // rather than directly in interrupt context. This also ensures that on_timeout()
     // is invoked only when Lua is idle - not actively executing another function.

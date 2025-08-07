@@ -360,10 +360,10 @@ end
 -------- Timer
 Timer = class()
 
-function Timer:init(timeout_ms)
-    assert( timeout_ms % 1 == 0, "timeout_ms not an integer" )
+-- Creates a timer instance that can operate in either one-shot or repeated mode.
+function Timer:init()
     -- m_ctimer holds a userdata instance of the internal C++ class `_timer_t`.
-    self.m_ctimer = fw.timer_create(timeout_ms)
+    self.m_ctimer = fw.timer_create()
     -- Closure used as the timer callback; captures `self` for invoking on_timeout().
     self.m_callback = function() self:on_timeout() end
 
@@ -372,16 +372,27 @@ function Timer:init(timeout_ms)
     -- while the timer is active.
 end
 
-function Timer:on_timeout() end  -- Will be invoked on timeout.
+-- Callback that is invoked on timer expiration.
+--  - For one-shot timers: `on_timeout()` is called once when the timer expires. It
+--    receives no arguments, and its return value is ignored.
+--  - For repeated timers: `on_timeout()` is called periodically at each expiration. It
+--    receives the elapsed time since the epoch as an argument. If it returns a non-nil
+--    value, the epoch is reset to the current time when the timer is restarted.
+function Timer:on_timeout() end
 
-function Timer:start_timer()
-    fw.timer_start(self.m_ctimer, self.m_callback)
+-- Start or restart the timer, setting its epoch to the current time. If `repeated` is
+-- true, the timer will automatically restart after each expiration.
+function Timer:start_timer(timeout_ms, repeated)
+    assert( timeout_ms % 1 == 0 and timeout_ms > 0, "timeout_ms not a positive integer" )
+    fw.timer_start(self.m_ctimer, timeout_ms, self.m_callback, repeated)
 end
 
+-- Stop the timer; returns false if the timer was already expired or never started.
 function Timer:stop_timer()
-    fw.timer_stop(self.m_ctimer)
+    return fw.timer_stop(self.m_ctimer)
 end
 
+-- Check if the timer is currently active.
 function Timer:timer_is_running()
     return fw.timer_is_running(self.m_ctimer)
 end
@@ -425,7 +436,7 @@ TapHold = class(Base, Defer, Timer)
 function TapHold:init(map_tap, map_hold, flavor, tapping_term_ms)
     Base.init(self)
     Defer.init(self)
-    Timer.init(self, tapping_term_ms or TAPPING_TERM_MS)
+    Timer.init(self)
 
     self.m_map_tap = map_tap
     if self.m_flavor == HoldIsTap then
@@ -435,6 +446,7 @@ function TapHold:init(map_tap, map_hold, flavor, tapping_term_ms)
     end
     self.m_map_chosen = false
     self.m_flavor = flavor or 0
+    self.m_tapping_term_ms = tapping_term_ms or TAPPING_TERM_MS
     self.m_my_slot = 0  -- used for debugging purposes
 end
 
@@ -459,7 +471,7 @@ function TapHold:on_press()
     self.m_my_slot = g_current_slot_index
     fw.log("TapHold [%d] on_press()\n", self.m_my_slot)
     assert( self.m_map_chosen == false )
-    self:start_timer()
+    self:start_timer(self.m_tapping_term_ms)
     self:start_defer()
 end
 
@@ -552,7 +564,7 @@ function TapDance:init(tapping_term_ms)
     -- TAPPING_TERM_MS works fine when nesting TapHold inside TapSeq - since TapSeq's
     -- timer starts earlier and expires first - slightly reducing TapSeq's timeout helps
     -- prevent spurious timer expirations.
-    Timer.init(self, tapping_term_ms or (TAPPING_TERM_MS - 2))
+    Timer.init(self)
 
     -- m_step is incremented just before each on_press() call, and reset to 0 after
     -- on_release().
@@ -560,6 +572,7 @@ function TapDance:init(tapping_term_ms)
     -- Although m_step = 0 could signify the dance has finished, we use a separate flag
     -- so that on_release() can still access m_step during its execution.
     self.m_is_finished = true
+    self.m_tapping_term_ms = tapping_term_ms or (TAPPING_TERM_MS - 2)
     self.m_my_slot = 0  -- used for debugging purposes
 end
 
@@ -586,7 +599,7 @@ function TapDance:on_proxy_press()
         self:start_defer()
     end
 
-    self:start_timer()  -- (Re)start the timer.
+    self:start_timer(self.m_tapping_term_ms)  -- (Re)start the timer.
     self:on_press()
 end
 
