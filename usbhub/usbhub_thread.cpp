@@ -1,9 +1,8 @@
+#include "board.h"              // for THREAD_PRIO_USBHUB
 #include "event.h"              // for event_queue_init(), event_get()
 #include "thread.h"             // for thread_create(), thread_get_unchecked()
 #include "thread_flags.h"       // for thread_flags_wait_any()
-#include "usb2422.h"            // for usbhub_init()
 
-#include "adc.hpp"              // for adc::v_5v.schedule_periodic()
 #include "usbhub_states.hpp"    // for usbhub_state::init(), ...
 #include "usbhub_thread.hpp"
 
@@ -33,14 +32,6 @@ NORETURN void* usbhub_thread::_thread_entry(void*)
     // Initialize the usbhub state machine.
     usbhub_state::init();
 
-    // Initialize USB2422.
-    // Could be called from usbhub_thread::init(), but usbhub_init() will take a while
-    // and we may better call it from thread context.
-    usbhub_init();
-
-    // Continuously monitor the v_5v.
-    adc::v_5v.schedule_periodic();
-
     while ( true ) {
         // Zzz
         thread_flags_t flags = thread_flags_wait_any(
@@ -48,8 +39,6 @@ NORETURN void* usbhub_thread::_thread_entry(void*)
             | FLAG_USB_SUSPEND
             | FLAG_USB_RESUME
             | FLAG_USBPORT_SWITCHOVER
-            | FLAG_REPORT_V_5V
-            | FLAG_REPORT_V_CON
             | FLAG_EXTRA_MANUAL
             | FLAG_EXTRA_AUTOMATIC
             | FLAG_TIMEOUT
@@ -70,12 +59,6 @@ NORETURN void* usbhub_thread::_thread_entry(void*)
         if ( flags & FLAG_USBPORT_SWITCHOVER )
             usbhub_state::pstate->process_usbport_switchover();
 
-        if ( flags & FLAG_REPORT_V_5V )
-            usbhub_state::pstate->process_v_5v_report();
-
-        if ( flags & FLAG_REPORT_V_CON )
-            usbhub_state::pstate->process_v_con_report();
-
         if ( flags & FLAG_EXTRA_MANUAL )
             usbhub_state::pstate->process_extra_enable_manually();
 
@@ -85,7 +68,4 @@ NORETURN void* usbhub_thread::_thread_entry(void*)
         if ( flags & FLAG_TIMEOUT )
             usbhub_state::pstate->process_timeout();
     }
-
-    // Should never reach this point.
-    // adc::v_5v.schedule_cancel();
 }

@@ -4,6 +4,10 @@
 #include "thread.h"             // for thread_t
 #include "thread_flags.h"       // for thread_flags_set()
 
+#include "config.hpp"           // for ENABLE_RGB_LED
+#include "rgb_gcr.hpp"          // for rgb_gcr::isr_process_gcr_change()
+#include "usbhub_states.hpp"    // for usbhub_state::pstate
+
 
 
 class usbhub_thread {
@@ -26,11 +30,15 @@ public:
         thread_flags_set(m_pthread, FLAG_EXTRA_AUTOMATIC);
     }
 
-    // Notify that the v_5v report is ready.
-    static void signal_v_5v_report() { thread_flags_set(m_pthread, FLAG_REPORT_V_5V); }
+    static void isr_process_v_5v_report() {
+        usbhub_state::pstate->isr_process_v_5v_report();
+        if constexpr ( ENABLE_RGB_LED )
+            rgb_gcr::isr_process_v_5v_report();
+    }
 
-    // Notify that the v_con report is ready.
-    static void signal_v_con_report() { thread_flags_set(m_pthread, FLAG_REPORT_V_CON); }
+    static void isr_process_v_con_report() {
+        usbhub_state::pstate->isr_process_v_con_report();
+    }
 
     // Signal a generic event to usbhub_thread.
     static void signal_event(event_t* event) { event_post(&m_queue, event); }
@@ -43,8 +51,6 @@ private:
         FLAG_USB_SUSPEND        = 0x0002,
         FLAG_USB_RESUME         = 0x0004,
         FLAG_USBPORT_SWITCHOVER = 0x0008,
-        FLAG_REPORT_V_5V        = 0x0010,
-        FLAG_REPORT_V_CON       = 0x0020,
         FLAG_EXTRA_MANUAL       = 0x0040,
         FLAG_EXTRA_AUTOMATIC    = 0x0080,
         FLAG_TIMEOUT            = THREAD_FLAG_TIMEOUT  // (1u << 14)

@@ -21,16 +21,16 @@ static void _adc_poweroff(Adc* dev);
 static void _setup_clock(Adc* dev);
 static void _setup_calibration(Adc* dev);
 
-static mutex_t _lock0 = MUTEX_INIT;  // for ADC0
+static mutex_t _lock[] = { MUTEX_INIT, MUTEX_INIT };  // for ADC0, ADC1
 
-static inline void _prep(void)
+static inline void _prep(adc_t adc)
 {
-    mutex_lock(&_lock0);
+    mutex_lock(&_lock[adc]);
 }
 
-static inline void _done(void)
+static inline void _done(adc_t adc)
 {
-    mutex_unlock(&_lock0);
+    mutex_unlock(&_lock[adc]);
 }
 
 static inline void _wait_syncbusy(Adc* dev)
@@ -154,45 +154,6 @@ static void _setup_calibration(Adc* dev)
 #endif
 }
 
-int adc_init(adc_t line)
-{
-    if (line >= ADC_NUMOF) {
-        LOG_ERROR("adc: line arg not applicable\n");
-        return -1;
-    }
-
-#ifdef ADC0
-    const uint8_t adc = adc_channels[line].dev == ADC1 ? 1 : 0;
-#else
-    const uint8_t adc = 0;
-#endif
-
-    // _prep();
-
-    uint8_t muxpos = (adc_channels[line].inputctrl & ADC_INPUTCTRL_MUXPOS_Msk)
-                   >> ADC_INPUTCTRL_MUXPOS_Pos;
-    uint8_t muxneg = (adc_channels[line].inputctrl & ADC_INPUTCTRL_MUXNEG_Msk)
-                   >> ADC_INPUTCTRL_MUXNEG_Pos;
-
-    /* configure positive input pin */
-    if (muxpos < 0x18) {
-        assert( muxpos < ARRAY_SIZE(sam0_adc_pins[adc]) );
-        gpio_init(sam0_adc_pins[adc][muxpos], GPIO_IN);
-        gpio_init_mux(sam0_adc_pins[adc][muxpos], GPIO_MUX_B);
-    }
-
-    /* configure negative input pin */
-    if (adc_channels[line].inputctrl & ADC_INPUTCTRL_DIFFMODE) {
-        assert( muxneg < ARRAY_SIZE(sam0_adc_pins[adc]) );
-        gpio_init(sam0_adc_pins[adc][muxneg], GPIO_IN);
-        gpio_init_mux(sam0_adc_pins[adc][muxneg], GPIO_MUX_B);
-    }
-
-    // _done();
-
-    return 0;
-}
-
 int adc_configure(Adc* dev, adc_res_t res)
 {
     /* Individual comparison necessary because ADC Resolution Bits are not
@@ -286,12 +247,20 @@ int adc_configure(Adc* dev, adc_res_t res)
     dev->AVGCTRL.reg = ADC_SAMPLENUM | adc_avgctrl_adjres;
 #endif
 
-#ifdef ADC0_IRQ
-    NVIC_EnableIRQ(ADC0_IRQ);
+#ifdef ADC0
+    /* The SAMD5x/SAME5x family has two ADCs: ADC0 and ADC1. */
+    const adc_t adc = (dev != ADC0);
+#else
+    const adc_t adc = 0;
 #endif
 
+#ifdef ADC0_IRQ
+    if ( adc == 0 )
+        NVIC_EnableIRQ(ADC0_IRQ);
 #ifdef ADC1_IRQ
-    NVIC_EnableIRQ(ADC1_IRQ);
+    else
+        NVIC_EnableIRQ(ADC1_IRQ);
+#endif
 #endif
 
     /* Enable ADC Module */
@@ -306,10 +275,51 @@ int adc_configure(Adc* dev, adc_res_t res)
     return 0;
 }
 
-// The SAMD5x/SAME5x family has two ADCs: ADC0 and ADC1. The two inputs can be sampled
+int adc_init(adc_t line)
+{
+    if (line >= ADC_NUMOF) {
+        LOG_ERROR("adc: line arg not applicable\n");
+        return -1;
+    }
+
+#ifdef ADC0
+    const adc_t adc = (adc_channels[line].dev != ADC0);
+#else
+    const adc_t adc = 0;
+#endif
+
+    _prep(adc);
+
+    uint8_t muxpos = (adc_channels[line].inputctrl & ADC_INPUTCTRL_MUXPOS_Msk)
+                   >> ADC_INPUTCTRL_MUXPOS_Pos;
+    uint8_t muxneg = (adc_channels[line].inputctrl & ADC_INPUTCTRL_MUXNEG_Msk)
+                   >> ADC_INPUTCTRL_MUXNEG_Pos;
+
+    /* configure positive input pin */
+    if (muxpos < 0x18) {
+        assert( muxpos < ARRAY_SIZE(sam0_adc_pins[adc]) );
+        gpio_init(sam0_adc_pins[adc][muxpos], GPIO_IN);
+        gpio_init_mux(sam0_adc_pins[adc][muxpos], GPIO_MUX_B);
+    }
+
+    /* configure negative input pin */
+    if (adc_channels[line].inputctrl & ADC_INPUTCTRL_DIFFMODE) {
+        assert( muxneg < ARRAY_SIZE(sam0_adc_pins[adc]) );
+        gpio_init(sam0_adc_pins[adc][muxneg], GPIO_IN);
+        gpio_init_mux(sam0_adc_pins[adc][muxneg], GPIO_MUX_B);
+    }
+
+    _done(adc);
+
+    return 0;
+}
+
+// The SAMD5x/SAME5x family has two ADCs, ADC0 and ADC1. The two inputs can be sampled
 // simultaneously, as each ADC includes sample and hold circuits.
-static void (*_callback0)(void*, uint16_t) = NULL;  // for ADC0
-static void* _arg0 = NULL;  // for ADC0
+static struct {
+    void (*callback)(void*, uint16_t);
+    void* arg;
+} _isr[2];  // for ADC0, ADC1
 
 int32_t adc_get(adc_t line, void (*callback)(void*, uint16_t), void* arg)
 {
@@ -320,13 +330,15 @@ int32_t adc_get(adc_t line, void (*callback)(void*, uint16_t), void* arg)
 
 #ifdef ADC0
     Adc* const dev = adc_channels[line].dev;
+    const adc_t adc = (dev != ADC0);
 #else
     Adc* const dev = ADC;
+    const adc_t adc = 0;
 #endif
 
     int result = 0;  // Would return 0 for interrupt-driven measurement.
 
-    _prep();  // Wait if there is a measurement in progress.
+    _prep(adc);  // Wait if there is a measurement in progress.
 
     const uint16_t adc_inputctrl = ADC_GAIN_FACTOR_DEFAULT
                                  | adc_channels[line].inputctrl
@@ -340,44 +352,48 @@ int32_t adc_get(adc_t line, void (*callback)(void*, uint16_t), void* arg)
         dev->SWTRIG.bit.START = 1;
         while ( !dev->INTFLAG.bit.RESRDY ) {}
         result = dev->RESULT.reg;
-        _done();
+        _done(adc);
     } else {
-#if defined(ADC_ISR)
         // Enable the Result Ready Interrupt if p_isr_cb is provided.
         dev->INTFLAG.reg |= ADC_INTFLAG_RESRDY;
         dev->INTENSET.bit.RESRDY = 1;
-        _callback0 = callback;
-        _arg0 = arg;
+        _isr[adc].callback = callback;
+        _isr[adc].arg = arg;
         _wait_syncbusy(dev);
         dev->SWTRIG.bit.START = 1;
-#else
-        _done();
-        LOG_ERROR("adc: ADC_IRQ and ADCx_ISR need #defined for non-blocking\n");
-        return -1;
-#endif
     }
 
     return result;
 }
 
-#ifdef ADC_ISR
-void ADC_ISR(void)
+#ifdef ADC0_ISR
+void ADC0_ISR(void)
 {
     if ( ADC0->INTFLAG.bit.RESRDY ) {
         ADC0->INTENCLR.bit.RESRDY = 1;  // Disable interrupt until adc_get() enables again.
         const uint16_t result = ADC0->RESULT.reg;  // Will also clear the interrupt flag.
 
-        if ( _callback0 != NULL )
-            _callback0(_arg0, result);
-        _done();
+        if ( _isr[0].callback != NULL )
+            _isr[0].callback(_isr[0].arg, result);
     }
 
-#ifdef ADC1_IRQ
-// Todo: We could check ADC1->INTFLAG.bit.RESRDY and call _p_isr_cb corresponding to ADC1.
-//   However, it would need another mutex (_lock1) for ADC1.
-#error ADC1 is not supported yet.
+    _done(0);
+    cortexm_isr_end();
+}
 #endif
 
+#ifdef ADC1_ISR
+void ADC1_ISR(void)
+{
+    if ( ADC1->INTFLAG.bit.RESRDY ) {
+        ADC1->INTENCLR.bit.RESRDY = 1;
+        const uint16_t result = ADC1->RESULT.reg;
+
+        if ( _isr[1].callback != NULL )
+            _isr[1].callback(_isr[1].arg, result);
+    }
+
+    _done(1);
     cortexm_isr_end();
 }
 #endif

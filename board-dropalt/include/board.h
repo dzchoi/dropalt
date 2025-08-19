@@ -189,7 +189,6 @@ static const uint8_t DRIVER_ADDR[DRIVER_COUNT] = { 0x50, 0x5F };
 #define THREAD_PRIO_USB                 1
 #define THREAD_PRIO_MATRIX              2
 #define THREAD_PRIO_USBHUB              3
-#define THREAD_PRIO_RGB                 4
 #if THREAD_PRIORITY_MAIN != 7
     // See riot/core/lib/include/thread_config.h.
     #error THREAD_PRIORITY_MAIN != 7

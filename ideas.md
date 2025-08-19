@@ -13,9 +13,6 @@
 * Manage all thread stack sizes in one place.
 
 [ADC]
-* Too Frequent calls to signal_v_5v_report() and signal_v_con_report() from ADC can unnecessarily wake up consumer threads, with most notifications ultimately ignored. Use callbacks (observer list) from ISR instead. Also provide a RAII-style guard class that disables the relevant IRQ (e.g. NVIC_DisableIRQ(ADC1_IRQn)) in its constructor and re-enables it in its destructor.
-  Thus, the decision logic in rgb_gcr::process_v_5v_report() can be implemented in the callback.
-* Simultaneous measurements for ADC0 and ADC1. `state_determine_host` can improve its scanning algorithm.
 * Adjustable threshold values (ADC_CON1_NOMINAL) in NVM?
 
 [Keymap]
@@ -23,13 +20,16 @@
   Pressing End the first time triggers End, then triggers Home on the 2nd and 3rd
   presses. Can be implemented using TapSeq with a longer tapping_term_ms.
 
-[Swithcover]
+[Debouncing]
+* DEBOUNCE_PRESS_MS and DEBOUNCE_RELEASE_MS defined in NVM.
+
+[Switchover]
 * Configure the automatic switchover feature in config.hpp.
 * Switchover event should be given to Effects.
 
 [RGB]
 * Precise color accuracy isn't necessary — keycaps show everything in a reddish color.
-* RGB_ENABLED is turned on or off from Effects.
+* RGB is enabled or disabled dynamically from Effects in Lua.
 * ADC measurement may be affected.
 * Effects should be implemented in Lua later.
 * Keymaps implement on_lamp_on/off() for an indicator lamp, but cannot process RGB lighting in on_press() because there can be nested keymaps invoked downstream.
@@ -41,6 +41,7 @@
 * Each Lamp is associated with a lamp indicator?
 
 * Tips
+  - `uint_fast8_t` instead of `unsigned` if the full size is not necessary.
   - `typedef struct lua_State lua_State;`
   - CFLAGS from parent Makefile are inherited, but the changes in child Makefiles do not propagate back.
   - Use likely(x) (== __builtin_expect((uintptr_t)(x), 1)) if appropriate.

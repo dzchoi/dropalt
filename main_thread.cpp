@@ -1,7 +1,6 @@
 #include "assert.h"
 #include "board.h"              // for _sheap, _eheap, system_reset()
 #include "cpu.h"                // for RSTC
-#include "event.h"              // for event_queue_init(), event_get(), ...
 #include "irq.h"                // for irq_disable(), irq_restore()
 #include "is31fl3733.h"
 #include "led_conf.h"           // for KEY_LED_COUNT
@@ -12,6 +11,7 @@
 #include "ztimer.h"             // for ztimer_set_timeout_flag()
 
 #include "adc.hpp"              // for adc::init()
+#include "event_ext.hpp"        // for event_post(), event_queue_init(), event_get()
 #include "lua.hpp"              // for lua::init()
 #include "config.hpp"           // for ENABLE_CDC_ACM, ENABLE_LUA_REPL
 #include "key_queue.hpp"        // for key_queue::push(), ...
@@ -20,7 +20,6 @@
 #include "matrix_thread.hpp"    // for matrix_thread::init()
 #include "persistent.hpp"       // for persistent::init()
 #include "repl.hpp"             // for lua::repl::init(), ...
-#include "rgb_thread.hpp"       // for rgb_thread::init()
 #include "timed_stdin.hpp"      // for timed_stdin::wait_for_input(), ...
 #include "usb_thread.hpp"       // for usb_thread::init()
 #include "usbhub_thread.hpp"    // for usbhub_thread::init()
@@ -47,7 +46,6 @@ NORETURN void main_thread::init()
     // Initialize subsystems in the order of dependency.
     adc::init();         // Invokes v_5v.wait_for_stable_5v().
     persistent::init();  // Initialize NVM. (See `last_host_port` for a usage example.)
-    rgb_thread::init();  // Consumes signals from usbhub_thread and usb_thread.
     usbhub_thread::init();
     usb_thread::init();  // printf() will work from this point, displaying on the host.
     matrix_thread::init();  // Produces signals to main_thread.
@@ -127,9 +125,11 @@ NORETURN void* main_thread::_thread_entry(void*)
     lua::init();
 
     // Temporary solid color LEDs that will be turned on on USB resume.
-    for ( unsigned led_id = 0 ; led_id < KEY_LED_COUNT ; led_id++ )
-        is31_set_color(IS31_LEDS[led_id], 0, 255, 127);  // Spring Green
-    is31_refresh_colors();
+    if constexpr ( ENABLE_RGB_LED ) {
+        for ( unsigned led_id = 0 ; led_id < KEY_LED_COUNT ; led_id++ )
+            is31_set_color(IS31_LEDS[led_id], 0, 255, 127);  // Spring Green
+        is31_refresh_colors();
+    }
 
     bool has_input = false;
     thread_flags_t flags;

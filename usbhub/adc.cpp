@@ -6,8 +6,7 @@
 #include "ztimer.h"             // for ztimer_acquire(), ztimer_now(), ...
 
 #include "adc.hpp"
-#include "usbhub_thread.hpp"    // for signal_event(), signal_v_5v_report(), ...
-#include "rgb_thread.hpp"       // for signal_v_5v_report()
+#include "usbhub_thread.hpp"    // for signal_event(), isr_process_v_5v_report(), ...
 
 
 
@@ -35,7 +34,7 @@ void adc::async_measure()
             adc* const that = static_cast<adc*>(arg);
             that->m_result = result;
             mutex_unlock(&that->m_lock);
-            that->_isr_signal_report();
+            that->isr_signal_report();
         },
         this);
 }
@@ -55,16 +54,15 @@ void adc::_sync_measure()
     mutex_unlock(&m_lock);
 }
 
-void adc_v_5v::_isr_signal_report()
+void adc_v_5v::isr_signal_report()
 {
     update_level();
-    usbhub_thread::signal_v_5v_report();
-    rgb_thread::signal_v_5v_report();
+    usbhub_thread::isr_process_v_5v_report();
 }
 
-void adc_v_con::_isr_signal_report()
+void adc_v_con::isr_signal_report()
 {
-    usbhub_thread::signal_v_con_report();
+    usbhub_thread::isr_process_v_con_report();
 }
 
 void adc::_tmo_periodic_measure(void* arg)

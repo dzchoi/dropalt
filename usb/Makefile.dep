@@ -10,8 +10,7 @@ $(shell grep -q 'ENABLE_CDC_ACM = true' $(CONFIG_HPP))
 ifeq ($(.SHELLSTATUS),0)
     USEMODULE += stdio_cdc_acm      # Use CDC ACM as default STDIO.
 else
-    USEMODULE += stdio_null         # Or, avoid using stdio and UART at all.
+    USEMODULE += stdio_null         # Or avoid using stdio and UART at all.
 endif
 
-USEMODULE += rgb                    # for rgb_thread::signal_usb_suspend/resume()
 USEMODULE += usbhub                 # for usbhub_thread::signal_usb_suspend/resume()

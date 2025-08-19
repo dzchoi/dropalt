@@ -1,8 +1,8 @@
 // Rewrite of riot/cpu/sam0_common/periph/adc.c to support:
-//   - ADC0 and ADC1 as well (WIP)
-//   - fix adc_sample() being stuck when starting during the ADC start-up period
-//   - average multiple samples (when ADC_SAMPLENUM is given)
-//   - non-blocking as well as blocking execution
+//   - ADC0 and ADC1 as well
+//   - Resolution of adc_sample() hang when starting during the ADC startup period
+//   - Averaging multiple samples (when ADC_SAMPLENUM is given)
+//   - Non-blocking as well as blocking execution
 
 #pragma once
 

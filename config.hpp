@@ -21,6 +21,9 @@ static_assert( !ENABLE_LUA_REPL || ENABLE_CDC_ACM );
 
 constexpr bool ENABLE_NKRO = true;
 
+// Enable RGB LEDs. Note that `false` will also disable keyboard indicator lamps.
+constexpr bool ENABLE_RGB_LED = true;
+
 // Periodic interval for reporting keyboard state change to the host. Updates occur at
 // this rate (recommended range: 1–10 ms). In Boot protocol mode, this setting is
 // overridden and set to 10 ms.

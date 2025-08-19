@@ -3,7 +3,7 @@
 #include "thread.h"             // for thread_t, thread_get_active()
 #include "thread_flags.h"       // for thread_flags_t
 
-#include "event_ext.hpp"        // for event_ext_t, event_queue_t, event_post(), ...
+#include "event_ext.hpp"        // for event_queue_t
 
 // Physical key press/release events originate in matrix_thread, are forwarded to
 // main_thread for conversion into USB keycodes, and finally delivered to usb_thread

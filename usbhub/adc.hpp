@@ -1,12 +1,12 @@
 #pragma once
 
-#include "board.h"              // for ADC_LINE_*
+#include "board.h"              // for ADC_LINE_*, NVIC_DisableIRQ(), ...
 #include "mutex.h"              // for mutex_init()
 #include "ztimer.h"             // for ztimer_set(), ztimer_remove()
 
 #include <atomic>               // for std::atomic<>
 #include "event_ext.hpp"        // for event_ext_t
-#include "config.hpp"            // for RGB_GCR_CHANGE_PERIOD_MS, ...
+#include "config.hpp"           // for RGB_GCR_CHANGE_PERIOD_MS, ...
 
 
 
@@ -15,6 +15,13 @@ class adc_v_con;
 
 class adc {
 public:
+    class lock_guard {
+    public:
+        // Note that we use only ADC0 for measuring v_5v and v_con1/2.
+        explicit lock_guard() { NVIC_DisableIRQ(ADC0_IRQ); }
+        ~lock_guard() { NVIC_EnableIRQ(ADC0_IRQ); }
+    };
+
     // These are the only instances of adc class.
     static adc_v_5v v_5v;
     static adc_v_con v_con1;
@@ -45,14 +52,15 @@ protected:
     // To be used only for creating v_5v, v_con1, and v_con2.
     adc(uint8_t line): line(line) { mutex_init(&m_lock); }
 
-    // Start measuring the ADC line (non-blocking). The result will be reported later to
-    // usbhub_thread, calling signal_v_5v_report() or signal_v_con_report().
+    // Start a non-blocking ADC measurement. The result is reported later to
+    // usbhub_thread by invoking isr_process_v_5v_report() or isr_process_v_con_report().
     void async_measure();
 
-    // Measure the ADC line now (blocking), waiting for a result from the ADC interrupt.
-    // The result can be read using read(). It can be used alongside async_measure().
-    // Note: this method does not report the result to usbhub_thread, thus allowing it to
-    // be called before initializing usbhub_thread.
+    // Perform a blocking ADC measurement, waiting for the result via ADC interrupt. The
+    // measured value can be retrieved using read(), and this method can be used
+    // alongside async_measure().
+    // Note: This method does not report the result to usbhub_thread, thus allowing it
+    // to be called prior to usbhub_thread initialization.
     void _sync_measure();
 
 private:
@@ -62,8 +70,8 @@ private:
     // Declared as atomic to ensure thread-safe updates from ISR.
     std::atomic<uint16_t> m_result = 0;
 
-    // Signal to usbhub_thread that result is ready.
-    virtual void _isr_signal_report() =0;
+    // Indicate to usbhub_thread that the measurement is complete.
+    virtual void isr_signal_report() =0;
 
     // Measure v_5v every RGB_GCR_CHANGE_PERIOD_MS and v_con1/con2 every
     // EXTRA_PORT_MEASURING_PERIOD_MS.
@@ -73,11 +81,9 @@ private:
     ztimer_t m_schedule_timer = { {}, &_tmo_periodic_measure, this };
     static void _tmo_periodic_measure(void* arg);
 
-    // Each `adc` has its own event struct for measurement. Sharing a single event struct
-    // with different port numbers as arguments could result in losing early events
-    // already in the event queue when a new event is added. For reporting, however,
-    // thread signals are used instead of events, specifically FLAG_REPORT_V_5V and
-    // FLAG_REPORT_V_CON defined in usbhub_thread.
+    // Each `adc` has its own event struct for measurement. Sharing a single event
+    // struct with different port numbers as arguments could result in losing early
+    // events already in the event queue when a new event is added.
     event_ext_t<adc*> m_event_periodic_measure = {
         nullptr, &_hdlr_periodic_measure, this
     };
@@ -121,7 +127,7 @@ private:
 
     void update_level();
 
-    void _isr_signal_report();
+    void isr_signal_report() override;
 };
 
 
@@ -146,7 +152,7 @@ private:
     // Can be constructed only from adc class.
     using adc::adc;
 
-    void _isr_signal_report();
+    void isr_signal_report() override;
 
     const uint16_t NOMINAL_LEVEL =
         line == ADC_LINE_CON1 ? ADC_CON1_NOMINAL : ADC_CON2_NOMINAL;

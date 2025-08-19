@@ -54,7 +54,6 @@ EXTERNAL_MODULE_DIRS += $(CURDIR)
 USEMODULE += log_backup
 USEMODULE += lua_emb
 USEMODULE += matrix
-USEMODULE += rgb
 USEMODULE += usbhub
 USEMODULE += usb
 

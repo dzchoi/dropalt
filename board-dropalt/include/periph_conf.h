@@ -144,7 +144,10 @@ static const adc_conf_chan_t adc_channels[] = {
 #define ADC_NUMOF           ARRAY_SIZE(adc_channels)
 
 #define ADC0_IRQ            ADC0_1_IRQn  // Irq for ADC0_RESRDY
-#define ADC_ISR             isr_adc0_1
+#define ADC0_ISR            isr_adc0_1
+// ADC1 is not used on DropAlt.
+// #define ADC1_IRQ            ADC1_1_IRQn  // Irq for ADC1_RESRDY
+// #define ADC1_ISR            isr_adc1_1
 /** @} */
 
 

@@ -15,26 +15,27 @@ public:
     static inline usbhub_state* pstate = nullptr;
 
     // Note that v_host is measured with SR_CTRL_SRC_x enabled while v_extra is measured
-    // with SR_CTRL_SRC_x disabled, and v_extra is measured automatically and periodically
-    // but v_host should be measured explicitly.
+    // with SR_CTRL_SRC_x disabled.
     static inline adc_v_con* v_host = nullptr;   // can be either v_con1 or v_con2.
     static inline adc_v_con* v_extra = nullptr;  // the opposite port of v_host
 
     static void init();  // Set up initial state.
 
     // Event handlers
-    // Note that events triggered by ADC measurements (process_v_5v_report() and
-    // process_v_con_report()) occur periodically, while other events do not. If an event
-    // is not handled by the current state, it is discarded and not forwarded to the next
-    // state. (See usbhub_thread::_thread_entry().)
+    // Note that these event handlers are triggered by thread flags (see usbhub_thread::
+    // _thread_entry()). If an event is not handled by the current state, it is
+    // discarded (by thread_flags_wait_any()) and not forwarded to the next state.
     virtual void process_usb_suspend() {}
     virtual void process_usb_resume() {}
     virtual void process_usbport_switchover() {}
-    virtual void process_v_5v_report() {}
-    virtual void process_v_con_report() {}
     virtual void process_extra_enable_manually() {}
     virtual void process_extra_enable_automatically() {}
     virtual void process_timeout() {}
+
+    // Periodic ADC measurement events are handled directly within interrupts. Thread
+    // switching is triggered only when necessary.
+    virtual void isr_process_v_5v_report() {}
+    virtual void isr_process_v_con_report() {}
 
 protected:
     // Unlikely but if the keyboard's USB port is physically damaged, the ADC measurement
@@ -91,8 +92,8 @@ public:
 
     void process_usb_resume() { help_process_usb_resume(); }
     void process_usbport_switchover() { help_process_usbport_switchover(); }
-    void process_v_con_report();
     void process_timeout();
+    void isr_process_v_con_report();
 
 private:
     void begin();
@@ -142,8 +143,8 @@ public:
 
     void process_usb_suspend() { help_process_usb_suspend(); }
     void process_usbport_switchover() { help_process_usbport_switchover(); }
-    void process_v_con_report();
     void process_extra_enable_manually();
+    void isr_process_v_con_report();
 
 private:
     void begin();
@@ -165,11 +166,11 @@ public:
     void process_usb_suspend() { help_process_usb_suspend(); }
     // Switchover is allowed but will be rejected by help_process_usbport_switchover().
     void process_usbport_switchover() { help_process_usbport_switchover(); }
-    void process_v_5v_report();
-    void process_v_con_report();
     void process_extra_enable_manually();
     void process_extra_enable_automatically();
     void process_timeout();
+    void isr_process_v_5v_report();
+    void isr_process_v_con_report();
 
 private:
     void begin();

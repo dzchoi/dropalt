@@ -1,5 +1,0 @@
-USEMODULE += core_thread
-# USEMODULE += ztimer
-# USEMODULE += ztimer_msec
-
-USEMODULE += dropalt_is31fl3733

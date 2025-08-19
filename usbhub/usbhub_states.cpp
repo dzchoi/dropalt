@@ -1,14 +1,17 @@
 #include "assert.h"
 #include "board.h"              // for LED0_ON, LED0_OFF
+#include "is31fl3733.h"         // for is31_init(), is31_enable_all_leds()
 #include "log.h"
-#include "usb2422.h"            // for usbhub_select_host_port(), ...
+#include "usb2422.h"            // for usbhub_init(), usbhub_select_host_port(), ...
 #include "ztimer.h"             // for ztimer_set_timeout_flag(), ztimer_remove(), ...
 
 #include <utility>              // for std::swap()
 #include "adc.hpp"              // for sync_measure(), is_host_connected(), ...
-#include "config.hpp"           // for DEBUG_LED_BLINK_PERIOD_MS, ...
+#include "config.hpp"           // for ENABLE_RGB_LED, DEBUG_LED_BLINK_PERIOD_MS, ...
 #include "persistent.hpp"       // for persistent `last_host_port`
+#include "rgb_gcr.hpp"          // for rgb_gcr::enable(), rgb_gcr::disable()
 #include "usbhub_states.hpp"
+#include "usbhub_thread.hpp"    // for usbhub_thread::signal_event()
 
 
 
@@ -58,8 +61,24 @@ void state_determine_host::begin()
         DEBUG_LED_BLINK_PERIOD_MS > 0
         ? DEBUG_LED_BLINK_PERIOD_MS : DEFAULT_USB_RETRY_PERIOD_MS);
 
+    if ( likely(v_extra == nullptr) ) {
+        // Initialize USB2422.
+        // Could be called from usbhub_thread::init(), but usbhub_init() will take a while
+        // and we may better call it from thread context.
+        usbhub_init();
+
+        // Initialize LEDs.
+        if constexpr ( ENABLE_RGB_LED ) {
+            is31_init();
+            is31_enable_all_leds(true);
+        }
+
+        // Continuously monitor v_5v throughout runtime.
+        adc::v_5v.schedule_periodic();
+    }
+
     // Handle the scenario where state_determine_host is re-entered (for future use).
-    if ( v_extra )
+    else
         v_extra->schedule_cancel();
 
     // Disconnect the current host.
@@ -90,7 +109,7 @@ void state_determine_host::begin()
     v_host->schedule_periodic();
 }
 
-void state_determine_host::process_v_con_report()
+void state_determine_host::isr_process_v_con_report()
 {
     if ( v_host->is_host_connected() ) {
         v_host->schedule_cancel();
@@ -138,6 +157,10 @@ void state_determine_host::end()
 
     // From now on, v_extra will be measured periodically.
     v_extra->schedule_periodic();
+
+    // Enable GCR at boot if RGB_DISABLE_DURING_USB_SUSPEND is false.
+    if constexpr ( ENABLE_RGB_LED && !RGB_DISABLE_DURING_USB_SUSPEND )
+        rgb_gcr::enable();
 }
 
 
@@ -145,6 +168,9 @@ void state_determine_host::end()
 void state_usb_suspend::begin()
 {
     LOG_DEBUG("USBHUB: state_usb_suspend\n");
+    if constexpr ( ENABLE_RGB_LED && RGB_DISABLE_DURING_USB_SUSPEND )
+        rgb_gcr::disable();
+
     if constexpr ( DEBUG_LED_BLINK_PERIOD_MS > 0 ) {
         LED0_ON;
         ztimer_set_timeout_flag(ZTIMER_MSEC, &blink_timer, DEBUG_LED_BLINK_PERIOD_MS);
@@ -195,14 +221,24 @@ void state_extra_disabled::begin()
 {
     usbhub_enable_extra_port(v_extra->line, false);
     LOG_DEBUG("USBHUB: state_extra_disabled\n");
+
+    if constexpr ( ENABLE_RGB_LED && RGB_DISABLE_DURING_USB_SUSPEND )
+        rgb_gcr::enable();
 }
 
-void state_extra_disabled::process_v_con_report()
+void state_extra_disabled::isr_process_v_con_report()
 {
     if ( v_extra->is_device_connected() ) {
         if ( !m_panic_disabled ) {
-            LOG_INFO("USBHUB: extra device is connected to port %d\n", v_extra->line);
-            transition_to<state_extra_enabled>();
+            static event_t _event = { nullptr,  // .list_node
+                [](event_t*) {  // .handler
+                    LOG_INFO("USBHUB: extra device is connected to port %d\n",
+                        v_extra->line);
+                    transition_to<state_extra_enabled>();
+                }
+            };
+
+            usbhub_thread::signal_event(&_event);
         }
     }
     else {
@@ -224,9 +260,12 @@ void state_extra_enabled::begin()
 {
     usbhub_enable_extra_port(v_extra->line, true);
     LOG_DEBUG("USBHUB: state_extra_enabled\n");
+
+    if constexpr ( ENABLE_RGB_LED && RGB_DISABLE_DURING_USB_SUSPEND )
+        rgb_gcr::enable();
 }
 
-void state_extra_enabled::process_v_5v_report()
+void state_extra_enabled::isr_process_v_5v_report()
 {
     if ( ztimer_is_set(ZTIMER_MSEC, &extra_cutting_timer) ) {
         if ( adc::v_5v.level() >= adc_v_5v::STABLE )
@@ -239,12 +278,19 @@ void state_extra_enabled::process_v_5v_report()
     }
 }
 
-void state_extra_enabled::process_v_con_report()
+void state_extra_enabled::isr_process_v_con_report()
 {
     if ( !v_extra->is_device_connected() ) {
         if ( !m_enabled_manually ) {
-            LOG_INFO("USBHUB: extra device is disconnected from port %d\n", v_extra->line);
-            transition_to<state_extra_disabled>();
+            static event_t _event = { nullptr,  // .list_node
+                [](event_t*) {  // .handler
+                    LOG_INFO("USBHUB: extra device is disconnected from port %d\n",
+                        v_extra->line);
+                    transition_to<state_extra_disabled>();
+                }
+            };
+
+            usbhub_thread::signal_event(&_event);
         }
     }
 }
