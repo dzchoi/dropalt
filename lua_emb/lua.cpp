@@ -13,7 +13,9 @@ extern "C" {
 
 namespace lua {
 
-static constexpr size_t LUA_MEM_SIZE = 100 *1024;
+// LUA_MEM_SIZE is maximized, taking into account a ~3.75KB reservation in the main heap
+// (&_eheap - &_sheap), required for functions such as fputs() and fprintf().
+static constexpr size_t LUA_MEM_SIZE = 105 *1024;
 
 static uint8_t lua_memory[LUA_MEM_SIZE]
     __attribute__((section(".noinit"), aligned(sizeof(uint32_t))));

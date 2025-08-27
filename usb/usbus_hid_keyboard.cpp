@@ -8,7 +8,6 @@
 
 #include "config.hpp"           // for USB_RESUME_SETTLE_MS, ...
 #include "main_thread.hpp"      // for signal_usb_resume(), signal_lamp_state(), ...
-// #include "lamp.hpp"             // for lamp_iter, lamp_id()
 #include "usb_thread.hpp"       // for send_remote_wake_up()
 #include "usbhub_thread.hpp"    // for signal_usb_suspend(), signal_usb_resume()
 #include "usbus_hid_keyboard.hpp"
@@ -119,9 +118,6 @@ void usbus_hid_keyboard_t::on_reset()
     clear_report();
     m_report_updated = 0;
     m_press_yet_to_submit = KC_NO;
-
-    // Note: m_led_lamp_state will be reset separately when received from host
-    // (_hdlr_receive_data()).
 
     // main_thread::signal_usb_reset();  // Not used.
 }
@@ -360,15 +356,17 @@ bool usbus_hid_keyboard_t::help_update_nkro_report(
     return help_update_bits(bits[keycode >> 3], keycode, is_press);
 }
 
+// Note that lamp state is updated only by the host in response to KC_CAPSLOCK,
+// typically via a SET_REPORT request.
 void usbus_hid_keyboard_t::_hdlr_receive_data(
     usbus_hid_device_t* hid, uint8_t* data, size_t len)
 {
     usbus_hid_keyboard_t* const hidx = static_cast<usbus_hid_keyboard_t*>(hid);
-    uint8_t lamp_state;
+    uint_fast8_t lamp_state;
 
     if ( len == 2 ) {
         // used only for Shared EP but retained as a reference.
-        const uint8_t report_id = data[0];
+        const uint_fast8_t report_id = data[0];
         if ( !(report_id == REPORT_ID_KEYBOARD || report_id == REPORT_ID_NKRO) )
             return;
         lamp_state = data[1];
@@ -378,13 +376,7 @@ void usbus_hid_keyboard_t::_hdlr_receive_data(
     LOG_DEBUG("USB_HID: set led_lamp_state=0x%x @%lu\n",
         lamp_state, ztimer_now(ZTIMER_MSEC));
 
-    lamp_state ^= hidx->m_led_lamp_state;
-    // Update m_led_lamp_state with the received data.
-    hidx->m_led_lamp_state ^= lamp_state;
-
-    // for ( auto it = lamp_iter::begin() ; it != lamp_iter::end() ; ++it )
-    //     if ( lamp_state & (uint8_t(1) << it->lamp_id()) )
-    //         main_thread::signal_lamp_state(&*it);
+    main_thread::signal_lamp_state(lamp_state);
 
     // Start m_timer_resume_settle only after receiving the first host-initiated data
     // (e.g. LED Set_Report), not immediately upon usbus_control invoking on_resume().

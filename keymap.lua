@@ -63,8 +63,12 @@ local tSPACE = TapHold(SPACE, RSHFT, HoldOnRelease|QuickRelease)
 local tSPACE = TapSeq(tSPACE, tSPACE, SPACE)
 
 -- LSHFT w/tSPACE (not w/RSHFT) -> SPACE
-local mLSHFT = ModIf(tSPACE, SPACE, LSHFT)
--- Todo: t_SPC + LSFT = SPC, Double LSFT = CapsLock, LSFT (when CapsLock on) = CapsLock
+-- Double LSHFT -> CapsLock, LSHFT (when CapsLock on) -> CapsLock
+local CAPSLOCK = Lit("CAPSLOCK")
+local mLSHFT = ModIf(tSPACE, SPACE,
+    ModIf(Predicate(function() return Lamp.is_lamp_active(LAMP_CAPSLOCK) end),
+        CAPSLOCK, TapSeq(LSHFT, CAPSLOCK)) )
+Lamp(LAMP_CAPSLOCK)
 
 -- Tap RSHFT -> INS
 local tRSHFT = TapHold(INS, RSHFT, HoldOnPress|QuickRelease)
@@ -103,6 +107,8 @@ local mBKSP = ModIf(FN, DEL, Lit("BKSP"))
 -- Most Linux Distros do not handle SCRLOCK but Windows does.
 local mDOWN = ModIf(FN, Lit("SCRLOCK"), DOWN)
 -- Todo: Custom lamp_t that enables a jiggler while SCRLOCK lamp is on.
+Lamp(LAMP_SCRLOCK, LED_BOTTOM_RIGHT)
+-- Lamp(LAMP_SCRLOCK)
 
 -- ENTER + ` -> POWER
 local mGRV = ModIf(tENTER, Lit("POWER"), Lit("`"))
@@ -121,7 +127,7 @@ local mB = ModIf(tENTER, Function(fw.reboot_to_bootloader), Lit("B"))
 -- Not so useful:
 -- local tRIGHT = TapSeq(RIGHT, END)
 
--------- Create the keymap table `g_keymaps[]`.
+-------- Populate the keymap table `Base.c_keymap_table[]`.
 local function keymap_table(keymaps)
     for i = 1, #keymaps do
         local keymap = keymaps[i]
@@ -136,15 +142,21 @@ local function keymap_table(keymaps)
     return keymaps
 end
 
-g_keymaps = keymap_table {
+Base.c_keymap_table = keymap_table {
     mGRV, m1, m2, m3, m4, m5, m6, m7, m8, m9, m0, mMINUS, mEQUAL, mBKSP, DEL,
     mTAB, "Q", "W", "E", "R", "T", "Y", "U", "I", "O", mP, mLBRAC, "]", "\\", HOME,
     tFN, "A", "S", "D", "F", "G", mH, mJ, mK, mL, ";", "'", tENTER, PGUP,
     mLSHFT, "Z", "X", "C", "V", mB, "N", "M", ",", ".", "/", tRSHFT, UP, PGDN,
     "LALT", "LGUI", LCTRL, tSPACE, RCTRL, "RALT", LEFT, mDOWN, RIGHT
-}  -- 67 keys
+}
+assert( #Base.c_keymap_table == KEY_LED_COUNT )
+
+-- https://stackoverflow.com/questions/21737613/image-of-hsv-color-wheel-for-opencv
+Effect.c_active_effect = FingerTracer(8192, 30 * HSV_HUE_STEPS // 360, 255, 255) -- Orange
+-- Effect.c_active_effect = Fixed(90 * HSV_HUE_STEPS // 360, 255, 255)   -- Spring Green
+-- Effect.c_active_effect = Fixed(120 * HSV_HUE_STEPS // 360, 255, 255)  -- Mild Green
 
 
 
--- Return the passed keymap driver in a module table.
+-- Return the passed keymap and indicator lamp drivers in a module table.
 return {...}

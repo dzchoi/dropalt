@@ -1,10 +1,12 @@
 // The "fw" module exposes firmware utility functions to Lua.
 
 #include "board.h"              // for system_reset(), sam0_flashpage_aux_get(), ...
+#include "is31fl3733.h"         // for is31_set_color(), IS31_LEDS, ...
 #include "log.h"                // for get/set_log_mask()
 #include "thread.h"             // for thread_isr_stack_usage(), ...
 
 #include "hid_keycodes.hpp"     // for keycode_to_name[]
+#include "hsv.hpp"              // for fast_hsv2rgb_32bit(), CIE1931_CURVE[]
 #include "key_queue.hpp"        // for key_queue::start_defer(), ...
 #include "lua.hpp"
 #include "persistent.hpp"       // for persistent::_get/_set(), ...
@@ -47,6 +49,51 @@ static int fw_led0(lua_State* L)
         LED0_ON;
     else
         LED0_TOGGLE;
+    return 0;
+}
+
+// fw.led_set_rgb(int led_index, int r, int g, int b)
+static int fw_led_set_rgb(lua_State* L)
+{
+    int led_index = luaL_checkinteger(L, 1);
+    luaL_argcheck(L, (led_index > 0 && led_index <= (int)ALL_LED_COUNT), 1, "invalid led_index");
+
+    uint8_t r = luaL_checkinteger(L, 2);
+    uint8_t g = luaL_checkinteger(L, 3);
+    uint8_t b = luaL_checkinteger(L, 4);
+
+    is31_set_color(IS31_LEDS[led_index - 1], r, g, b);
+    return 0;
+}
+
+// fw.led_set_hsv(int led_index, int h, int s, int v)
+static int fw_led_set_hsv(lua_State* L)
+{
+    // References for implementating hsv-to-rgb:
+    //  - https://www.vagrearg.org/content/hsvrgb
+    //  - https://cs.stackexchange.com/questions/64549/convert-hsv-to-rgb-colors
+    //  - https://stackoverflow.com/a/24153899/10451825
+    //  - https://programmingfbf7290.tistory.com/entry/%EC%83%89-%EA%B3%B5%EA%B0%843-HSV-HSL
+
+    uint16_t h = luaL_checkinteger(L, 2);
+    uint8_t s = luaL_checkinteger(L, 3);
+    uint8_t v = luaL_checkinteger(L, 4);
+    uint8_t r, g, b;
+    // Use CIE 1931 curve to adjust intensity (v) for smoother perceptual transitions.
+    fast_hsv2rgb_32bit(h, s, CIE1931_CURVE[v], &r, &g, &b);
+
+    lua_settop(L, 1);
+    lua_pushinteger(L, r);
+    lua_pushinteger(L, g);
+    lua_pushinteger(L, b);
+    return fw_led_set_rgb(L);
+}
+
+// fw.led_refresh()
+// Refresh all LED colors to reflect their current colors.
+static int fw_led_refresh(lua_State*)
+{
+    is31_refresh_colors();
     return 0;
 }
 
@@ -166,6 +213,37 @@ static int fw_log_mask(lua_State* L)
     set_log_mask(static_cast<uint8_t>(mask));
     return 0;
 }
+
+// Excerpt from table.pack() in ltablib.c
+// static int fw_pack (lua_State* L)
+// {
+//     int i;
+//     int n = lua_gettop(L);      // number of elements to pack
+//     lua_createtable(L, n, 1);   // create result table
+//     lua_insert(L, 1);           // put it at index 1
+//     for (i = n; i >= 1; i--)    // assign elements
+//         lua_seti(L, 1, i);
+//     lua_pushinteger(L, n);
+//     lua_setfield(L, 1, "n");    // t.n = number of elements
+//     return 1;                   // return table
+// }
+
+// Excerpt from table.unpack() in ltablib.c
+// static int fw_unpack (lua_State* L)
+// {
+//     lua_Unsigned n;
+//     lua_Integer i = luaL_optinteger(L, 2, 1);
+//     lua_Integer e = luaL_opt(L, luaL_checkinteger, 3, luaL_len(L, 1));
+//     if (i > e) return 0;        // empty range
+//     n = (lua_Unsigned)e - i;    // number of elements minus 1 (avoid overflows)
+//     if (n >= (unsigned int)INT_MAX  || !lua_checkstack(L, (int)(++n)))
+//         return luaL_error(L, "too many results to unpack");
+//     for (; i < e; i++) {        // push arg[i..e - 1] (to avoid overflows)
+//         lua_geti(L, 1, i);
+//     }
+//     lua_geti(L, 1, e);          // push last element
+//     return (int)n;
+// }
 
 // fw.product_serial() -> string
 // fw.product_serial(string s) -> (system reset)
@@ -419,10 +497,15 @@ int luaopen_fw(lua_State* L)
         { "defer_remove_last", key_queue::defer_remove_last },
         { "keycode", fw_keycode },
         { "led0", fw_led0 },
+        { "led_refresh", fw_led_refresh },
+        { "led_set_hsv", fw_led_set_hsv },
+        { "led_set_rgb", fw_led_set_rgb },
         { "log", fw_log },
         { "log_mask", fw_log_mask },
         { "nvm", nullptr },  // placeholder for the `nvm` table
         { "nvm_clear", fw_nvm_clear },
+        // { "pack", fw_pack },
+        // { "unpack", fw_unpack },
         { "product_serial", fw_product_serial },
         { "reboot_to_bootloader", fw_reboot_to_bootloader },
         { "send_key", fw_send_key },
@@ -430,7 +513,7 @@ int luaopen_fw(lua_State* L)
         { "system_reset", fw_system_reset },
         { "switchover", fw_switchover },
         { "timer_create", _timer_t::create },
-        { "timer_is_running", _timer_t::is_running },
+        { "timer_now", _timer_t::now },
         { "timer_start", _timer_t::start },
         { "timer_stop", _timer_t::stop },
         { nullptr, nullptr }

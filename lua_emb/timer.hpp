@@ -17,11 +17,11 @@ public:
     // `destroy()` method. The callback reference (`m_rcallback`) is managed exclusively
     // through the `start()` and `stop()` methods invoked from Lua.
 
-    static int start(lua_State* L);  // ( userdata timeout_ms callback [repeated] -- )
+    static int start(lua_State* L);  // ( userdata timeout_ms callback [repeated] -- 0 )
 
     static int stop(lua_State* L);  // ( userdata -- bool )
 
-    static int is_running(lua_State* L);  // ( userdata -- bool )
+    static int now(lua_State* L);  // ( userdata -- [int] )
 
 protected:
     explicit _timer_t()

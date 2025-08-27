@@ -57,10 +57,6 @@ public:
     void on_suspend() override;
     void on_resume() override;
 
-    // Note that lamp state is updated only by the host in response to KC_CAPSLOCK,
-    // typically via a SET_REPORT request.
-    uint8_t get_lamp_state() const { return m_led_lamp_state; }
-
     uint8_t get_protocol() const override { return m_keyboard_protocol; }
 
     // 6KRO is used by default, regardless of whether the protocol is set to Boot (0) or
@@ -82,8 +78,6 @@ protected:
     using usbus_hid_device_ext_t::usbus_hid_device_ext_t;
 
     void help_usb_init(usbus_t* usbus, size_t epsize, uint8_t ep_interval_ms);
-
-    uint8_t m_led_lamp_state = 0;
 
     // The device defaults to Report protocol (1), but will switch to Boot protocol (0)
     // if explicitly instructed by the host (e.g. BIOS) via a SET_PROTOCOL request.

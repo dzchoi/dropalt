@@ -16,12 +16,10 @@ local fw = require "fw"
 -- TapSeq classes.
 TAPPING_TERM_MS = 200
 
--------- Global variables
-g_current_slot_index = 0
-g_keymaps = {}
+
 
 -------- Lightweight class implementation with multiple inheritance
-local function class(...)
+function Class(...)
     local parents = {...}
     -- A class is a table used as the metatable for its instances.
     -- Multiple inheritance is implemented by customizing the __index metamethod to
@@ -53,13 +51,17 @@ local function class(...)
     cls.__index = cls
 
     -- Note: Custom metamethods can be defined per class.
-    -- Example: A = class(); function A:__eq(other) ... end
+    -- Example: A = Class(); function A:__eq(other) ... end
     return cls
 end
 
 -------- Base
 -- Base class for all keymaps.
-Base = class()
+Base = Class()
+
+-- Class variables
+Base.c_keymap_table = {}       -- Global table that holds slot-keymap associations.
+Base.c_current_slot_index = 0  -- Index of the slot currently under processing.
 
 function Base:init()
     -- Initialize the new instance (`self`).
@@ -92,7 +94,7 @@ end
 Pseudo = Base  -- Base can be used standalone.
 
 -------- Lit
-Lit = class(Base)
+Lit = Class(Base)
 
 -- Construct a keymap instance that triggers presses/releases for a named key. See
 -- keycode_to_name[] for available key names.
@@ -119,7 +121,7 @@ end
 
 -------- Function
 -- Function(func1 [, func2]) invokes func1() on press and optionally func2() on release.
-Function = class(Base)
+Function = Class(Base)
 
 function Function:init(func1, func2)
     Base.init(self)
@@ -139,7 +141,7 @@ end
 
 -------- OneShot
 -- Force the given keymap to trigger as a quick tap, ignoring holds.
-OneShot = class(Base)
+OneShot = Class(Base)
 
 function OneShot:init(map)
     Base.init(self)
@@ -155,7 +157,7 @@ end
 -- If a keymap class inherits from Proxy, the keymap driver calls on_proxy_press/
 -- release() instead of on_press/release(). These proxy methods can layer additional
 -- logic on top of the base methods.
-Proxy = class(Base)
+Proxy = Class(Base)
 
 function Proxy:init()
     Base.init(self)
@@ -178,10 +180,22 @@ function Proxy:_release()
     end
 end
 
+-------- Predicate
+-- Predicate(pred) calls pred() when .is_pressed() is invoked.
+Predicate = Class()
+
+function Predicate:init(pred)
+    self.m_pred = pred
+end
+
+function Predicate:is_pressed()
+    return self.m_pred()
+end
+
 -------- Modifier
 -- On a press/release event, it calls on_modified_press/release() if the specified
 -- modifier is currently pressed, or on_press/release() otherwise.
-Modifier = class(Proxy)
+Modifier = Class(Proxy)
 
 function Modifier:init(map_modifier)
     Proxy.init(self)
@@ -214,7 +228,7 @@ end
 -------- ModIf
 -- ModIf(map_modifier, map_modified, map_original) acts as map_modified if map_modifier
 -- is currently pressed, or map_original otherwise.
-ModIf = class(Modifier)
+ModIf = Class(Modifier)
 
 -- Flavors
 KEEP_MODIFIER = 0   -- (default)
@@ -259,7 +273,7 @@ end
 -- When active, defer mode causes all key events—except those targeting the "deferrer"—
 -- to be deferred rather than processed immediately. If the deferrer keymap is formed
 -- from nested keymaps, they are linked together in a chain starting from the outermost
--- keymap. The outermost keymap (i.e. Defer.owner) is referred to as the "deferrer",
+-- keymap. The outermost keymap (i.e. Defer.c_owner) is referred to as the "deferrer",
 -- while the complete chain—including the outermost and all nested keymaps—is
 -- collectively referred to as the "deferrer chain" or simply the "deferrers". Note that
 -- they all sit in the same slot.
@@ -277,11 +291,11 @@ end
 -- from outermost to innermost—unless an outer deferrer stops deferring the deferred
 -- event by returning a non-nil value from its on_other_press()/release().
 
-Defer = class()
+Defer = Class()
 
 -- Class variables shared with all instances
-Defer.owner = false      -- Defer owner is the head of the deferrer chain.
-Defer.slot_index = 0     -- Key slot index (common to all deferrers)
+Defer.c_owner = false    -- Defer owner is the head of the deferrer chain.
+Defer.c_slot_index = 0   -- Key slot index (common to all deferrers)
 
 function Defer:init()
     self.m_next = false  -- Link to the next deferrer
@@ -294,15 +308,16 @@ function Defer:start_defer()  -- Start defer mode.
     fw.log("Map: start defer\n")
     self.m_next = false
 
-    if not Defer.owner then
-        Defer.owner = self
-        Defer.slot_index = g_current_slot_index
+    if not Defer.c_owner then
+        Defer.c_owner = self
+        Defer.c_slot_index = Base.c_current_slot_index
         fw.defer_start()
         return
     end
 
-    assert( Defer.slot_index == g_current_slot_index, "defer not stopped correctly?" )
-    local deferrer = Defer.owner
+    assert( Defer.c_slot_index == Base.c_current_slot_index,
+        "defer not stopped correctly?" )
+    local deferrer = Defer.c_owner
     while deferrer.m_next do
         deferrer = deferrer.m_next
     end
@@ -312,15 +327,15 @@ end
 -- Any deferrer in the chain can stop defer mode, in any sequence.
 function Defer:stop_defer()  -- Stop defer mode.
     fw.log("Map: stop defer\n")
-    local deferrer = Defer.owner
+    local deferrer = Defer.c_owner
 
     if deferrer == self then
-        Defer.owner = self.m_next
+        Defer.c_owner = self.m_next
         -- Here self.m_next is left intact so that Defer:_other_event() can continue to
         -- traverse the downstream deferrers, even if the current deferrer called
         -- stop_defer() from its on_other_press/release().
-        if not Defer.owner then
-            Defer.slot_index = 0
+        if not Defer.c_owner then
+            Defer.c_slot_index = 0
             fw.defer_stop()
         end
         return
@@ -338,7 +353,7 @@ function Defer:stop_defer()  -- Stop defer mode.
 end
 
 function Defer:_other_event(is_press)
-    local deferrer = Defer.owner
+    local deferrer = Defer.c_owner
     assert( deferrer )
 
     -- Traverse the chain to call on_other_press/release() from outer to inner.
@@ -358,14 +373,14 @@ function Defer:_other_event(is_press)
 end
 
 -------- Timer
-Timer = class()
+Timer = Class()
 
 -- Creates a timer instance that can operate in either one-shot or repeated mode.
 function Timer:init()
     -- m_ctimer holds a userdata instance of the internal C++ class `_timer_t`.
     self.m_ctimer = fw.timer_create()
     -- Closure used as the timer callback; captures `self` for invoking on_timeout().
-    self.m_callback = function() self:on_timeout() end
+    self.m_callback = function(time_now) return self:on_timeout(time_now) end
 
     -- Note: No __gc() needed for this class; the callback is only referenced between
     -- fw.timer_start() and fw.timer_stop(), so the Timer instance won't be collected
@@ -381,10 +396,11 @@ end
 function Timer:on_timeout() end
 
 -- Start or restart the timer, setting its epoch to the current time. If `repeated` is
--- true, the timer will automatically restart after each expiration.
+-- true, the timer will automatically restart after each expiration. Returns 0 as the
+-- initial elapsed time since the epoch.
 function Timer:start_timer(timeout_ms, repeated)
     assert( timeout_ms % 1 == 0 and timeout_ms > 0, "timeout_ms not a positive integer" )
-    fw.timer_start(self.m_ctimer, timeout_ms, self.m_callback, repeated)
+    return fw.timer_start(self.m_ctimer, timeout_ms, self.m_callback, repeated)
 end
 
 -- Stop the timer; returns false if the timer was already expired or never started.
@@ -392,9 +408,9 @@ function Timer:stop_timer()
     return fw.timer_stop(self.m_ctimer)
 end
 
--- Check if the timer is currently active.
-function Timer:timer_is_running()
-    return fw.timer_is_running(self.m_ctimer)
+-- Return the elapsed time since the epoch if the timer is active, or nil otherwise.
+function Timer:time_now()
+    return fw.timer_now(self.m_ctimer)
 end
 
 -------- TapHold
@@ -431,7 +447,7 @@ QuickRelease    = 0x10
 HoldIsTap       = 0x20
 -- When the hold behavior is triggered, key2 is tapped as OneShot instead of being held.
 
-TapHold = class(Base, Defer, Timer)
+TapHold = Class(Base, Defer, Timer)
 
 function TapHold:init(map_tap, map_hold, flavor, tapping_term_ms)
     Base.init(self)
@@ -468,7 +484,7 @@ function TapHold:decide_hold()
 end
 
 function TapHold:on_press()
-    self.m_my_slot = g_current_slot_index
+    self.m_my_slot = Base.c_current_slot_index
     fw.log("TapHold [%d] on_press()\n", self.m_my_slot)
     assert( self.m_map_chosen == false )
     self:start_timer(self.m_tapping_term_ms)
@@ -479,10 +495,10 @@ function TapHold:on_release()
     fw.log("TapHold [%d] on_release()\n", self.m_my_slot)
     if not self.m_map_chosen then
         -- Note: During defer mode, on_release()—rather than on_other_release()—is called
-        -- on the deferrer (Defer.owner). In this case, the deferrer's on_release() may
-        -- be invoked *before* any deferred events are processed, potentially disrupting
-        -- the original event order—e.g. the deferrer's release occurring before other
-        -- presses.
+        -- on the deferrer (Defer.c_owner). In this case, the deferrer's on_release()
+        -- may be invoked *before* any deferred events are processed, potentially
+        -- disrupting the original event order—e.g. the deferrer's release occurring
+        -- before other presses.
         --
         -- This is acceptable because on release, we trigger both _press() and _release()
         -- together for m_map_tap (the tapping key), not for m_map_hold (the holding
@@ -519,7 +535,7 @@ end
 
 function TapHold:on_other_release()
     if self.m_flavor & QuickRelease ~= 0 then
-        if not fw.defer_is_pending(g_current_slot_index, true) then
+        if not fw.defer_is_pending(Base.c_current_slot_index, true) then
             -- Note: Returning true here releases the other key immediately, while
             -- delaying the deferrer's tap/hold decision. This causes the press for
             -- m_map_tap or m_map_hold to occur *after* the other key's release,
@@ -555,7 +571,7 @@ end
 --  • Typical call sequence:
 --    on_press(), on_press(), ..., [on_finish()], on_release().
 --  • Use self.m_step in on_press/finish/release() to get the current tap count.
-TapDance = class(Proxy, Defer, Timer)
+TapDance = Class(Proxy, Defer, Timer)
 
 function TapDance:init(tapping_term_ms)
     Proxy.init(self)
@@ -591,7 +607,7 @@ end
 
 function TapDance:on_proxy_press()
     self.m_step = self.m_step + 1
-    self.m_my_slot = g_current_slot_index
+    self.m_my_slot = Base.c_current_slot_index
     fw.log("TapDance [%d] on_proxy_press() m_step=%d\n", self.m_my_slot, self.m_step)
     if self.m_step == 1 then
         assert( self.m_is_finished )
@@ -635,7 +651,7 @@ end
 --   - and so on.
 -- If the TapSeq key is held at step n (i.e. pressed and held beyond tapping_term_ms),
 -- then map_tap[n] is pressed and held instead of tapped.
-TapSeq = class(TapDance)
+TapSeq = Class(TapDance)
 
 function TapSeq:init(...)
     local args = {...}
@@ -676,20 +692,20 @@ package.loaded[...] = true  -- Vararg (...) here receives a single argument, "ke
 -- them to user-defined mappings. This function is returned and passed to the next
 -- script in the compilation chain.
 return function(slot_index, is_press)
-    g_current_slot_index = slot_index
+    Base.c_current_slot_index = slot_index
     local press_or_release = is_press and "press" or "release"
 
-    local deferrer = Defer.owner
+    local deferrer = Defer.c_owner
     if deferrer then
         -- In defer mode, if the event targets the deferrer, execute it immediately.
-        if slot_index == Defer.slot_index then
+        if slot_index == Defer.c_slot_index then
             fw.log("Map: [%d] handle deferrer %s\n", slot_index, press_or_release)
 
         -- In defer mode, if the event targets a slot other than the deferrer's, notify
         -- the deferrer first.
         else
             fw.log("Map: [%d] handle other %s @[%d]\n",
-                Defer.slot_index, press_or_release, slot_index)
+                Defer.c_slot_index, press_or_release, slot_index)
             if not deferrer:_other_event(is_press) then
                 return
             end
@@ -707,12 +723,16 @@ return function(slot_index, is_press)
         fw.log("Map: [%d] handle %s\n", slot_index, press_or_release)
     end
 
-    -- rgb_thread::obj().signal_key_event(slot_index, is_press)
-
     if is_press then
-        g_keymaps[slot_index]:_press()
+        if not Base.c_keymap_table[slot_index]:is_pressed() then
+            Effect.c_active_effect:_press(slot_index)
+        end
+        Base.c_keymap_table[slot_index]:_press()
     else
-        g_keymaps[slot_index]:_release()
+        if Base.c_keymap_table[slot_index]:is_pressed() then
+            Effect.c_active_effect:_release(slot_index)
+        end
+        Base.c_keymap_table[slot_index]:_release()
     end
 
     -- If we were in defer mode, remove the latest deferred event from the event queue,
