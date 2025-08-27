@@ -2,12 +2,12 @@
 #include "board.h"              // for _sheap, _eheap, system_reset()
 #include "cpu.h"                // for RSTC
 #include "irq.h"                // for irq_disable(), irq_restore()
-#include "is31fl3733.h"
 #include "led_conf.h"           // for KEY_LED_COUNT
 #include "log.h"                // for set_log_mask()
 #include "periph/wdt.h"         // for wdt_kick()
 #include "thread.h"             // for thread_get_active()
 #include "thread_flags.h"       // for thread_flags_set(), thread_flags_wait_any()
+#include "tlsf.h"               // for tlsf_size()
 #include "ztimer.h"             // for ztimer_set_timeout_flag()
 
 #include "adc.hpp"              // for adc::init()
@@ -15,7 +15,7 @@
 #include "lua.hpp"              // for lua::init()
 #include "config.hpp"           // for ENABLE_CDC_ACM, ENABLE_LUA_REPL
 #include "key_queue.hpp"        // for key_queue::push(), ...
-#include "lkeymap.hpp"          // for lua::handle_key_event()
+#include "lkeymap.hpp"          // for lua::handle_key_event(), lua::handle_lamp_state()
 #include "main_thread.hpp"
 #include "matrix_thread.hpp"    // for matrix_thread::init()
 #include "persistent.hpp"       // for persistent::init()
@@ -56,7 +56,9 @@ NORETURN void main_thread::init()
     // caught by the bootloader.
     LOG_DEBUG("Main: RSTC->RCAUSE.reg=0x%x\n", RSTC->RCAUSE.reg);
 
-    LOG_DEBUG("Main: max heap size is %d bytes\n", &_eheap - &_sheap);
+    // tlsf_size() returns the size of the metadata and internal structures (= 3320
+    // bytes) for TLSF allocator.
+    LOG_DEBUG("Main: max heap size is %d bytes\n", &_eheap - &_sheap - tlsf_size());
 
     // Instead of creating a new thread, use the already existing "main" thread.
     (void)_thread_entry(nullptr);
@@ -117,19 +119,26 @@ bool main_thread::signal_key_event(unsigned slot_index, bool is_press, uint32_t 
     return false;
 }
 
+void main_thread::signal_lamp_state(uint_fast8_t lamp_state)
+{
+    static event_ext_t<uint_fast8_t> _event = { nullptr,
+        [](event_t* event) {
+            lua::handle_lamp_state(static_cast<event_ext_t<uint_fast8_t>*>(event)->arg);
+        },
+        0
+    };
+
+    _event.arg = lamp_state;
+    signal_event(&_event);
+}
+
 NORETURN void* main_thread::_thread_entry(void*)
 {
     // The event_queue_init() should be called from the queue-owning thread.
     event_queue_init(&m_event_queue);
 
+    // Initialize keymaps and LED effect.
     lua::init();
-
-    // Temporary solid color LEDs that will be turned on on USB resume.
-    if constexpr ( ENABLE_RGB_LED ) {
-        for ( unsigned led_id = 0 ; led_id < KEY_LED_COUNT ; led_id++ )
-            is31_set_color(IS31_LEDS[led_id], 0, 255, 127);  // Spring Green
-        is31_refresh_colors();
-    }
 
     bool has_input = false;
     thread_flags_t flags;
@@ -197,14 +206,14 @@ NORETURN void* main_thread::_thread_entry(void*)
             // remains permanently disabled.
         }
 
-        // Internal key events such as key timeout event and lamp state event are handled
-        // all at once through m_event_queue.
+        // Key timeout events and lamp events are handled all at once through
+        // m_event_queue.
         if ( flags & FLAG_GENERIC_EVENT ) {
             while ( event_t* event = event_get(&m_event_queue) )
                 event->handler(event);
         }
 
-        // External key events from key_queue are handled one at a time.
+        // Key (press/release) events from key_queue are handled one at a time.
         key_queue::entry_t event;
         if ( key_queue::get(&event) ) {
             lua::handle_key_event(event.slot_index, event.is_press);

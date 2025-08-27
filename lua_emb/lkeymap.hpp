@@ -13,4 +13,7 @@ void load_keymap();
 // input to user-defined key mapping logic.
 void handle_key_event(unsigned slot_index, bool is_press);
 
+// C++ wrapper for the keyboard indicator lamp driver in Lua.
+void handle_lamp_state(uint_fast8_t lamp_state);
+
 }

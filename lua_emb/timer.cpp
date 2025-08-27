@@ -40,7 +40,10 @@ int _timer_t::start(lua_State* L)
 
     // Set the epoch to the current time.
     that->m_epoch = ztimer_set(ZTIMER_MSEC, that, timeout_ms);
-    return 0;
+
+    // Return 0 as the initial elapsed time since the epoch.
+    lua_pushinteger(L, 0);
+    return 1;
 }
 
 int _timer_t::stop(lua_State* L)
@@ -55,16 +58,19 @@ int _timer_t::stop(lua_State* L)
     return 1;
 }
 
-int _timer_t::is_running(lua_State* L)
+int _timer_t::now(lua_State* L)
 {
     _timer_t* const that = static_cast<_timer_t*>(lua_touserdata(L, 1));
     assert( that != nullptr );
-    lua_pushboolean(L, ztimer_is_set(ZTIMER_MSEC, that) );
-    // ( -- userdata bool )
-    return 1;
+    if ( ztimer_is_set(ZTIMER_MSEC, that) ) {
+        lua_pushinteger(L, ztimer_now(ZTIMER_MSEC) - that->m_epoch);
+        // ( -- userdata int )
+        return 1;
+    }
+    return 0;
 }
 
-// _hdlr_timeout() executs in the context of main_thread.
+// _hdlr_timeout() executes in the context of main_thread.
 void _timer_t::_hdlr_timeout(event_t* event)
 {
     _timer_t* const that = static_cast<event_ext_t<_timer_t*>*>(event)->arg;
