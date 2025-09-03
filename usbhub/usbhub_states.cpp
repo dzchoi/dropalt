@@ -8,6 +8,7 @@
 #include <utility>              // for std::swap()
 #include "adc.hpp"              // for sync_measure(), is_host_connected(), ...
 #include "config.hpp"           // for ENABLE_RGB_LED, DEBUG_LED_BLINK_PERIOD_MS, ...
+#include "main_thread.hpp"      // for main_thread::signal_dte_state()
 #include "persistent.hpp"       // for persistent `last_host_port`
 #include "rgb_gcr.hpp"          // for rgb_gcr::enable(), rgb_gcr::disable()
 #include "usbhub_states.hpp"
@@ -44,8 +45,18 @@ void usbhub_state::help_process_usbport_switchover()
     // We could allow switchover only when v_extra->is_host_connected(), but it would
     // better be more permissive and let users decide (e.g. switchover to an unconnected
     // port.)
-    if ( !v_extra->sync_measure().is_device_connected() )
+    if ( !v_extra->sync_measure().is_device_connected() ) {
+        // Explicitly signal FLAG_DTE_DISABLED to main_thread, since USB disconnection
+        // at switchover doesn't trigger it automatically.
+        if constexpr ( ENABLE_CDC_ACM )
+            main_thread::signal_dte_state(false);
+
+        // Disable the indicator lamps now rather than maintaining the old ones and
+        // resetting them upon receiving SET_REPORT from the new host.
+        main_thread::signal_lamp_state(0);
+
         transition_to<state_usb_suspend>().perform_switchover();
+    }
     else
         LOG_WARNING("USBHUB: switchover not allowed to extra device!\n");
 }

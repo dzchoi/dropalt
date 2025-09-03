@@ -11,3 +11,10 @@
 * Identifying which /dev/ttyACMx corresponds to a specific iSerial:
   The /dev/serial/ directory contains symbolic links specifically for devices associated with serial communication, such as USB-to-serial converters or devices that present themselves as serial ports (e.g., /dev/ttyUSBx or /dev/ttyACMx). These symbolic links often include details like the iManufacturer, iProduct, and iSerial to help identify devices.
   > `ls /dev/serial/by-id/*15HMMKAG010321*`
+
+#### CDC ACM during USB suspend
+* `stdio_write()` pushes strings into cdcacm->tsrb and invokes _handle_in() via an event (`usbus_event_post(cdcacm->usbus, &cdcacm->flush)`). Within _handle_in(), cdcacm->occupied is set to the length of the string, and later reset to 0 upon completion of the transfer in _transfer_handler(). Under normal conditions, cdcacm->occupied effectively reflects whether a transfer is currently in progress.
+
+* However, CDC ACM does not verify USB connectivity before attempting transmission. Even when USB is disconnected, stdio_write() continues to queue strings. In this case, cdcacm->occupied remains non-zero, as _transfer_handler() does not occur to reset it. Subsequent calls to stdio_write() keep pushing data into the queue until the host reinitializes the USB (USBUS_EVENT_USB_RESET) and explicitly clears cdcacm->occupied.
+
+* During a switchover, if the current CDC ACM transmission fails, it will be lost, but subsequent calls to stdio_write() will buffer data in cdcacm->tsrb, which will be delivered once a new host reinitializes USB (USBUS_EVENT_USB_RESET).

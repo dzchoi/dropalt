@@ -29,6 +29,8 @@ uint32_t matrix_thread::m_wakeup_us = 0;
 
 int matrix_thread::m_min_scan_count = 0;
 
+bool matrix_thread::m_is_polling = false;
+
 void matrix_thread::init()
 {
     m_pthread = thread_get_unchecked( thread_create(
@@ -169,6 +171,7 @@ NORETURN void* matrix_thread::_thread_entry(void*)
         // possible. However, additional detection within the interrupt handler is
         // required before reading the matrix.
         else {
+            m_is_polling = false;
             // LOG_DEBUG("Matrix: ---------> @%lu\n", ztimer_now(ZTIMER_MSEC));
             ztimer_release(ZTIMER_USEC);
             matrix_enable_interrupt();
@@ -188,6 +191,7 @@ void matrix_thread::_isr_any_key_down(void* arg)
     m_min_scan_count = DEBOUNCE_PRESS_MS;
     ztimer_acquire(ZTIMER_USEC);
     m_wakeup_us = ztimer_now(ZTIMER_USEC);
+    m_is_polling = true;
     // LOG_DEBUG("Matrix: <--------- @%lu\n", ztimer_now(ZTIMER_MSEC));
     mutex_unlock(static_cast<mutex_t*>(arg));
 }

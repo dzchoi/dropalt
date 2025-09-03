@@ -8,6 +8,7 @@
 #include "hid_keycodes.hpp"     // for keycode_to_name[]
 #include "hsv.hpp"              // for fast_hsv2rgb_32bit(), CIE1931_CURVE[]
 #include "key_queue.hpp"        // for key_queue::start_defer(), ...
+#include "lexecute.hpp"         // for execute_later()
 #include "lua.hpp"
 #include "persistent.hpp"       // for persistent::_get/_set(), ...
 #include "timer.hpp"            // for _timer_t::create(), ...
@@ -210,12 +211,12 @@ static int fw_log_mask(lua_State* L)
     }
 
     int mask = luaL_checkinteger(L, 1);
-    set_log_mask(static_cast<uint8_t>(mask));
+    set_log_mask(static_cast<uint_fast8_t>(mask));
     return 0;
 }
 
 // Excerpt from table.pack() in ltablib.c
-// static int fw_pack (lua_State* L)
+// static int fw_pack(lua_State* L)
 // {
 //     int i;
 //     int n = lua_gettop(L);      // number of elements to pack
@@ -227,9 +228,15 @@ static int fw_log_mask(lua_State* L)
 //     lua_setfield(L, 1, "n");    // t.n = number of elements
 //     return 1;                   // return table
 // }
+// Alternatively,
+// function fw.pack(...)
+//     local t = {...}
+//     t.n = select("#", ...)
+//     return t
+// end
 
 // Excerpt from table.unpack() in ltablib.c
-// static int fw_unpack (lua_State* L)
+// static int fw_unpack(lua_State* L)
 // {
 //     lua_Unsigned n;
 //     lua_Integer i = luaL_optinteger(L, 2, 1);
@@ -244,6 +251,16 @@ static int fw_log_mask(lua_State* L)
 //     lua_geti(L, 1, e);          // push last element
 //     return (int)n;
 // }
+// Alternatively,
+// function fw.unpack(t, i, j)
+//     i = i or 1
+//     j = j or #t
+//     if i > j then
+//         return
+//     else
+//         return t[i], fw.unpack(t, i + 1, j)
+//     end
+// end
 
 // fw.product_serial() -> string
 // fw.product_serial(string s) -> (system reset)
@@ -479,9 +496,10 @@ static int fw_send_key(lua_State* L)
 }
 
 // fw.switchover() -> void
-// Note: When executing fw.switchover(), ensure no physical keys are held down in the
-// old environment (especially on Windows), as residual key states may cause unintended
-// input behavior after switchover. See comments in usbus_hid_keyboard_t::on_reset().
+// Note: This function performs an immediate switchover, which may leave residual key
+// states in the old environment. See comments in usbus_hid_keyboard_t::on_reset() for
+// details. It's safe to execute this within REPL, as REPL runs only when threads are
+// idle. However, to safely call this from a keymap, call it through fw.execute_later().
 static int fw_switchover(lua_State*)
 {
     usbhub_thread::request_usbport_switchover();
@@ -495,6 +513,7 @@ int luaopen_fw(lua_State* L)
         { "defer_stop", key_queue::defer_stop },
         { "defer_is_pending", key_queue::defer_is_pending },
         { "defer_remove_last", key_queue::defer_remove_last },
+        { "execute_later", execute_later },
         { "keycode", fw_keycode },
         { "led0", fw_led0 },
         { "led_refresh", fw_led_refresh },

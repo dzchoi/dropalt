@@ -30,6 +30,7 @@ Effect = Class()
 -- Set the default effect to Effect to disable LED activity.
 -- Note: Do not override this default effect when ENABLE_RGB_LED is false.
 Effect.c_active_effect = Effect
+
 -- Tracks slot indices that should be excluded from Effect updates. Each entry can hold
 -- one of three states:
 --   - nil:   lamp is inactive
@@ -147,27 +148,32 @@ end
 
 
 -------- Lamp
--- Lamp(lamp_id [, slot_index]) associates a lamp with an LED at slot_index. If
--- slot_index is not given, it automatically links to the LED during runtime that
--- initiated the lamp change. Custom behavior can optionally be defined through
--- on_lamp_active/inactive() when the lamp is turned on/off. Lamp can be even a super
--- class of keymap classes.
+-- Associate an indicator lamp with an LED.
+--   - Lamp(lamp_id, slot_index): directly links the lamp to the specified slot index.
+--   - Lamp(lamp_id, keymap): links the lamp to the slot that will later be assigned to
+--     the keymap via layout().
+-- Custom behavior can optionally be defined through on_lamp_active/inactive(), which
+-- is invoked when the lamp is turned on or off.
 Lamp = Class()
 
 Lamp.c_current_lamp_state = 0
 Lamp.c_lamp_slots = {}  -- Lists of slot indices associated with each each lamp ID.
 
+-- Note that each `Lamp()` instance is automatically stored in c_lamp_slots[], so
+-- explicit global assignment is unnecessary.
+function Lamp:init(lamp_id, slot_index_or_keymap)
+    if type(slot_index_or_keymap) == "number" then
+        self.m_slot_index = slot_index_or_keymap
+    else
+        slot_index_or_keymap._lamp = self
+    end
+    self.m_next = Lamp.c_lamp_slots[lamp_id]
+    Lamp.c_lamp_slots[lamp_id] = self
+end
+
 -- Check if the lamp corresponding to lamp_id is currently active.
 function Lamp.is_lamp_active(lamp_id)
     return Lamp.c_current_lamp_state & (1 << (lamp_id - 1)) ~= 0
-end
-
--- Note that each `Lamp()` instance is automatically stored in c_lamp_slots[], so
--- explicit global assignment is unnecessary.
-function Lamp:init(lamp_id, slot_index)
-    self.m_slot_index = slot_index
-    self.m_next = Lamp.c_lamp_slots[lamp_id]
-    Lamp.c_lamp_slots[lamp_id] = self
 end
 
 -- `Effect:on_lamp_active(slot_index)` handles LED lighting, whereas
@@ -193,13 +199,6 @@ function(lamp_state)
         if lamp_state & 1 ~= 0 then
             local lamp = Lamp.c_lamp_slots[lamp_id]
             while lamp do
-                -- Set .m_slot_index at runtime if not initialized, assuming SET_REPORT
-                -- (lamp state change) arrives from the host rapidly while the
-                -- triggering key is still being pressed.
-                if not lamp.m_slot_index then
-                    lamp.m_slot_index = Base.c_current_slot_index
-                end
-
                 if Lamp.is_lamp_active(lamp_id) then
                     Effect.c_lamp_lit_slots[lamp.m_slot_index] = true
                     Effect.c_active_effect:on_lamp_active(lamp.m_slot_index)

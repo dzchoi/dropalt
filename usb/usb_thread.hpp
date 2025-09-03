@@ -12,6 +12,14 @@ class usb_thread {
 public:
     static void init();
 
+    // Check if USB HID is inactive: not transmitting to the host, and not queuing a new
+    // event for transmission.
+    // Note: CDC ACM is not considered here, since CDC ACM works independently of USB
+    // suspend. During a switchover, if the current CDC ACM transmission fails, it will
+    // be lost, but subsequent calls to stdio_write() will buffer data in cdcacm->tsrb,
+    // which will be delivered once a new host reinitializes USB (USBUS_EVENT_USB_RESET).
+    static bool is_idle() { return m_hid_keyboard->is_idle(); }
+
     // Send a remote wakeup to the host if it is suspended. If the data (D+) line is
     // already disconnected (e.g. due to switchover, cable disconnect, or power-down),
     // the host will simply ignore the wakeup request. This does not affect how key

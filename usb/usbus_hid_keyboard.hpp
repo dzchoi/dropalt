@@ -53,6 +53,10 @@ private:
 
 class usbus_hid_keyboard_t: public usbus_hid_device_ext_t {
 public:
+    // This function works because m_report_updated is updated within the highest
+    // priority usb_thread context (from try_report_event() and on_transfer_complete()).
+    bool is_idle() const { return m_report_updated == 0; }
+
     void on_reset() override;
     void on_suspend() override;
     void on_resume() override;

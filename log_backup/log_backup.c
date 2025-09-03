@@ -1,9 +1,9 @@
 #include <stdarg.h>             // for va_start(), va_end()
 
 #include "backup_ram.h"         // for backup_ram_write()
+#include "irq.h"                // for irq_disable(), irq_restore()
 #include "log.h"                // for LOG_ERROR, LOG_WARNING, ...
 #include "log_module.h"
-#include "mutex.h"              // for mutex_lock(), mutex_unlock(), MUTEX_INIT
 #include "stdio_base.h"         // for stdio_write()
 #include "thread.h"             // for thread_get_active(), thread_get_priority()
 
@@ -17,8 +17,6 @@ static const char* COLOR_CODE[] = {
     "\e[0m"      // LOG_DEBUG
 };
 
-static mutex_t log_lock = MUTEX_INIT;
-
 static uint8_t log_mask = 0xff;
 
 // Core function for LOG_*(). It displays the log (if CDC ACM is connected) and stores it
@@ -28,9 +26,15 @@ void log_backup(unsigned level, const char* format, ...)
     va_list args;
     va_start(args, format);
 
-    mutex_lock(&log_lock);  // It's safe to call even in an interrupt context.
-    // Even if a log is masked, we still store it in the backup ram.
+    // Defer context switching by preventing the PendSV interrupt. This ensures that
+    // stdio_write() can push log strings into cdcacm->tsrb without being preempted,
+    // and that the cdcacm->flush event will be processed only after irq_enable() is
+    // called.
+    unsigned state = irq_disable();
+
+    // All logs are first saved to backup RAM, regardless of log_mask filtering.
     const char* log = backup_ram_write(format, args);
+
     if ( level == LOG_LUA_ERROR  // LOG_LUA_ERROR is displayed regardless of the thread.
       || (log_mask & (1 << thread_get_priority(thread_get_active()))) ) {
         const size_t log_l = __builtin_strlen(log);
@@ -55,19 +59,20 @@ void log_backup(unsigned level, const char* format, ...)
             break;
         }
     }
-    mutex_unlock(&log_lock);
+
+    irq_restore(state);
 
     va_end(args);
 }
 
-uint8_t get_log_mask(void)
+uint_fast8_t get_log_mask(void)
 {
     return log_mask;
 }
 
-void set_log_mask(uint8_t mask)
+void set_log_mask(uint_fast8_t mask)
 {
-    mutex_lock(&log_lock);
+    unsigned state = irq_disable();
     log_mask = mask;
-    mutex_unlock(&log_lock);
+    irq_restore(state);
 }

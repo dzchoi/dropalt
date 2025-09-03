@@ -45,14 +45,20 @@ private:
         FLAG_USB_RESET      = 0x0002,
         FLAG_USB_SUSPEND    = 0x0004,
         FLAG_USB_RESUME     = 0x0008,
-        FLAG_KEY_EVENT      = 0x0010,
-        FLAG_DTE_DISABLED   = 0x0020,
-        FLAG_DTE_ENABLED    = 0x0040,
-        FLAG_DTE_READY      = 0x0080,
+        FLAG_DTE_DISABLED   = 0x0010,
+        FLAG_DTE_ENABLED    = 0x0020,
+        FLAG_DTE_READY      = 0x0040,
+        FLAG_KEY_EVENT      = 0x0080,
+        FLAG_PENDING_CALLS  = 0x0100,
+        FLAG_EXECUTE_REPL   = 0x0200,
         FLAG_TIMEOUT        = THREAD_FLAG_TIMEOUT  // (1u << 14)
     };
 
     static void set_thread_flags(thread_flags_t flags);
+
+    static void set_my_thread_flags(thread_flags_t flags);
+
+    static void preset_flags();
 
     static thread_t* m_pthread;
 

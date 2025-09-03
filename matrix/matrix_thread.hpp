@@ -1,7 +1,7 @@
 #pragma once
 
 #include "mutex.h"              // for mutex_t
-#include "thread.h"             // for thread_t, thread_get_status()
+#include "thread.h"             // for thread_t
 
 #include "config.hpp"           // for DEBOUNCE_PRESS_MS, DEBOUNCE_RELEASE_MS
 
@@ -11,13 +11,7 @@ class matrix_thread {
 public:
     static void init();
 
-    static bool is_pressed(unsigned mat_index) { return m_states[mat_index].pressed; }
-
-    static bool is_any_pressed() {
-        // Note that the thread stays in STATUS_MUTEX_BLOCKED during
-        // ztimer_periodic_wakeup().
-        return thread_get_status(m_pthread) > STATUS_SLEEPING;
-    }
+    static bool is_idle() { return !m_is_polling; }
 
 private:
     constexpr matrix_thread() =delete;  // Ensure a static class.
@@ -45,6 +39,8 @@ private:
     static uint32_t m_wakeup_us;
 
     static int m_min_scan_count;
+
+    static bool m_is_polling;
 
     // thread body
     static void* _thread_entry(void* arg);

@@ -41,7 +41,7 @@ Note that only the malloc() functions resolved by the linker are replaced. The f
 When you select the cpp module in RIOT, the new and delete operators are overridden with RIOT's own implementations located in riot/sys/cpp_new_delete/new_delete.cpp. These custom implementations internally call malloc() and free(), ensuring the compatibility with RIOT's memory management and thread safety mechanisms.
 
 #### TLSF
-RIOT offers the TLSF memory allocator as an alternative to the existing malloc() and related functions. See https://doc.riot-os.org/group__pkg__tlsf__malloc.html.
+RIOT offers the TLSF memory allocator as an alternative to the existing malloc() and related functions. See https://doc.riot-os.org/group__pkg__tlsf__malloc.html and https://deepwiki.com/mattconte/tlsf/3-tlsf-api-reference.
 
 - Real-Time Suitability: TLSF is better suited for real-time and embedded systems.
 - Predictable Performance: TLSF offers constant-time allocation and deallocation, ensuring predictable performance.

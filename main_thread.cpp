@@ -15,13 +15,14 @@
 #include "lua.hpp"              // for lua::init()
 #include "config.hpp"           // for ENABLE_CDC_ACM, ENABLE_LUA_REPL
 #include "key_queue.hpp"        // for key_queue::push(), ...
+#include "lexecute.hpp"         // for lua::execute_pending_calls(), ...
 #include "lkeymap.hpp"          // for lua::handle_key_event(), lua::handle_lamp_state()
 #include "main_thread.hpp"
-#include "matrix_thread.hpp"    // for matrix_thread::init()
+#include "matrix_thread.hpp"    // for matrix_thread::init(), matrix_thread::is_idle()
 #include "persistent.hpp"       // for persistent::init()
 #include "repl.hpp"             // for lua::repl::init(), ...
 #include "timed_stdin.hpp"      // for timed_stdin::wait_for_input(), ...
-#include "usb_thread.hpp"       // for usb_thread::init()
+#include "usb_thread.hpp"       // for usb_thread::init(), usb_thread::is_idle()
 #include "usbhub_thread.hpp"    // for usbhub_thread::init()
 
 
@@ -69,6 +70,15 @@ void main_thread::set_thread_flags(thread_flags_t flags)
     thread_flags_set(m_pthread, flags);
     if constexpr ( ENABLE_LUA_REPL )
         timed_stdin::stop_read();
+}
+
+void main_thread::set_my_thread_flags(thread_flags_t flags)
+{
+    // assert( is_active() );  // Ensure that it is called from main_thread.
+    unsigned state = irq_disable();
+    m_pthread->flags |= flags;
+    irq_restore(state);
+    // Or could use `atomic_fetch_or_u16(&m_pthread->flags, flags)`.
 }
 
 void main_thread::signal_dte_state(bool dte_enabled)
@@ -132,6 +142,25 @@ void main_thread::signal_lamp_state(uint_fast8_t lamp_state)
     signal_event(&_event);
 }
 
+void main_thread::preset_flags()
+{
+    if ( key_queue::get() )
+        set_my_thread_flags(FLAG_KEY_EVENT);
+
+    if ( lua::execute_is_pending() )
+        set_my_thread_flags(FLAG_PENDING_CALLS);
+
+    if constexpr ( ENABLE_LUA_REPL ) {
+        if ( timed_stdin::wait_for_input(HEARTBEAT_PERIOD_MS) )  // Zzz
+            set_my_thread_flags(FLAG_EXECUTE_REPL);
+    }
+    else {
+        // Set up wake-up time before going to sleep.
+        static ztimer_t heartbeat;
+        ztimer_set_timeout_flag(ZTIMER_MSEC, &heartbeat, HEARTBEAT_PERIOD_MS);
+    }
+}
+
 NORETURN void* main_thread::_thread_entry(void*)
 {
     // The event_queue_init() should be called from the queue-owning thread.
@@ -140,106 +169,98 @@ NORETURN void* main_thread::_thread_entry(void*)
     // Initialize keymaps and LED effect.
     lua::init();
 
-    bool has_input = false;
-    thread_flags_t flags;
     while ( true ) {
         // Kick the watchdog timer to keep the system alive. If we don't come back here
         // within the watchdog timeout, the system will trigger a watchdog reset.
         wdt_kick();
 
-        if constexpr ( ENABLE_LUA_REPL ) {
-            has_input = timed_stdin::wait_for_input(HEARTBEAT_PERIOD_MS);  // Zzz
+        // Preset flags for the conditions that do not trigger signaling.
+        preset_flags();
 
-            flags = thread_flags_clear(
-                FLAG_GENERIC_EVENT
-                | FLAG_KEY_EVENT
-                | FLAG_USB_RESET
-                | FLAG_USB_SUSPEND
-                | FLAG_USB_RESUME
-                | FLAG_DTE_DISABLED
-                | FLAG_DTE_ENABLED
-                | FLAG_DTE_READY
-                | FLAG_TIMEOUT );
+        // Note that if any flag is set via preset_flags(), thread_flags_wait_one()
+        // returns immediately with that flag (or a higher-priority one), without
+        // sleeping.
+        thread_flags_t flag = thread_flags_wait_one(
+            FLAG_GENERIC_EVENT
+            | FLAG_USB_RESET
+            | FLAG_USB_SUSPEND
+            | FLAG_USB_RESUME
+            | FLAG_DTE_DISABLED
+            | FLAG_DTE_ENABLED
+            | FLAG_DTE_READY
+            | FLAG_KEY_EVENT
+            | FLAG_PENDING_CALLS
+            | FLAG_EXECUTE_REPL
+            | FLAG_TIMEOUT );
 
-            if ( flags & FLAG_DTE_ENABLED )
-                LOG_DEBUG("Main: DTE enabled\n");
+        switch ( flag ) {
+            case FLAG_GENERIC_EVENT:
+                // Key timeout and lamp events are prioritized and processed first via
+                // m_event_queue.
+                while ( event_t* event = event_get(&m_event_queue) )
+                    event->handler(event);
+                break;
 
-            // FLAG_DTE_DISABLED is not signaled on switchover, but FLAG_USB_SUSPEND is.
-            if ( flags & (FLAG_DTE_DISABLED | FLAG_USB_SUSPEND) ) {
-                timed_stdin::disable();
-                lua::repl::stop();
-                LOG_DEBUG("Main: DTE disabled\n");
-            }
-
-            if ( flags & FLAG_DTE_READY ) {
-                lua::repl::start();
-                timed_stdin::enable();
-                LOG_INFO("Main: DTE ready (0x%x)\n", get_log_mask());
-            }
-        }
-
-        else {
-            // Set up wake-up time before going to sleep.
-            ztimer_t heartbeat;
-            ztimer_set_timeout_flag(ZTIMER_MSEC, &heartbeat, HEARTBEAT_PERIOD_MS);
-
-            flags = thread_flags_wait_any(  // Zzz
-                FLAG_GENERIC_EVENT
-                | FLAG_KEY_EVENT
-                | FLAG_USB_RESET
-                | FLAG_USB_SUSPEND
-                | FLAG_USB_RESUME
-                | FLAG_DTE_DISABLED
-                | FLAG_DTE_ENABLED
-                | FLAG_DTE_READY
-                | FLAG_TIMEOUT );
-
-            if constexpr ( ENABLE_CDC_ACM ) {
-                if ( flags & FLAG_DTE_ENABLED )
+            case FLAG_DTE_ENABLED:
+                if constexpr ( ENABLE_CDC_ACM )
                     LOG_DEBUG("Main: DTE enabled\n");
+                break;
 
-                if ( flags & FLAG_DTE_DISABLED )
+            case FLAG_DTE_DISABLED:
+                if constexpr ( ENABLE_LUA_REPL ) {
+                    timed_stdin::disable();
+                    lua::repl::stop();
+                }
+                if constexpr ( ENABLE_CDC_ACM )
                     LOG_DEBUG("Main: DTE disabled\n");
-            }
+                break;
 
-            // Do not process FLAG_DTE_READY when ENABLE_LUA_REPL is false. The stdin
-            // remains permanently disabled.
+            case FLAG_DTE_READY:
+                if constexpr ( ENABLE_LUA_REPL ) {
+                    lua::repl::start();
+                    timed_stdin::enable();
+                    LOG_INFO("Main: DTE ready (0x%x)\n", get_log_mask());
+                }
+                // Do not process FLAG_DTE_READY when ENABLE_LUA_REPL is false. The
+                // stdin remains permanently disabled.
+                break;
+
+            case FLAG_KEY_EVENT:
+                // Key (press/release) events from key_queue are handled one at a time.
+                key_queue::entry_t event;
+                if ( key_queue::get(&event) )
+                    lua::handle_key_event(event.slot_index, event.is_press);
+                // Any remaining key events will be handled next time without sleeping.
+                break;
+
+            // Since FLAG_PENDING_CALLS and FLAG_EXECUTE_REPL have lower priority, they
+            // are processed only after all higher-priority flags have been handled.
+            // While executing these flags, new key events may still occur from
+            // matrix_thread, but they will not be processed until the current flag
+            // finishes processing. Events can still be sent to usb_thread during this
+            // time, but only through explicit calls to fw.send_key().
+
+            case FLAG_PENDING_CALLS:
+                if ( usb_thread::is_idle() && matrix_thread::is_idle() )
+                    lua::execute_pending_calls();
+                break;
+
+            case FLAG_EXECUTE_REPL:
+                // Note that FLAG_EXECUTE_REPL is signaled for the first input from
+                // stdin, then all remaining inputs are handled within
+                // lua::repl::execute().
+                if constexpr ( ENABLE_LUA_REPL ) {
+                    if ( usb_thread::is_idle() && matrix_thread::is_idle() )
+                        lua::repl::execute();
+                }
+                break;
+
+            case FLAG_TIMEOUT:
+                // LOG_DEBUG("Main: v_5v=%d v_con1=%d v_con2=%d fsmstatus=0x%x @%lu\n",
+                //     adc::v_5v.read(), adc::v_con1.read(), adc::v_con2.read(),
+                //     usb_thread::fsmstatus(),
+                //     ztimer_now(ZTIMER_MSEC));
+                break;
         }
-
-        // Key timeout events and lamp events are handled all at once through
-        // m_event_queue.
-        if ( flags & FLAG_GENERIC_EVENT ) {
-            while ( event_t* event = event_get(&m_event_queue) )
-                event->handler(event);
-        }
-
-        // Key (press/release) events from key_queue are handled one at a time.
-        key_queue::entry_t event;
-        if ( key_queue::get(&event) ) {
-            lua::handle_key_event(event.slot_index, event.is_press);
-
-            unsigned state = irq_disable();
-            m_pthread->flags |= FLAG_KEY_EVENT;
-            irq_restore(state);
-            // Or could use `atomic_fetch_or_u16(&m_pthread->flags, FLAG_KEY_EVENT)`.
-
-            // Any remaining key events will be handled next time without sleeping.
-            continue;
-        }
-
-        if constexpr ( ENABLE_LUA_REPL ) {
-            // Execute REPL once all events are handled and if input is available. Once
-            // has_input is true, all remaining inputs for the compiled Lua chunk are
-            // handled within lua::repl::execute().
-            if ( has_input )
-                lua::repl::execute();
-        }
-
-        // if ( flags & FLAG_TIMEOUT ) {
-        //     LOG_DEBUG("Main: v_5v=%d v_con1=%d v_con2=%d fsmstatus=0x%x @%lu\n",
-        //         adc::v_5v.read(), adc::v_con1.read(), adc::v_con2.read(),
-        //         usb_thread::fsmstatus(),
-        //         ztimer_now(ZTIMER_MSEC));
-        // }
     }
 }

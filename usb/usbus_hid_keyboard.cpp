@@ -7,7 +7,7 @@
 #include "ztimer.h"             // for ztimer_set(), ztimer_remove()
 
 #include "config.hpp"           // for USB_RESUME_SETTLE_MS, ...
-#include "main_thread.hpp"      // for signal_usb_resume(), signal_lamp_state(), ...
+#include "main_thread.hpp"      // for signal_lamp_state(), ...
 #include "usb_thread.hpp"       // for send_remote_wake_up()
 #include "usbhub_thread.hpp"    // for signal_usb_suspend(), signal_usb_resume()
 #include "usbus_hid_keyboard.hpp"
@@ -110,11 +110,14 @@ void usbus_hid_keyboard_t::on_reset()
     // environment. For example, exiting BIOS via Ctrl+Alt+Del may leave keys logically
     // active. The new environment will call on_reset() to flush prior key state in this
     // case.
-    // However, if the old environment remains alive during a switchover, residual key
-    // states may persist (especially on Windows) if the old environment doesn't
-    // explicitly clear them. This can be mitigated by manually calling on_reset() and
-    // submit_report() before performing switchover, but mapping a non-physical key
-    // to the switchover trigger avoids this scenario altogether.
+    // Note: However, if the old environment remains active during a switchover,
+    // residual key states may persist (especially on Windows) if the old environment
+    // doesn't explicitly clear them. This can be avoided through one of the followings:
+    //  - Manually invoke on_reset() and submit_report() before switchover to release
+    //    all pressed keys.
+    //  - Ensure no physical keys are involved when performing switchover.
+    //  - Call fw.switchover() through fw.execute_later(), ensuring the switchover
+    //    occurs when usb_thread and matrix_thread are idle.
     clear_report();
     m_report_updated = 0;
     m_press_yet_to_submit = KC_NO;
@@ -129,13 +132,13 @@ void usbus_hid_keyboard_t::on_suspend()
 
     // These threads should be created before usb_thread is.
     usbhub_thread::signal_usb_suspend();
-    main_thread::signal_usb_suspend();
+    // main_thread::signal_usb_suspend();  // Not used.
 }
 
 void usbus_hid_keyboard_t::on_resume()
 {
     usbhub_thread::signal_usb_resume();
-    main_thread::signal_usb_resume();
+    // main_thread::signal_usb_resume();  // Not used.
 }
 
 void usbus_hid_keyboard_t::_tmo_resume_settle(void* arg)

@@ -68,7 +68,7 @@ local CAPSLOCK = Lit("CAPSLOCK")
 local mLSHFT = ModIf(tSPACE, SPACE,
     ModIf(Predicate(function() return Lamp.is_lamp_active(LAMP_CAPSLOCK) end),
         CAPSLOCK, TapSeq(LSHFT, CAPSLOCK)) )
-Lamp(LAMP_CAPSLOCK)
+Lamp(LAMP_CAPSLOCK, mLSHFT)
 
 -- Tap RSHFT -> INS
 local tRSHFT = TapHold(INS, RSHFT, HoldOnPress|QuickRelease)
@@ -108,17 +108,17 @@ local mBKSP = ModIf(FN, DEL, Lit("BKSP"))
 local mDOWN = ModIf(FN, Lit("SCRLOCK"), DOWN)
 -- Todo: Custom lamp_t that enables a jiggler while SCRLOCK lamp is on.
 Lamp(LAMP_SCRLOCK, LED_BOTTOM_RIGHT)
--- Lamp(LAMP_SCRLOCK)
 
 -- ENTER + ` -> POWER
 local mGRV = ModIf(tENTER, Lit("POWER"), Lit("`"))
 
 -- ENTER + TAB -> fw.switchover(), Hold TAB -> FN2
--- Note: When executing fw.switchover(), ensure no physical keys are left pressed in the
--- old environment (especially on Windows). For example, if tENTER were mapped to press
--- CTRL in this mapping, that modifier could remain active in the old environment unless
--- explicitly released ("ghost key symptom").
-local mTAB = ModIf(tENTER, Function(fw.switchover),
+local mTAB = ModIf(tENTER,
+    -- Directly executing fw.switchover() is safe here because tENTER is mapped to
+    -- a non-physical key (FN). However, if it were mapped to e.g. CTRL, fw.switchover()
+    -- should be called through fw.execute_later().
+    -- Function(fw.switchover),
+    Function(function() fw.execute_later(fw.switchover) end),
     TapHold(Lit("TAB"), FN2, HoldOnPress))
 
 -- ENTER + B -> fw.reboot_to_bootloader()
@@ -127,29 +127,34 @@ local mB = ModIf(tENTER, Function(fw.reboot_to_bootloader), Lit("B"))
 -- Not so useful:
 -- local tRIGHT = TapSeq(RIGHT, END)
 
--------- Populate the keymap table `Base.c_keymap_table[]`.
-local function keymap_table(keymaps)
-    for i = 1, #keymaps do
-        local keymap = keymaps[i]
+-------- Generate keymap table from the user-defined layout.
+local function layout(keymaps)
+    assert( #keymaps == KEY_LED_COUNT )
+    for i, keymap in ipairs(keymaps) do
         if type(keymap) == "string" then
             keymaps[i] = Lit(keymap)
         else
             -- It should be an instance of Base.
             assert( keymap._press, "keymaps["..i.."] not valid" )
+            -- If the keymap is associated with a lamp, link the lamp to the slot
+            -- currently occupied by the keymap.
+            if keymap._lamp then
+                keymap._lamp.m_slot_index = i
+                keymap._lamp = nil
+            end
         end
     end
 
     return keymaps
 end
 
-Base.c_keymap_table = keymap_table {
+Base.c_keymap_table = layout {
     mGRV, m1, m2, m3, m4, m5, m6, m7, m8, m9, m0, mMINUS, mEQUAL, mBKSP, DEL,
     mTAB, "Q", "W", "E", "R", "T", "Y", "U", "I", "O", mP, mLBRAC, "]", "\\", HOME,
     tFN, "A", "S", "D", "F", "G", mH, mJ, mK, mL, ";", "'", tENTER, PGUP,
     mLSHFT, "Z", "X", "C", "V", mB, "N", "M", ",", ".", "/", tRSHFT, UP, PGDN,
     "LALT", "LGUI", LCTRL, tSPACE, RCTRL, "RALT", LEFT, mDOWN, RIGHT
 }
-assert( #Base.c_keymap_table == KEY_LED_COUNT )
 
 -- https://stackoverflow.com/questions/21737613/image-of-hsv-color-wheel-for-opencv
 Effect.c_active_effect = FingerTracer(8192, 30 * HSV_HUE_STEPS // 360, 255, 255) -- Orange

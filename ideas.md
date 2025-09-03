@@ -19,32 +19,12 @@
 [Switchover]
 * Configure the automatic switchover feature in config.hpp.
 * Switchover event should be given to Effects.
+* Switchover as lamp event.
 
 [RGB]
 * Precise color accuracy isn't necessary — keycaps show everything in a reddish color.
 * RGB is enabled or disabled dynamically from Effects in Lua?
 * Adjustable threshold values (ADC_CON1_NOMINAL) in NVM?
-* Calls to c_active_effect is enabled only if ENABLE_RGB_LED = true.
-
-[REPL]
-* REPL chunks execute only when matrix_thread and usb_thread are idle.
-* `Function(f)` executes only when matrix_thread and usb_thread are idle.
-  --> Put `f` in an array and execute it later.
-* Switchover as lamp event.
-* matrix_thread.hpp:
-  ```
-  static bool matrix_thread::is_any_pressed() { return m_wakeup_us != 0; }
-  ```
-* usb_thread.hpp:
-  ```
-  #include "thread.h"             // for thread_get_status(), STATUS_FLAG_BLOCKED_ANY
-
-  // Return true if no events are being handled or waiting in the queue.
-  // Note that the thread stays in STATUS_MUTEX_BLOCKED during ztimer_periodic_wakeup().
-  static bool usb_thread::is_idle() {
-      return thread_get_status(m_pthread) == STATUS_FLAG_BLOCKED_ANY;
-  }
-  ```
 
 [Tips]
 * Redefine Riot-independent #define constants using "static const" and "static inline".
@@ -60,6 +40,10 @@
   have been already included in the header file that provides the functions with those
   types as parameters or as a return value.
 * Binary size is also affected by .data section. Walk through those variables that initialize with non-zero values.
+
+[Lua C API]
+* The standard `int (*)(Lua_State*)` can assume the stack contains its own arguments, but other helper functions (e.g. `lua_insert()`, `handle_key_event()`, ...) cannot, and they must manipulate only top stack entries.
+* `Function(f)` executes f through `fw.execute_later()`?
 
 [Log]
 * LOG_DEBUG() and fw.log() add '\n' automatically at the end.
@@ -82,6 +66,7 @@ void print_float(float x) { printf("%f\n", x); }
 void print_double(double x) { printf("%lf\n", x); }
 void print_str(const char* x) { printf("%s\n", x); }
 ```
+* Formatted log: Current time, thread name, color, ...
 
 * Use MODULE_CORE_IDLE_THREAD to enable CPU sleep when idle.
 

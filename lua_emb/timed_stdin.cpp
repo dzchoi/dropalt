@@ -3,7 +3,7 @@
 #include "mutex.h"              // for mutex_lock(), mutex_unlock()
 #include "stdio_base.h"         // for stdin_isrpipe
 #include "thread.h"             // for thread_get_active()
-#include "thread_flags.h"       // for thread_flags_set()
+#include "thread_flags.h"       // for thread_flags_set(), thread_flags_clear()
 #include "usbus_ext.h"          // Avoid compile error in acm.h below.
 #include "usb/usbus/cdc/acm.h"  // for USBUS_CDC_ACM_LINE_STATE_DTE
 #include "ztimer.h"             // for ztimer_set(), ztimer_remove()
@@ -64,6 +64,7 @@ static size_t read_timeout(void* buffer, size_t len, uint32_t timeout_ms)
 {
     mutex_lock(&stdin_isrpipe.mutex);
 
+    thread_flags_clear(THREAD_FLAG_TIMEOUT);
     int res = tsrb_get(&stdin_isrpipe.tsrb, (uint8_t*)buffer, len);
     if ( res == 0 && thread_get_active()->flags == 0 ) {
         ztimer_t timer = {
