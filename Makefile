@@ -11,7 +11,7 @@ APPLICATION := dropalt-fw
 CONFIG_HPP := config.hpp
 
 # Version numbers encoded in USB device descriptor
-DEVICE_VER := 0x0082            # bcdDevice =  0.82 for the firmware
+DEVICE_VER := 0x0090            # bcdDevice =  0.90 for the firmware
 HUB_DEVICE_VER := 0x2410        # bcdDevice = 24.10 for Hub
 CFLAGS += -DDEVICE_VER=$(DEVICE_VER) -DHUB_DEVICE_VER=$(HUB_DEVICE_VER)
 
@@ -56,13 +56,6 @@ USEMODULE += lua_emb
 USEMODULE += matrix
 USEMODULE += usbhub
 USEMODULE += usb
-
-# Substitute newlib_nano's malloc() with tlsf_malloc() for global dynamic memory
-# allocation. This also applies to C++'s new operator, as implemented in the RIOT
-# cpp_new_delete module.
-USEPKG += tlsf
-USEMODULE += tlsf-malloc
-LINKFLAGS += -Wl,--allow-multiple-definition
 
 # Size of the initial stack — used before any threads are created and also serving as
 # the ISR stack. The default ISR_STACKSIZE (=512 bytes) may not be enough for

@@ -4,9 +4,6 @@
 #include "periph/gpio.h"
 #include "periph/wdt.h"
 #include "sr_exp.h"             // for sr_exp_init()
-#ifndef RIOTBOOT
-#include "tlsf-malloc.h"        // for tlsf_add_global_pool()
-#endif
 
 
 
@@ -103,7 +100,6 @@ static void _dfll_usbcrm_init(void)
 void post_startup(void)
 {
     backup_ram_init();
-    tlsf_add_global_pool(&_sheap, &_eheap - &_sheap);
 }
 #endif
 

@@ -48,11 +48,42 @@ RIOT offers the TLSF memory allocator as an alternative to the existing malloc()
 - Minimized Fragmentation: TLSF reduces fragmentation more effectively than Newlib-nano's malloc().
 - Lower Overhead: TLSF incurs less overhead compared to Newlib-nano's malloc().
 
-You can replace the existing malloc() and related functions with TLSF allocators using the implementation in riot/pkg/tlsf/contrib/newlib.c. To achieve this, include the following lines in your Makefile:
+Although the TLSF allocator itself is not inherently thread-safe, the overriding functions in riot/pkg/tlsf/contrib/newlib.c are wrapped in irq_disable()/irq_restore() to ensure thread safety.
+
+You can replace the default malloc() and related memory allocation functions with TLSF-based allocators using the implementation provided in riot/pkg/tlsf/contrib/newlib.c. To do so, apply the following changes:
 ```
+[Makefile]
+# Substitute newlib_nano's malloc() with tlsf_malloc() for global dynamic memory
+# allocation. This also applies to C++'s new operator, as implemented in the RIOT
+# cpp_new_delete module.
 USEPKG += tlsf
 USEMODULE += tlsf-malloc
 LINKFLAGS += -Wl,--allow-multiple-definition
+
+[board.c]
+#ifndef RIOTBOOT
+#include "tlsf-malloc.h"        // for tlsf_add_global_pool()
+#endif
+
+void post_startup(void)
+{
+    ...
+    tlsf_add_global_pool(&_sheap, &_eheap - &_sheap);
+}
+
+[lua.cpp]
+// LUA_MEM_SIZE is maximized, accounting for a ~3.75KB reservation in the main heap
+// (&_eheap - &_sheap). This reserved space must exceed:
+//  * tlsf_size() (= 3320), required by tlsf_create()
+//  * + ~320 bytes, estimated usage by fputs() and stdin_init().
+static constexpr size_t LUA_MEM_SIZE = 105 *1024;
+
+[main.cpp]
+#include "tlsf.h"               // for tlsf_size()
+
+// tlsf_size() returns the size of the metadata and internal structures (= 3320 bytes)
+// for TLSF allocator.
+LOG_DEBUG("Main: max heap size is %d bytes\n", &_eheap - &_sheap - tlsf_size());
 ```
 
-Although the TLSF allocator itself is not inherently thread-safe, the overriding functions in riot/pkg/tlsf/contrib/newlib.c are wrapped in irq_disable()/irq_restore() to ensure thread safety.
+This modification will reduce the binary size by ~500 bytes, while increasing RAM usage by 3320 bytes (=tlsf_size()) to accommodate metadata and internal structures required by the TLSF allocator.

@@ -7,7 +7,6 @@
 #include "periph/wdt.h"         // for wdt_kick()
 #include "thread.h"             // for thread_get_active()
 #include "thread_flags.h"       // for thread_flags_set(), thread_flags_wait_any()
-#include "tlsf.h"               // for tlsf_size()
 #include "ztimer.h"             // for ztimer_set_timeout_flag()
 
 #include "adc.hpp"              // for adc::init()
@@ -57,9 +56,7 @@ NORETURN void main_thread::init()
     // caught by the bootloader.
     LOG_DEBUG("Main: RSTC->RCAUSE.reg=0x%x\n", RSTC->RCAUSE.reg);
 
-    // tlsf_size() returns the size of the metadata and internal structures (= 3320
-    // bytes) for TLSF allocator.
-    LOG_DEBUG("Main: max heap size is %d bytes\n", &_eheap - &_sheap - tlsf_size());
+    LOG_DEBUG("Main: max heap size is %d bytes\n", &_eheap - &_sheap);
 
     // Instead of creating a new thread, use the already existing "main" thread.
     (void)_thread_entry(nullptr);
