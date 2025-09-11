@@ -1,0 +1,17 @@
+#!/usr/bin/env sh
+tmpfile=$(mktemp)
+trap 'rm -f "$tmpfile"' EXIT  # Clean up the temporary file.
+
+# Compile the Lua script.
+daluac core.lua effect.lua keymap.lua >"$tmpfile" || exit
+
+# Reboot the keyboard to bootloader if not already.
+if ! dfu-util -l -a1 |grep -q 'RIOT-OS'; then
+    # Verify that dalua is not running.
+    dalua -e nil >/dev/null || exit
+
+    # This command is expected to fail with "no response from serial port".
+    dalua -e 'require("fw").reboot_to_bootloader()'; sleep 3
+fi
+
+dfu-util -a1 -D "$tmpfile"

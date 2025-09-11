@@ -21,7 +21,7 @@ static_assert( ENABLE_CDC_ACM );
 
 
 
-char timed_stdin::m_read_buffer[CONFIG_STDIN_RX_BUFSIZE]
+uint8_t timed_stdin::m_read_buffer[CONFIG_STDIN_RX_BUFSIZE]
     __attribute__((section(".noinit"), aligned(sizeof(uint32_t))));
 
 size_t timed_stdin::m_read_ahead = 0;
@@ -29,16 +29,20 @@ size_t timed_stdin::m_read_ahead = 0;
 // The stdin will be enabled only when Lua REPL DTE is ready.
 bool timed_stdin::m_enabled = false;
 
-// Override the weak cdc_acm_rx_pipe() in riot/sys/usb/usbus/cdc/acm/cdc_acm_stdio.c.
+bool timed_stdin::m_waiting_for_input = false;
+
+// Override the weak cdc_acm_rx_pipe() in riot/sys/usb/usbus/cdc/acm/cdc_acm_stdio.c,
+// which is called from usb_thread context.
 void cdc_acm_rx_pipe(usbus_cdcacm_device*, uint8_t* data, size_t len)
 {
     if ( likely(data) ) {
-        // Note that the Linux CDC ACM driver has an issue where it echoes any characters
+        // Note that the Linux CDC ACM driver has an issue where it echoes characters
         // received between the opening of the TTY and the disabling of ECHO:
-        // https://lore.kernel.org/linux-serial/d6d376ceb45b5a72c2a053721eabeddfa11cc1a5.camel@infinera.com/
-        // This behavior can result in early stdout messages being read back to stdin
-        // while the DTE is establishing a connection. We resolve this problem by
-        // disabling the stdin until a ping packet is received from DTE.
+        //   - https://lore.kernel.org/linux-serial/d6d376ceb45b5a72c2a053721eabeddfa11cc1a5.camel@infinera.com/
+        //   - https://michael.stapelberg.ch/posts/2021-04-27-linux-usb-virtual-serial-cdc-acm/
+        // This can cause early stdout messages to be looped back into stdin while the
+        // DTE is still establishing a connection. We avoid this problem by disabling
+        // stdin until a ping packet is received from the DTE.
 
         if ( timed_stdin::m_enabled )
             isrpipe_write(&stdin_isrpipe, data, len);
@@ -55,18 +59,47 @@ void cdc_acm_rx_pipe(usbus_cdcacm_device*, uint8_t* data, size_t len)
         main_thread::signal_dte_state(len == USBUS_CDC_ACM_LINE_STATE_DTE);
 }
 
-// Attempt to read up to `len` bytes from stdin into `buffer` within `timeout_ms`, and
-// return the number of bytes read. If a timeout occurs or if stop_read() is called, the
-// read is aborted and 0 is returned, signaling the calling thread with
-// THREAD_FLAG_TIMEOUT.
-// Note: If a signal is pending on the calling thread, the function returns immediately.
-static size_t read_timeout(void* buffer, size_t len, uint32_t timeout_ms)
-{
-    mutex_lock(&stdin_isrpipe.mutex);
 
+
+void timed_stdin::enable()
+{
+    assert( m_read_ahead == 0 );
+    m_enabled = true;
+}
+
+void timed_stdin::disable()
+{
+    unsigned state = irq_disable();
+    m_enabled = false;
+    tsrb_clear(&stdin_isrpipe.tsrb);
+    m_read_ahead = 0;
+    stop_wait();
+    irq_restore(state);
+}
+
+void timed_stdin::stop_wait()
+{
+    if ( m_waiting_for_input )
+        mutex_unlock(&stdin_isrpipe.mutex);
+}
+
+bool timed_stdin::wait_for_input(uint32_t timeout_ms)
+{
+    if ( m_read_ahead > 0 )
+        return true;
+
+    m_waiting_for_input = true;
+    mutex_lock(&stdin_isrpipe.mutex);  // Does not block.
+
+    // Note that the call to tsrb_get() and the check of thread_get_active()->flags must
+    // occur after the first mutex_lock(). This ensures that any subsequent tsrb pushes
+    // (via isrpipe_write()) or thread flag updates (via stop_wait()) can release the
+    // mutex, allowing the second mutex_lock() to return immediately.
+    m_read_ahead = tsrb_get(
+        &stdin_isrpipe.tsrb, m_read_buffer, sizeof(m_read_buffer));
     thread_flags_clear(THREAD_FLAG_TIMEOUT);
-    int res = tsrb_get(&stdin_isrpipe.tsrb, (uint8_t*)buffer, len);
-    if ( res == 0 && thread_get_active()->flags == 0 ) {
+
+    if ( m_read_ahead == 0 && thread_get_active()->flags == 0 ) {
         ztimer_t timer = {
             .callback = [](void* arg) {
                 thread_flags_set((thread_t*)arg, THREAD_FLAG_TIMEOUT);
@@ -75,55 +108,46 @@ static size_t read_timeout(void* buffer, size_t len, uint32_t timeout_ms)
             .arg = thread_get_active()
         };
         ztimer_set(ZTIMER_MSEC, &timer, timeout_ms);
-
-        // This second mutex_lock() does wait until the mutex is unlocked elsewhere,
-        // unlike the first mutex_lock(), which does not wait. If tsrb is pushed and the
-        // mutex is unlocked between the first and this second mutex_lock(), the second
-        // mutex_lock() will succeed immediately, allowing tsrb_get() to be checked again.
         mutex_lock(&stdin_isrpipe.mutex);  // Zzz
+
         ztimer_remove(ZTIMER_MSEC, &timer);
-        res = tsrb_get(&stdin_isrpipe.tsrb, (uint8_t*)buffer, len);
+        m_read_ahead = tsrb_get(
+            &stdin_isrpipe.tsrb, m_read_buffer, sizeof(m_read_buffer));
     }
 
     mutex_unlock(&stdin_isrpipe.mutex);
-    return res;
-}
-
-
-
-void timed_stdin::stop_read()
-{
-    mutex_unlock(&stdin_isrpipe.mutex);
-}
-
-void timed_stdin::enable()
-{
-    tsrb_clear(&stdin_isrpipe.tsrb);
-    m_read_ahead = 0;
-    m_enabled = true;
-}
-
-void timed_stdin::disable()
-{
-    m_enabled = false;
-    stop_read();
-}
-
-bool timed_stdin::wait_for_input(uint32_t timeout_ms)
-{
-    if ( m_read_ahead > 0 )
-        return true;
-
-    m_read_ahead = read_timeout(m_read_buffer, sizeof(m_read_buffer), timeout_ms);
+    m_waiting_for_input = false;
     return m_read_ahead > 0;
 }
 
 const char* timed_stdin::_reader(lua_State*, void* timeout_ms, size_t* psize)
 {
-    if ( !wait_for_input((uint32_t)(uintptr_t)timeout_ms) )
-        l_message("Lua: stdin is not available, failing REPL.");
+    if ( m_read_ahead == 0 ) {
+        mutex_lock(&stdin_isrpipe.mutex);  // Does not block.
+
+        m_read_ahead = tsrb_get(
+            &stdin_isrpipe.tsrb, m_read_buffer, sizeof(m_read_buffer));
+
+        if ( m_read_ahead == 0 ) {
+            ztimer_t timer = {
+                .callback = [](void*) { mutex_unlock(&stdin_isrpipe.mutex); },
+                .arg = nullptr
+            };
+            ztimer_set(ZTIMER_MSEC, &timer, (uint32_t)(uintptr_t)timeout_ms);
+            mutex_lock(&stdin_isrpipe.mutex);  // Zzz
+
+            ztimer_remove(ZTIMER_MSEC, &timer);
+            m_read_ahead = tsrb_get(
+                &stdin_isrpipe.tsrb, m_read_buffer, sizeof(m_read_buffer));
+        }
+
+        mutex_unlock(&stdin_isrpipe.mutex);
+
+        if ( m_read_ahead == 0 )
+            LOG_ERROR("Lua: stdin is not available, failing REPL.\n");
+    }
 
     *psize = m_read_ahead;
     m_read_ahead = 0;
-    return m_read_buffer;
+    return (const char*)m_read_buffer;
 }

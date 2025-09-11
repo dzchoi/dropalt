@@ -46,6 +46,8 @@
 * `Function(f)` executes f through `fw.execute_later()`?
 
 [Log]
+* Newlib-nano does not include `%f` support in printf, sprintf, etc.
+  You must explicitly enable it using the linker flag: `-u _printf_float`.
 * LOG_DEBUG() and fw.log() add '\n' automatically at the end.
 * Replace printf() with cout, calling usbus_cdc_acm_flush() when '\n' is hit. LOG_*() can also be implemented using an ostream.
 * Store a format string and its parameters for a log record.
@@ -72,6 +74,10 @@ void print_str(const char* x) { printf("%s\n", x); }
 
 [Bootloader Updater]
 * Headerless application
+* pkg->index(?) indicates the slot number.
+* Upload the existing bootloader. [slot 0]
+  Assuming it is the first(?) application placed immediately after the bootloader, it uploads the bootloader image of any size, excluding the trailing 0xFFs.
+* Upload the userpage (512 bytes). [slot 1]
 * E.g. `make riotboot/slot0` generates two binaries: one with a header and one without.
 * Generic updater that does not setup EEPROM. Can flash ANY bootloader of size <= 16KB.
 * `dfu-util` can flash a bootloader at slot 0.
@@ -80,12 +86,13 @@ void print_str(const char* x) { printf("%s\n", x); }
 * Allocate and initialize SEEPROM, or hardfault will occur otherwise.
 * Maybe we could utilize an intermediary bootloader to flash the final bootloader, using memory banks and switching them.
 * Debug led pattern during execution?
-* Upload the existing bootloader:
-  Assuming it is the first(?) application placed immediately after the bootloader, it uploads the bootloader image of any size, excluding the trailing 0xFFs.
 
 [Bootloader]
-* Do not reboot after downloading (flashing); `dfu-util` provides `-R` as a separate option.
-* Upload the userpage.
+* Do not reboot after downloading (flashing); `dfu-util` provides `-e` and `-R` as a separate option. No USB_DFU_WILL_DETACH?
+* Flash and start both headered and headerless images.
+  `dfu->skip_signature = true` only if the firmware image includes "RIOT" at the slot header.
+* Save the debug print for boot reason (e.g. watchdog fault) using `backup_ram_write(format, args)` when entering bootloader.
+* Upload the log messages. [slot 1]
 * Implement the firmware uploading feature
   Currently, we can retrieve the logs stored in the device's backup ram using the upload command of `dfu-util`. While also uploading a firmware binary is not essential, it is still a nice feature to have. The implementation would be straightforward, but we need to determine the image size beforehand. This can be pre-written when generating a firmware image with the slot header included (`slot0.XXXX.bin`). We could consider extending riotboot_hdr_t in riot/sys/include/riotboot/hdr.h..."
 * Bootloader as a shared library

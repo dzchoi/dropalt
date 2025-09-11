@@ -188,3 +188,58 @@ bool timed_stdin::is_lua_bytecode()
 
     return res;
 }
+
+#### REPL control flow
+@startuml
+title REPL control flow
+
+participant "timed_stdin::" as stdin
+participant main_thread as main
+participant "repl::" as repl
+participant "Host DTE" as dte
+
+stdin <[#green]- dte: ping
+stdin -[#red]> main: FLAG_DTE_READY
+stdin <- main: enable()
+activate stdin
+stdin --> main
+deactivate stdin
+
+main -> repl: start()
+activate repl
+repl -[#green]> dte: pong
+main <-- repl
+deactivate repl
+
+====
+
+stdin <[#green]- dte: chunk1
+stdin <- main: wait_for_input()
+activate stdin
+stdin -[#red]> main: FLAG_EXECUTE_REPL
+stdin --> main
+deactivate stdin
+
+main -> repl: execute()
+activate repl
+
+stdin <- repl: _reader()
+activate stdin
+stdin -[#green]> repl: chunk1
+stdin --> repl
+deactivate stdin
+
+loop
+stdin <- repl: _reader()
+activate stdin
+stdin <[#green]- dte: chunkN
+stdin -[#green]> repl: chunkN
+stdin --> repl
+deactivate stdin
+end
+repl -[#green]> dte: result
+
+main <-- repl
+deactivate repl
+
+@enduml

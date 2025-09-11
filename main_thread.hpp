@@ -56,7 +56,7 @@ private:
 
     static void set_thread_flags(thread_flags_t flags);
 
-    static void set_my_thread_flags(thread_flags_t flags);
+    static void adjust_my_flags(thread_flags_t flags, bool enable);
 
     static void preset_flags();
 

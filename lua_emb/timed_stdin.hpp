@@ -15,18 +15,19 @@ extern "C" void cdc_acm_rx_pipe(usbus_cdcacm_device*, uint8_t* data, size_t len)
 class timed_stdin {
 public:
     static void enable();
-
     static void disable();
+    static bool is_enabled() { return m_enabled; }
 
-    // Wait for input from stdin for `timeout_ms`. Return false if a timeout occurs or
-    // stop_read() is invoked, and set the THREAD_FLAG_TIMEOUT flag on the current thread
-    // in case of a timeout.
+    // Wait for input from stdin for up to `timeout_ms`. Return true if input is
+    // available, or false if a timeout occurs or stop_wait() is called. On timeout,
+    // set THREAD_FLAG_TIMEOUT on the current thread. If the thread already has a
+    // pending signal, return immediately.
     static bool wait_for_input(uint32_t timeout_ms);
 
-    // Stop read_timeout() from waiting even before the timeout expires.
-    static void stop_read();
+    // Stop wait_for_input() from waiting even before the timeout expires.
+    static void stop_wait();
 
-    // Function that can be used for a lua_Reader.
+    // Function used as a lua_Reader by the REPL to read input from stdin.
     static const char* _reader(lua_State* L, void* pdata, size_t* psize);
 
 private:
@@ -36,10 +37,12 @@ private:
     friend void cdc_acm_rx_pipe(usbus_cdcacm_device*, uint8_t* data, size_t len);
 
     // The stdin input buffer that will hold the bytecode for the REPL.
-    static char m_read_buffer[];
+    static uint8_t m_read_buffer[];
 
     // Size of the stdin input data read ahead into m_read_buffer[].
     static size_t m_read_ahead;
 
     static bool m_enabled;
+
+    static bool m_waiting_for_input;
 };

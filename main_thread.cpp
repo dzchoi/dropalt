@@ -66,14 +66,19 @@ void main_thread::set_thread_flags(thread_flags_t flags)
 {
     thread_flags_set(m_pthread, flags);
     if constexpr ( ENABLE_LUA_REPL )
-        timed_stdin::stop_read();
+        timed_stdin::stop_wait();
 }
 
-void main_thread::set_my_thread_flags(thread_flags_t flags)
+void main_thread::adjust_my_flags(thread_flags_t flags, bool enable)
 {
     // assert( is_active() );  // Ensure that it is called from main_thread.
     unsigned state = irq_disable();
-    m_pthread->flags |= flags;
+    m_pthread->flags = (m_pthread->flags & ~flags) | (-(int)enable & flags);
+    // Alternatively,
+    // if ( enable )
+    //     m_pthread->flags |= flags;
+    // else
+    //     m_pthread->flags &= ~flags;
     irq_restore(state);
     // Or could use `atomic_fetch_or_u16(&m_pthread->flags, flags)`.
 }
@@ -100,7 +105,7 @@ void main_thread::signal_event(event_t* event)
 {
     event_post(&m_event_queue, event);
     if constexpr ( ENABLE_LUA_REPL )
-        timed_stdin::stop_read();
+        timed_stdin::stop_wait();
 }
 
 bool main_thread::signal_key_event(unsigned slot_index, bool is_press, uint32_t timeout_us)
@@ -141,15 +146,15 @@ void main_thread::signal_lamp_state(uint_fast8_t lamp_state)
 
 void main_thread::preset_flags()
 {
-    if ( key_queue::get() )
-        set_my_thread_flags(FLAG_KEY_EVENT);
+    adjust_my_flags(FLAG_KEY_EVENT, key_queue::get());
 
-    if ( lua::execute_is_pending() )
-        set_my_thread_flags(FLAG_PENDING_CALLS);
+    adjust_my_flags(FLAG_PENDING_CALLS, lua::execute_is_pending());
 
     if constexpr ( ENABLE_LUA_REPL ) {
-        if ( timed_stdin::wait_for_input(HEARTBEAT_PERIOD_MS) )  // Zzz
-            set_my_thread_flags(FLAG_EXECUTE_REPL);
+        // Note that if FLAG_KEY_EVENT or FLAG_PENDING_CALLS is set above,
+        // wait_for_input() returns immediately without waiting for an input.
+        adjust_my_flags(FLAG_EXECUTE_REPL,
+            timed_stdin::wait_for_input(HEARTBEAT_PERIOD_MS));  // Zzz
     }
     else {
         // Set up wake-up time before going to sleep.
@@ -205,8 +210,11 @@ NORETURN void* main_thread::_thread_entry(void*)
 
             case FLAG_DTE_DISABLED:
                 if constexpr ( ENABLE_LUA_REPL ) {
-                    timed_stdin::disable();
-                    lua::repl::stop();
+                    if ( timed_stdin::is_enabled() ) {
+                        lua::repl::stop();
+                        timed_stdin::disable();
+                        LOG_DEBUG("Main: REPL disabled\n");
+                    }
                 }
                 if constexpr ( ENABLE_CDC_ACM )
                     LOG_DEBUG("Main: DTE disabled\n");
@@ -214,9 +222,11 @@ NORETURN void* main_thread::_thread_entry(void*)
 
             case FLAG_DTE_READY:
                 if constexpr ( ENABLE_LUA_REPL ) {
-                    lua::repl::start();
-                    timed_stdin::enable();
-                    LOG_INFO("Main: DTE ready (0x%x)\n", get_log_mask());
+                    if ( !timed_stdin::is_enabled() ) {
+                        timed_stdin::enable();
+                        lua::repl::start();
+                        LOG_INFO("Main: REPL ready (0x%x)\n", get_log_mask());
+                    }
                 }
                 // Do not process FLAG_DTE_READY when ENABLE_LUA_REPL is false. The
                 // stdin remains permanently disabled.
