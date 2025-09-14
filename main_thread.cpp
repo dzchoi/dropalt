@@ -6,14 +6,14 @@
 #include "log.h"                // for set_log_mask()
 #include "periph/wdt.h"         // for wdt_kick()
 #include "thread.h"             // for thread_get_active()
-#include "thread_flags.h"       // for thread_flags_set(), thread_flags_wait_any()
+#include "thread_flags.h"       // for thread_flags_set(), thread_flags_wait_one()
 #include "ztimer.h"             // for ztimer_set_timeout_flag()
 
 #include "adc.hpp"              // for adc::init()
 #include "event_ext.hpp"        // for event_post(), event_queue_init(), event_get()
 #include "lua.hpp"              // for lua::init()
 #include "config.hpp"           // for ENABLE_CDC_ACM, ENABLE_LUA_REPL
-#include "key_queue.hpp"        // for key_queue::push(), ...
+#include "key_queue.hpp"        // for key_queue::push(), key_queue::get(), ...
 #include "lexecute.hpp"         // for lua::execute_pending_calls(), ...
 #include "lkeymap.hpp"          // for lua::handle_key_event(), lua::handle_lamp_state()
 #include "main_thread.hpp"
@@ -62,6 +62,14 @@ NORETURN void main_thread::init()
     (void)_thread_entry(nullptr);
 }
 
+// Wake up from wait_for_input() without setting any flags, allowing subsequent checks
+// of usb_thread::is_idle() and matrix_thread::is_idle().
+void main_thread::signal_thread_idle()
+{
+    if constexpr ( ENABLE_LUA_REPL )
+        timed_stdin::stop_wait();
+}
+
 void main_thread::set_thread_flags(thread_flags_t flags)
 {
     thread_flags_set(m_pthread, flags);
@@ -69,16 +77,11 @@ void main_thread::set_thread_flags(thread_flags_t flags)
         timed_stdin::stop_wait();
 }
 
-void main_thread::adjust_my_flags(thread_flags_t flags, bool enable)
+void main_thread::set_my_flags(thread_flags_t flags)
 {
     // assert( is_active() );  // Ensure that it is called from main_thread.
     unsigned state = irq_disable();
-    m_pthread->flags = (m_pthread->flags & ~flags) | (-(int)enable & flags);
-    // Alternatively,
-    // if ( enable )
-    //     m_pthread->flags |= flags;
-    // else
-    //     m_pthread->flags &= ~flags;
+    m_pthread->flags |= flags;
     irq_restore(state);
     // Or could use `atomic_fetch_or_u16(&m_pthread->flags, flags)`.
 }
@@ -144,25 +147,6 @@ void main_thread::signal_lamp_state(uint_fast8_t lamp_state)
     signal_event(&_event);
 }
 
-void main_thread::preset_flags()
-{
-    adjust_my_flags(FLAG_KEY_EVENT, key_queue::get());
-
-    adjust_my_flags(FLAG_PENDING_CALLS, lua::execute_is_pending());
-
-    if constexpr ( ENABLE_LUA_REPL ) {
-        // Note that if FLAG_KEY_EVENT or FLAG_PENDING_CALLS is set above,
-        // wait_for_input() returns immediately without waiting for an input.
-        adjust_my_flags(FLAG_EXECUTE_REPL,
-            timed_stdin::wait_for_input(HEARTBEAT_PERIOD_MS));  // Zzz
-    }
-    else {
-        // Set up wake-up time before going to sleep.
-        static ztimer_t heartbeat;
-        ztimer_set_timeout_flag(ZTIMER_MSEC, &heartbeat, HEARTBEAT_PERIOD_MS);
-    }
-}
-
 NORETURN void* main_thread::_thread_entry(void*)
 {
     // The event_queue_init() should be called from the queue-owning thread.
@@ -176,24 +160,49 @@ NORETURN void* main_thread::_thread_entry(void*)
         // within the watchdog timeout, the system will trigger a watchdog reset.
         wdt_kick();
 
-        // Preset flags for the conditions that do not trigger signaling.
-        preset_flags();
+        // No flags. Time for some housekeeping and a nap.
+        if ( (m_pthread->flags & ALL_FLAGS) == 0 ) {
+            // Pending calls and REPL are processed only when no flags are set. During
+            // this time, key events from matrix_thread may still occur, but they won't
+            // be handled until processing completes. Events can still be sent to
+            // usb_thread, but only through explicit calls to fw.send_key().
+            if ( usb_thread::is_idle() && matrix_thread::is_idle() ) {
+                if ( lua::execute_is_pending() ) {
+                    lua::execute_pending_calls();
+                    continue;
+                }
 
-        // Note that if any flag is set via preset_flags(), thread_flags_wait_one()
-        // returns immediately with that flag (or a higher-priority one), without
-        // sleeping.
-        thread_flags_t flag = thread_flags_wait_one(
-            FLAG_GENERIC_EVENT
-            | FLAG_USB_RESET
-            | FLAG_USB_SUSPEND
-            | FLAG_USB_RESUME
-            | FLAG_DTE_DISABLED
-            | FLAG_DTE_ENABLED
-            | FLAG_DTE_READY
-            | FLAG_KEY_EVENT
-            | FLAG_PENDING_CALLS
-            | FLAG_EXECUTE_REPL
-            | FLAG_TIMEOUT );
+                if constexpr ( ENABLE_LUA_REPL ) {
+                    if ( timed_stdin::has_input() ) {
+                        // `repl::execute()` starts with the initial chunk received from
+                        // wait_for_input(), then continues reading the remaining parts
+                        // internally, uninterrupted by stop_read().
+                        lua::repl::execute();
+                        continue;
+                    }
+                }
+            }
+
+            // `wait_for_input()` is called when either not both threads are idle or
+            // input is unavailable. If any flag is set during the wait, it returns
+            // immediately.
+            if constexpr ( ENABLE_LUA_REPL ) {
+                if ( !timed_stdin::has_input() ) {
+                    timed_stdin::wait_for_input(HEARTBEAT_PERIOD_MS, ALL_FLAGS);  // Zzz
+                    continue;
+                }
+            }
+
+            // If input is available (not processed though), wait_for_input() is not
+            // called again. Instead, we set a wake-up timer and enter sleep via
+            // thread_flags_wait_one() below.
+            static ztimer_t timer;
+            ztimer_set_timeout_flag(ZTIMER_MSEC, &timer, HEARTBEAT_PERIOD_MS);
+        }
+
+        // Note that if flags are already set, thread_flags_wait_one() returns
+        // immediately for each flag, starting from the LSB, without sleeping.
+        thread_flags_t flag = thread_flags_wait_one(ALL_FLAGS);  // Zzz
 
         switch ( flag ) {
             case FLAG_GENERIC_EVENT:
@@ -213,7 +222,7 @@ NORETURN void* main_thread::_thread_entry(void*)
                     if ( timed_stdin::is_enabled() ) {
                         lua::repl::stop();
                         timed_stdin::disable();
-                        LOG_DEBUG("Main: REPL disabled\n");
+                        LOG_INFO("Main: REPL disabled\n");
                     }
                 }
                 if constexpr ( ENABLE_CDC_ACM )
@@ -235,30 +244,11 @@ NORETURN void* main_thread::_thread_entry(void*)
             case FLAG_KEY_EVENT:
                 // Key (press/release) events from key_queue are handled one at a time.
                 key_queue::entry_t event;
-                if ( key_queue::get(&event) )
+                if ( key_queue::get(&event) ) {
                     lua::handle_key_event(event.slot_index, event.is_press);
-                // Any remaining key events will be handled next time without sleeping.
-                break;
-
-            // Since FLAG_PENDING_CALLS and FLAG_EXECUTE_REPL have lower priority, they
-            // are processed only after all higher-priority flags have been handled.
-            // While executing these flags, new key events may still occur from
-            // matrix_thread, but they will not be processed until the current flag
-            // finishes processing. Events can still be sent to usb_thread during this
-            // time, but only through explicit calls to fw.send_key().
-
-            case FLAG_PENDING_CALLS:
-                if ( usb_thread::is_idle() && matrix_thread::is_idle() )
-                    lua::execute_pending_calls();
-                break;
-
-            case FLAG_EXECUTE_REPL:
-                // Note that FLAG_EXECUTE_REPL is signaled for the first input from
-                // stdin, then all remaining inputs are handled within
-                // lua::repl::execute().
-                if constexpr ( ENABLE_LUA_REPL ) {
-                    if ( usb_thread::is_idle() && matrix_thread::is_idle() )
-                        lua::repl::execute();
+                    // Any remaining key events will be handled next time without
+                    // sleeping.
+                    set_my_flags(FLAG_KEY_EVENT);
                 }
                 break;
 

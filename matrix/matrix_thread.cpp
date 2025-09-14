@@ -7,7 +7,7 @@
 #include "ztimer.h"             // for ztimer_now(), ztimer_periodic_wakeup(), ...
 
 #include "config.hpp"           // for MATRIX_SCAN_PERIOD_US, DEBOUNCE_*, ...
-#include "main_thread.hpp"      // for signal_key_event()
+#include "main_thread.hpp"      // for signal_key_event(), signal_thread_idle()
 #include "matrix_thread.hpp"
 
 
@@ -172,6 +172,7 @@ NORETURN void* matrix_thread::_thread_entry(void*)
         // required before reading the matrix.
         else {
             m_is_polling = false;
+            main_thread::signal_thread_idle();
             // LOG_DEBUG("Matrix: ---------> @%lu\n", ztimer_now(ZTIMER_MSEC));
             ztimer_release(ZTIMER_USEC);
             matrix_enable_interrupt();

@@ -18,6 +18,9 @@ public:
     // Check if we are in the main_thread context.
     static bool is_active() { return thread_get_active() == m_pthread; }
 
+    // Signal to main_thread that another thread (matrix_ or usb_thread) is now idle.
+    static void signal_thread_idle();
+
     static void signal_usb_reset() { set_thread_flags(FLAG_USB_RESET); }
 
     static void signal_usb_suspend() { set_thread_flags(FLAG_USB_SUSPEND); }
@@ -49,16 +52,14 @@ private:
         FLAG_DTE_ENABLED    = 0x0020,
         FLAG_DTE_READY      = 0x0040,
         FLAG_KEY_EVENT      = 0x0080,
-        FLAG_PENDING_CALLS  = 0x0100,
-        FLAG_EXECUTE_REPL   = 0x0200,
-        FLAG_TIMEOUT        = THREAD_FLAG_TIMEOUT  // (1u << 14)
+        FLAG_TIMEOUT        = THREAD_FLAG_TIMEOUT,  // (1u << 14)
+
+        ALL_FLAGS           = ((FLAG_KEY_EVENT << 1) - 1) | FLAG_TIMEOUT
     };
 
     static void set_thread_flags(thread_flags_t flags);
 
-    static void adjust_my_flags(thread_flags_t flags, bool enable);
-
-    static void preset_flags();
+    static void set_my_flags(thread_flags_t flags);
 
     static thread_t* m_pthread;
 

@@ -189,7 +189,7 @@ Backtrace stopped: previous frame identical to this frame (corrupt stack?)
     }
     ```
 
-# Debugging USB (Capture USB traffic directly using `usbmon`)
+##### Debugging USB (Capture USB traffic directly using `usbmon`)
 
 - Enable the usbmon module
 ```
@@ -231,4 +231,169 @@ ffff94cc297c5c80 3631674523 C Ii:3:018:3 0:8 32 = 00100000 00000000 00000000 000
 ffff94cc297c5c80 3631674524 S Ii:3:018:3 -115:8 32 <
 ffff94cc297c5c80 3631682522 C Ii:3:018:3 0:8 32 = 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
 --> USB_HID: register release (0x4 A)
+```
+
+#### Debugging CDC ACM (using `wireshark` and `usbmon`)
+
+- Enable the usbmon module
+```
+$ sudo modprobe usbmon
+```
+
+- Find the Bus# and the Device ID for "Drop ALT" and "Drop Hub".
+```
+$ lsusb
+    Bus 007 Device 075: ID 04d8:eed3 Microchip Technology, Inc. Drop ALT
+    Bus 007 Device 074: ID 04d8:eec5 Microchip Technology, Inc. Drop Hub
+```
+  So, in this case, `7.75` is the Bus# and the Device ID.
+
+- Run wireshark and select `usbmon7` for the interface.
+```
+$ sudo wireshark
+```
+- Example of exchanging pings:  
+  7.75.0: Control endpoint  
+  7.75.1: Bulk OUT (host -> device) endpoint  
+  7.75.2: Bulk IN (device -> host) endpoint
+
+```
+host -> 7.75.1 Bulk OUT
+
+Frame 1193924: 68 bytes on wire (544 bits), 68 bytes captured (544 bits) on interface usbmon7, id 0
+USB URB
+    [Source: host]
+    [Destination: 7.75.1]
+    URB id: 0xffff8cd084605440
+    URB type: URB_SUBMIT ('S')
+    URB transfer type: URB_BULK (0x03)
+    Endpoint: 0x01, Direction: OUT
+    Device: 75
+    URB bus id: 7
+    Device setup request: not relevant ('-')
+    Data: present (0)
+    URB sec: 1757712584
+    URB usec: 368556
+    URB status: Operation now in progress (-EINPROGRESS) (-115)
+    URB length [bytes]: 4
+    Data length [bytes]: 4
+    [Response in: 1193925]
+    [bInterfaceClass: CDC-Data (0x0a)]
+    Unused Setup Header
+    Interval: 0
+    Start frame: 0
+    Copy of Transfer Flags: 0x00000004, No transfer DMA map
+    Number of ISO descriptors: 0
+Leftover Capture Data: 5b7d300a  <-- "[}0\n"
+```
+
+```
+7.75.1 -> host Bulk OUT
+
+Frame 1193925: 64 bytes on wire (512 bits), 64 bytes captured (512 bits) on interface usbmon7, id 0
+USB URB
+    [Source: 7.75.1]
+    [Destination: host]
+    URB id: 0xffff8cd084605440
+    URB type: URB_COMPLETE ('C')
+    URB transfer type: URB_BULK (0x03)
+    Endpoint: 0x01, Direction: OUT
+    Device: 75
+    URB bus id: 7
+    Device setup request: not relevant ('-')
+    Data: not present ('>')
+    URB sec: 1757712584
+    URB usec: 368588
+    URB status: Success (0)
+    URB length [bytes]: 4
+    Data length [bytes]: 0
+    [Request in: 1193924]
+    [Time from request: 0.000032000 seconds]
+    [bInterfaceClass: CDC-Data (0x0a)]
+    Unused Setup Header
+    Interval: 0
+    Start frame: 0
+    Copy of Transfer Flags: 0x00000004, No transfer DMA map
+    Number of ISO descriptors: 0
+```
+
+```
+7.75.2 -> host Bulk IN
+
+Frame 1193926: 68 bytes on wire (544 bits), 68 bytes captured (544 bits) on interface usbmon7, id 0
+USB URB
+    [Source: 7.75.2]
+    [Destination: host]
+    URB id: 0xffff8cd084604300
+    URB type: URB_COMPLETE ('C')
+    URB transfer type: URB_BULK (0x03)
+    Endpoint: 0x82, Direction: IN
+    Device: 75
+    URB bus id: 7
+    Device setup request: not relevant ('-')
+    Data: present (0)
+    URB sec: 1757712584
+    URB usec: 368630
+    URB status: Success (0)
+    URB length [bytes]: 4
+    Data length [bytes]: 4
+    [Request in: 1193904]
+    [Time from request: 0.000601000 seconds]
+    [bInterfaceClass: CDC-Data (0x0a)]
+    Unused Setup Header
+    Interval: 0
+    Start frame: 0
+    Copy of Transfer Flags: 0x00000204, No transfer DMA map, Dir IN
+    Number of ISO descriptors: 0
+Leftover Capture Data: 5b7d300a  <-- "[}0\n"
+```
+
+```
+host -> 7.75.2 Bulk IN
+
+Frame 1193927: 64 bytes on wire (512 bits), 64 bytes captured (512 bits) on interface usbmon7, id 0
+USB URB
+    [Source: host]
+    [Destination: 7.75.2]
+    URB id: 0xffff8cd084604300
+    URB type: URB_SUBMIT ('S')
+    URB transfer type: URB_BULK (0x03)
+    Endpoint: 0x82, Direction: IN
+    Device: 75
+    URB bus id: 7
+    Device setup request: not relevant ('-')
+    Data: not present ('<')
+    URB sec: 1757712584
+    URB usec: 368631
+    URB status: Operation now in progress (-EINPROGRESS) (-115)
+    URB length [bytes]: 128
+    Data length [bytes]: 0
+    [Response in: 1194007]
+    [bInterfaceClass: CDC-Data (0x0a)]
+    Unused Setup Header
+    Interval: 0
+    Start frame: 0
+    Copy of Transfer Flags: 0x00000204, No transfer DMA map, Dir IN
+    Number of ISO descriptors: 0
+```
+
+- Use filter `usb.capdata` to capture only those packets with 
+```
+1193924	121.171920	host	7.75.1	USB	68	URB_BULK out  "[}0\n"
+1193926	121.171994	7.75.2	host	USB	68	URB_BULK in   "[}0\n"
+1193928	121.172036	host	7.75.1	USB	68	URB_BULK out  "\eLua"
+1193929	121.172040	host	7.75.1	USB	65	URB_BULK out
+...
+1193973	121.172555	host	7.75.1	USB	65	URB_BULK out
+1193976	121.172588	host	7.75.1	USB	68	URB_BULK out  "_ENV"
+1193992	121.173153	7.75.2	host	USB	65	URB_BULK in   "n"
+1193994	121.173195	7.75.2	host	USB	65	URB_BULK in   "i"
+1193996	121.173197	7.75.2	host	USB	65	URB_BULK in   "l"
+1193998	121.173220	7.75.2	host	USB	65	URB_BULK in   "\n"
+1194000	121.173222	7.75.2	host	USB	68	URB_BULK in   "[}0\n"
+```
+
+#### Debugging `dalua -e`
+```
+for i in $(seq 1 50000); do echo -n "$i "; if ! dalua -e nil >/dev/null; then break; fi; done
 ```

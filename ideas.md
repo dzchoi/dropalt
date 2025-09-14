@@ -102,3 +102,18 @@ void print_str(const char* x) { printf("%s\n", x); }
 * Default keymaps are stored in a byte array in the firmware so that it is selected when a "custom" keymaps at flash slot 1 fails to load (or run).
 
 * Where will be the UART pins?
+
+
+
+* Similar to thread_flags_clear(), but clears one flag at a time.
+```
+static thread_flags_t check_thread_flag_one(thread_t* pthread, thread_flags_t mask)
+{
+    unsigned state = irq_disable();
+    thread_flags_t lsb = pthread->flags & mask;
+    lsb &= -lsb;
+    pthread->flags &= ~lsb;
+    irq_restore(state);
+    return lsb;
+}
+```

@@ -7,7 +7,7 @@
 #include "ztimer.h"             // for ztimer_set(), ztimer_remove()
 
 #include "config.hpp"           // for USB_RESUME_SETTLE_MS, ...
-#include "main_thread.hpp"      // for signal_lamp_state(), ...
+#include "main_thread.hpp"      // for signal_lamp_state(), signal_thread_idle(), ...
 #include "usb_thread.hpp"       // for send_remote_wake_up()
 #include "usbhub_thread.hpp"    // for signal_usb_suspend(), signal_usb_resume()
 #include "usbus_hid_keyboard.hpp"
@@ -267,6 +267,7 @@ void usbus_hid_keyboard_t::on_transfer_complete(bool was_successful)
     }
     else {
         m_report_updated = 0;
+        main_thread::signal_thread_idle();
     }
     m_press_yet_to_submit = KC_NO;
 

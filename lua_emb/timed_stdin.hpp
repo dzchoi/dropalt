@@ -18,11 +18,19 @@ public:
     static void disable();
     static bool is_enabled() { return m_enabled; }
 
-    // Wait for input from stdin for up to `timeout_ms`. Return true if input is
-    // available, or false if a timeout occurs or stop_wait() is called. On timeout,
-    // set THREAD_FLAG_TIMEOUT on the current thread. If the thread already has a
-    // pending signal, return immediately.
-    static bool wait_for_input(uint32_t timeout_ms);
+    // Indicate whether input is available in the input buffer.
+    static bool has_input() { return m_read_ahead > 0; }
+
+    // Wait for input from stdin until one of the following occurs:
+    //   - input becomes available,
+    //   - stop_read() is called, or
+    //   - timeout_ms elapses.
+    // Return true if input is available, or false in other cases. On timeout,
+    // THREAD_FLAG_TIMEOUT is set on the current thread. If the thread already has a
+    // pending signal in the mask, return immediately.
+    // Note: m_read_ahead must be zero before calling this method, or existing input
+    // may be overwritten.
+    static bool wait_for_input(uint32_t timeout_ms, thread_flags_t mask);
 
     // Stop wait_for_input() from waiting even before the timeout expires.
     static void stop_wait();
@@ -36,6 +44,12 @@ private:
     // Allow cdc_acm_rx_pipe() to access m_enabled.
     friend void cdc_acm_rx_pipe(usbus_cdcacm_device*, uint8_t* data, size_t len);
 
+    // Read from stdin into the input buffer, returning when input becomes available,
+    // stop_read() is called, or timeout_ms elapses. Return true if a timeout occurs,
+    // false otherwise. If a signal in the given mask is already pending on the current
+    // thread, returns false immediately without reading.
+    static bool read_timed_out(uint32_t timeout_ms, thread_flags_t mask);
+
     // The stdin input buffer that will hold the bytecode for the REPL.
     static uint8_t m_read_buffer[];
 
@@ -44,5 +58,5 @@ private:
 
     static bool m_enabled;
 
-    static bool m_waiting_for_input;
+    static bool m_stoppable;
 };
