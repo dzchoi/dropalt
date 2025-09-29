@@ -1,6 +1,6 @@
 #### Configuration
 
-* Using `USEPKG += lua` will automatically download Lua 5.3.4 source files into riot/build/pkg/lua, and patch them.
+* Using `USEPKG += lua` will automatically download Lua 5.3.6 source files into riot/build/pkg/lua, and patch them.
 
 * Lua uses tlsf-malloc() for allocating a dynamic memory on the pre-allocated `uint8_t lua_memory[LUA_MEM_SIZE]`.
   ```

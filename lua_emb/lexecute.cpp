@@ -34,6 +34,8 @@ int execute_later(lua_State* L)
 
 bool execute_is_pending()
 {
+    global_lua_state L;
+
     lua_pushlightuserdata(L, (void*)&execute_later);
     lua_gettable(L, LUA_REGISTRYINDEX);
     // ( -- next_call_frame )
@@ -45,7 +47,9 @@ bool execute_is_pending()
 
 void execute_pending_calls()
 {
+    global_lua_state L;
     LOG_DEBUG("Lua: execute_pending_calls()\n");
+
     lua_pushlightuserdata(L, (void*)&execute_later);
     lua_pushvalue(L, -1);
     lua_gettable(L, LUA_REGISTRYINDEX);

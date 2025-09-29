@@ -94,21 +94,17 @@ end
 Pseudo = Base  -- Base can be used standalone.
 
 -------- Lit
+-- Lit(keyname) creates a keymap instance that triggers press/release events for the
+-- given key. Refer to hid_keycodes.hpp for valid key names.
+-- Note: Every keymap instance based on Base() is independent and tracks its own press/
+-- release state. So, calling Lit() multiple times with the same keyname is allowed but
+-- generally discouraged. If you want multiple key slots to share state (e.g. left and
+-- right FN), create a single instance and assign it to both slots.
 Lit = Class(Base)
 
--- Construct a keymap instance that triggers presses/releases for a named key. See
--- keycode_to_name[] for available key names.
--- Note: Each keymap instance is independent and tracks its own press/release state.
--- Although calling Lit() multiple times with the same key name is allowed, it is
--- generally discouraged. If you want multiple key slots to behave identically (e.g.
--- left and right FN), create a single instance and assign it to both slots.
 function Lit:init(keyname)
     Base.init(self)
-    local keycode = fw.keycode(keyname)
-    if not keycode then
-        error('invalid keyname "'..keyname..'"')
-    end
-    self.m_keycode = keycode
+    self.m_keycode = fw.keycode(keyname)
 end
 
 function Lit:on_press()
@@ -120,7 +116,8 @@ function Lit:on_release()
 end
 
 -------- Function
--- Function(func1 [, func2]) invokes func1() on press and optionally func2() on release.
+-- Function(func1 [, func2]) creates a keymap instance that calls func1() on press and
+-- optionally func2() on release.
 Function = Class(Base)
 
 function Function:init(func1, func2)
@@ -140,7 +137,7 @@ function Function:on_release()
 end
 
 -------- OneShot
--- Force the given keymap to trigger as a quick tap, ignoring holds.
+-- OneShot(keymap) forces the given keymap to trigger as a quick tap, ignoring holds.
 OneShot = Class(Base)
 
 function OneShot:init(map)
@@ -154,9 +151,9 @@ function OneShot:on_press()
 end
 
 -------- Proxy
--- If a keymap class inherits from Proxy, the keymap driver calls on_proxy_press/
--- release() instead of on_press/release(). These proxy methods can layer additional
--- logic on top of the base methods.
+-- If a keymap is based on Proxy(), the methods on_proxy_press/release() are called
+-- instead of on_press/release(). This allows proxy methods to add additional logic on
+-- top of the base methods.
 Proxy = Class(Base)
 
 function Proxy:init()
@@ -181,7 +178,7 @@ function Proxy:_release()
 end
 
 -------- Predicate
--- Predicate(pred) calls pred() when .is_pressed() is invoked.
+-- Predicate(pred) calls pred() when Predicate:is_pressed() is invoked.
 Predicate = Class()
 
 function Predicate:init(pred)
@@ -193,8 +190,8 @@ function Predicate:is_pressed()
 end
 
 -------- Modifier
--- On a press/release event, it calls on_modified_press/release() if the specified
--- modifier is currently pressed, or on_press/release() otherwise.
+-- Modifier(map_modifier) calls on_modified_press/release() if the given map_modifier is
+-- currently pressed, or on_press/release() otherwise.
 Modifier = Class(Proxy)
 
 function Modifier:init(map_modifier)
@@ -226,16 +223,16 @@ function Modifier:on_proxy_release()
 end
 
 -------- ModIf
--- ModIf(map_modifier, map_modified, map_original) acts as map_modified if map_modifier
--- is currently pressed, or map_original otherwise.
+-- ModIf(map_modifier, map_modified, map_original [, flavor]) acts as map_modified if
+-- map_modifier is currently pressed, or as map_original otherwise.
 ModIf = Class(Modifier)
 
 -- Flavors
 KEEP_MODIFIER = 0   -- (default)
--- The modifier remains pressed when map_modified is triggered.
+-- The map_modifier remains pressed when map_modified is triggered.
 
 UNDO_MODIFIER = 1
--- The modifier is released and then pressed again when map_modified is triggered.
+-- The map_modifier is released when map_modified is triggered.
 
 function ModIf:init(map_modifier, map_modified, map_original, flavor)
     Modifier.init(self, map_modifier)
@@ -269,33 +266,46 @@ function ModIf:on_modified_release()
 end
 
 -------- Defer
--- Defer Mode:
--- When active, defer mode causes all key events—except those targeting the "deferrer"—
--- to be deferred rather than processed immediately. If the deferrer keymap is formed
--- from nested keymaps, they are linked together in a chain starting from the outermost
--- keymap. The outermost keymap (i.e. Defer.c_owner) is referred to as the "deferrer",
--- while the complete chain—including the outermost and all nested keymaps—is
--- collectively referred to as the "deferrer chain" or simply the "deferrers". Note that
--- they all sit in the same slot.
+-- [Defer mode]
+-- When active, defer mode causes all key events, except those targeting the "deferrer"
+-- (the keymap that started defer mode), to be deferred instead of processed immediately.
+-- Deferred events are processed once defer mode is stopped. This mechanism is useful
+-- for keymaps whose behavior depends on a later condition. For example, TapHold uses
+-- defer mode to trigger a normal SPACE key when SPACE is tapped, or RSHFT when SPACE is
+-- held.
 --
--- Deferred events remain queued and do *not* trigger their usual on_press()/release()
--- methods. Instead, they are redirected to the deferrers, invoking their
--- on_other_press()/release() methods. This effectively routes all key events to the
--- deferrers during defer mode.
+-- Internally, during defer mode, if an event targets the deferrer, it is processed
+-- immediately by invoking the deferrer's on_press/release() methods. Events targeting
+-- other slots are queued and do not trigger their usual on_press/release() handlers.
+-- Instead, they are redirected to the deferrer by invoking the deferrer's
+-- on_other_press/release() methods. This effectively routes all key events to the
+-- deferrer while defer mode is active.
 --
--- When a deferrer exits defer mode by calling stop_defer(), it's removed from the
--- deferrer chain and will stop receiving deferred events. Once all deferrers exit,
--- queued events are processed normally via their standard on_press()/release() methods.
+-- When defer mode ends, all queued events are revisited as if they have just arrived.
+-- Each event then triggers its usual on_press/release() handler.
 --
--- Note: When multiple deferrers exist, on_other_press/release() methods are called
--- from outermost to innermost—unless an outer deferrer stops deferring the deferred
--- event by returning a non-nil value from its on_other_press()/release().
+-- [Multiple deferrers]
+-- If the deferrer keymap is defined with nested keymaps, those nested keymaps can also
+-- start defer mode, potentially in overlapping fashion. All keymaps that start defer
+-- mode are linked into a chain (called the "deferrer chain" or "deferrers"), starting
+-- from the outermost keymap (known as the "defer owner" or simply "deferrer"). Defer
+-- mode remains active until all deferrers in the chain have stopped defer mode. Note
+-- that since the deferrers collectively define the defer owner, they all sit in the
+-- same slot.
+--
+-- When a deferred event triggers the deferrer's on_other_press/release() methods, each
+-- deferrer's on_other_press/release() is invoked in order from outermost to innermost.
+--
+-- When a deferrer exits defer mode by calling stop_defer(), it is removed from the
+-- deferrer chain and stops receiving deferred events. Once all deferrers have exited,
+-- queued events are processed normally via their usual on_press()/release() methods.
 
 Defer = Class()
 
 -- Class variables shared with all instances
 Defer.c_owner = false    -- Defer owner is the head of the deferrer chain.
 Defer.c_slot_index = 0   -- Key slot index (common to all deferrers)
+Defer.remove_last = fw.defer_remove_last  -- Defer.remove_last(): void
 
 function Defer:init()
     self.m_next = false  -- Link to the next deferrer
@@ -373,9 +383,9 @@ function Defer:_other_event(is_press)
 end
 
 -------- Timer
+-- Timer() creates a timer instance that can operate in either one-shot or repeated mode.
 Timer = Class()
 
--- Creates a timer instance that can operate in either one-shot or repeated mode.
 function Timer:init()
     -- m_ctimer holds a userdata instance of the internal C++ class `_timer_t`.
     self.m_ctimer = fw.timer_create()
@@ -403,7 +413,8 @@ function Timer:start_timer(timeout_ms, repeated)
     return fw.timer_start(self.m_ctimer, timeout_ms, self.m_callback, repeated)
 end
 
--- Stop the timer; returns false if the timer was already expired or never started.
+-- Stop the timer; returns true if the timer is active, or false if the timer was
+-- expired or never started.
 function Timer:stop_timer()
     return fw.timer_stop(self.m_ctimer)
 end
@@ -416,12 +427,12 @@ end
 -------- TapHold
 -- TapHold(key1, key2 [, flavor] [, tapping_term_ms]) behaves as either key1 or key2,
 -- depending on whether the key is tapped or held:
---  - If tapped (released before tapping_term_ms), key1 is sent.
---  - If held longer than tapping_term_ms, key2 is sent.
+--  - If tapped (released before tapping_term_ms), key1 is triggered.
+--  - If held longer than tapping_term_ms, key2 is triggered.
 -- If any other key is pressed or released during tapping_term_ms, the decision depends
 -- on the optional "interrupt" flavor. Multiple flavors can be combined using bitwise OR.
 
--- Interrupt flavors
+-- Flavors
 TapOnPress      = 0x1
 -- If any other key is pressed during tapping_term_ms, the tap behavior is triggered
 -- (key1 is tapped).
@@ -644,13 +655,13 @@ function TapDance:on_other_press()
 end
 
 -------- TapSeq
--- TapSeq(key1, key2, ..., [tapping_term_ms]) triggers sequential tap actions based on
+-- TapSeq(key1, key2, ... [, tapping_term_ms]) triggers sequential tap actions based on
 -- the number of presses:
---   - map_tap[1] is sent on the first tap,
---   - map_tap[2] on the second tap,
+--   - key1 is sent on the first tap,
+--   - key2 on the second tap,
 --   - and so on.
 -- If the TapSeq key is held at step n (i.e. pressed and held beyond tapping_term_ms),
--- then map_tap[n] is pressed and held instead of tapped.
+-- then key_n is pressed and held instead of tapped.
 TapSeq = Class(TapDance)
 
 function TapSeq:init(...)
@@ -689,9 +700,8 @@ end
 package.loaded[...] = true  -- Vararg (...) here receives a single argument, "keymap".
 
 -- Core keymap driver (engine) responsible for processing key events and dispatching
--- them to user-defined mappings. This function is returned and passed to the next
--- script in the compilation chain.
-return function(slot_index, is_press)
+-- them to user-defined mappings.
+local function handle_key_event(slot_index, is_press)
     Base.c_current_slot_index = slot_index
     local press_or_release = is_press and "press" or "release"
 
@@ -740,6 +750,9 @@ return function(slot_index, is_press)
     -- Note: This deferred event (just peeked) should have .slot_index equal to the
     -- current slot_index. See the while-loop in main_thread.
     if deferrer then
-        fw.defer_remove_last()
+        Defer.remove_last()
     end
 end
+
+-- Pass the keymap driver to the next script in the compilation chain.
+return handle_key_event

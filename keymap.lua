@@ -17,122 +17,133 @@ local fw = require "fw"
 
 
 
+-------- key()
+-- Memoized version of Lit() to avoid creating multiple instances with the same keyname.
+-- This function is used only during load time and discarded afterward, since it is
+-- defined locally and the keys[] array as well.
+local keys = {}
+local function key(keyname)
+    if not keys[keyname] then
+        keys[keyname] = Lit(keyname)
+    end
+    return keys[keyname]
+end
+
+-------- LampJiggler
+-- A custom Lamp that periodically taps a key while the lamp is active.
+-- Note that each `LampJiggler()` instance is automatically stored in c_lamp_slots[], so
+-- explicit global assignment is unnecessary.
+local LampJiggler = Class(Lamp, Timer)
+
+function LampJiggler:init(lamp_id, slot_index_or_keymap, jiggler_keymap, jiggle_period_ms)
+    Lamp.init(self, lamp_id, slot_index_or_keymap)
+    Timer.init(self)
+    self.m_jiggler_keymap = jiggler_keymap
+    self.m_jiggle_period_ms = jiggle_period_ms
+end
+
+function LampJiggler:on_lamp_active()
+    self:on_timeout()
+    self:start_timer(self.m_jiggle_period_ms, true)
+end
+
+function LampJiggler:on_lamp_inactive()
+    self:stop_timer()
+end
+
+function LampJiggler:on_timeout()
+    fw.execute_later(
+        function()
+            self.m_jiggler_keymap:_press()
+            self.m_jiggler_keymap:_release()
+        end)
+end
+
+
+
 -------- Custom keymaps
 local FN    = Pseudo()
 local FN2   = Pseudo()
 
-local F1    = Lit("F1")
-local F2    = Lit("F2")
-local F3    = Lit("F3")
-local F4    = Lit("F4")
-local F5    = Lit("F5")
-local F6    = Lit("F6")
-local F7    = Lit("F7")
-local F8    = Lit("F8")
-local F9    = Lit("F9")
-local F10   = Lit("F10")
-local F11   = Lit("F11")
-local F12   = Lit("F12")
-
-local LEFT  = Lit("LEFT")
-local RIGHT = Lit("RIGHT")
-local UP    = Lit("UP")
-local DOWN  = Lit("DOWN")
-
-local INS   = Lit("INS")
-local DEL   = Lit("DEL")
-local HOME  = Lit("HOME")
-local END   = Lit("END")
-local PGUP  = Lit("PGUP")
-local PGDN  = Lit("PGDN")
-
-local SPACE = Lit("SPACE")
-local LSHFT = Lit("LSHFT")
-local RSHFT = Lit("RSHFT")
-local LCTRL = Lit("LCTRL")
-local RCTRL = Lit("RCTRL")
-
 -- Tap FN -> ESC
-local tFN = TapHold(Lit("ESC"), FN, HoldOnPress)
+local tFN = TapHold(key("ESC"), FN, HoldOnPress)
 
 -- Hold ENTER -> FN
-local tENTER = TapHold(Lit("ENTER"), FN, HoldOnPress)
+local tENTER = TapHold(key("ENTER"), FN, HoldOnPress)
+
+-- Hold TAB -> FN2
+local tTAB = TapHold(key("TAB"), FN2, HoldOnPress)
 
 -- Tap SPACE -> SPACE, Hold SPACE -> RSHFT, Tap + Tap + Hold Space -> Space
-local tSPACE = TapHold(SPACE, RSHFT, HoldOnRelease|QuickRelease)
-local tSPACE = TapSeq(tSPACE, tSPACE, SPACE)
+local tSPACE = TapHold(key("SPACE"), key("RSHFT"), HoldOnRelease|QuickRelease)
+tSPACE = TapSeq(tSPACE, tSPACE, key("SPACE"))
 
 -- LSHFT w/tSPACE (not w/RSHFT) -> SPACE
 -- Double LSHFT -> CapsLock, LSHFT (when CapsLock on) -> CapsLock
-local CAPSLOCK = Lit("CAPSLOCK")
-local mLSHFT = ModIf(tSPACE, SPACE,
+local mLSHFT = ModIf(tSPACE, key("SPACE"),
     ModIf(Predicate(function() return Lamp.is_lamp_active(LAMP_CAPSLOCK) end),
-        CAPSLOCK, TapSeq(LSHFT, CAPSLOCK)) )
+        key("CAPSLOCK"), TapSeq(key("LSHFT"), key("CAPSLOCK"))) )
 Lamp(LAMP_CAPSLOCK, mLSHFT)
 
 -- Tap RSHFT -> INS
-local tRSHFT = TapHold(INS, RSHFT, HoldOnPress|QuickRelease)
+local tRSHFT = TapHold(key("INS"), key("RSHFT"), HoldOnPress|QuickRelease)
 
--- FN + n or hold n -> Fn
+-- FN + 1 or hold 1 -> F1, FN + 2 or hold 2 -> F2, ...
 local QuickTap = TapOnPress|TapOnRelease|HoldIsTap
-local m1 = ModIf(FN, F1, TapHold(Lit("1"), F1, QuickTap))
-local m2 = ModIf(FN, F2, TapHold(Lit("2"), F2, QuickTap))
-local m3 = ModIf(FN, F3, TapHold(Lit("3"), F3, QuickTap))
-local m4 = ModIf(FN, F4, TapHold(Lit("4"), F4, QuickTap))
-local m5 = ModIf(FN, F5, TapHold(Lit("5"), F5, QuickTap))
-local m6 = ModIf(FN, F6, TapHold(Lit("6"), F6, QuickTap))
-local m7 = ModIf(FN, F7, TapHold(Lit("7"), F7, QuickTap))
-local m8 = ModIf(FN, F8, TapHold(Lit("8"), F8, QuickTap))
-local m9 = ModIf(FN, F9, TapHold(Lit("9"), F9, QuickTap))
-local m0 = ModIf(FN, F10, TapHold(Lit("0"), F10, QuickTap))
-local mMINUS = ModIf(FN, F11, TapHold(Lit("-"), F11, QuickTap))
-local mEQUAL = ModIf(FN, F12, TapHold(Lit("="), F12, QuickTap))
+local m1 = ModIf(FN, key("F1"), TapHold(key("1"), key("F1"), QuickTap))
+local m2 = ModIf(FN, key("F2"), TapHold(key("2"), key("F2"), QuickTap))
+local m3 = ModIf(FN, key("F3"), TapHold(key("3"), key("F3"), QuickTap))
+local m4 = ModIf(FN, key("F4"), TapHold(key("4"), key("F4"), QuickTap))
+local m5 = ModIf(FN, key("F5"), TapHold(key("5"), key("F5"), QuickTap))
+local m6 = ModIf(FN, key("F6"), TapHold(key("6"), key("F6"), QuickTap))
+local m7 = ModIf(FN, key("F7"), TapHold(key("7"), key("F7"), QuickTap))
+local m8 = ModIf(FN, key("F8"), TapHold(key("8"), key("F8"), QuickTap))
+local m9 = ModIf(FN, key("F9"), TapHold(key("9"), key("F9"), QuickTap))
+local m0 = ModIf(FN, key("F10"), TapHold(key("0"), key("F10"), QuickTap))
+local mMINUS = ModIf(FN, key("F11"), TapHold(key("-"), key("F11"), QuickTap))
+local mEQUAL = ModIf(FN, key("F12"), TapHold(key("="), key("F12"), QuickTap))
 
 -- FN + H/J/K/L -> arrow keys, FN2 + H/J/K/L -> HOME/PGDN/PGUP/END
-local mH = ModIf(FN, LEFT, ModIf(FN2, HOME, Lit("H")))
-local mJ = ModIf(FN, DOWN, ModIf(FN2, PGDN, Lit("J")))
-local mK = ModIf(FN, UP, ModIf(FN2, PGUP, Lit("K")))
-local mL = ModIf(FN, RIGHT, ModIf(FN2, END, Lit("L")))
+local mH = ModIf(FN, key("LEFT"), ModIf(FN2, key("HOME"), key("H")))
+local mJ = ModIf(FN, key("DOWN"), ModIf(FN2, key("PGDN"), key("J")))
+local mK = ModIf(FN, key("UP"), ModIf(FN2, key("PGUP"), key("K")))
+local mL = ModIf(FN, key("RIGHT"), ModIf(FN2, key("END"), key("L")))
 
 -- FN + P -> PrtScr
-local mP = ModIf(FN, Lit("PRTSCR"), Lit("P"))
+local mP = ModIf(FN, key("PRTSCR"), key("P"))
 
 -- FN + [ -> Break/Pause
-local mLBRAC = ModIf(FN, Lit("PAUSE"), Lit("["))
+local mLBRAC = ModIf(FN, key("PAUSE"), key("["))
 
 -- FN + BKSP -> DEL
-local mBKSP = ModIf(FN, DEL, Lit("BKSP"))
+local mBKSP = ModIf(FN, key("DEL"), key("BKSP"))
+
+-- FN + DEL -> POWER, FN + LALT + DEL -> fw.enter_bootloader()
+local mDEL = ModIf(FN,
+    ModIf(key("LALT"), Function(fw.enter_bootloader), key("POWER")),
+    key("DEL"))
 
 -- FN + DOWN -> SCRLOCK
 -- Most Linux Distros do not handle SCRLOCK but Windows does.
-local mDOWN = ModIf(FN, Lit("SCRLOCK"), DOWN)
--- Todo: Custom lamp_t that enables a jiggler while SCRLOCK lamp is on.
-Lamp(LAMP_SCRLOCK, LED_BOTTOM_RIGHT)
+local mDOWN = ModIf(FN, key("SCRLOCK"), key("DOWN"))
+-- Periodically taps RSHFT every 5 minutes while SCRLOCK lamp is lit.
+LampJiggler(LAMP_SCRLOCK, LED_BOTTOM_RIGHT, key("RSHFT"), 299000)  -- 4 min 59 sec
 
--- ENTER + ` -> POWER
-local mGRV = ModIf(tENTER, Lit("POWER"), Lit("`"))
-
--- ENTER + TAB -> fw.switchover(), Hold TAB -> FN2
-local mTAB = ModIf(tENTER,
-    -- Directly executing fw.switchover() is safe here because tENTER is mapped to
-    -- a non-physical key (FN). However, if it were mapped to e.g. CTRL, fw.switchover()
-    -- should be called through fw.execute_later().
-    -- Function(fw.switchover),
-    Function(function() fw.execute_later(fw.switchover) end),
-    TapHold(Lit("TAB"), FN2, HoldOnPress))
-
--- ENTER + B -> fw.reboot_to_bootloader()
-local mB = ModIf(tENTER, Function(fw.reboot_to_bootloader), Lit("B"))
-
--- Not so useful:
--- local tRIGHT = TapSeq(RIGHT, END)
+-- FN + RIGHT -> fw.switchover()
+local mRIGHT = ModIf(FN,
+    -- Directly executing fw.switchover() is safe here because the modifier is a
+    -- non-physical key (FN). However, if it were e.g. CTRL, fw.switchover() should be
+    -- called through fw.execute_later().
+    Function(fw.switchover),
+    -- Function(function() fw.execute_later(fw.switchover) end),
+    key("RIGHT"))
 
 -------- Generate keymap table from the user-defined layout.
 local function layout(keymaps)
     assert( #keymaps == KEY_LED_COUNT )
     for i, keymap in ipairs(keymaps) do
         if type(keymap) == "string" then
-            keymaps[i] = Lit(keymap)
+            keymaps[i] = key(keymap)
         else
             -- It should be an instance of Base.
             assert( keymap._press, "keymaps["..i.."] not valid" )
@@ -149,17 +160,20 @@ local function layout(keymaps)
 end
 
 Base.c_keymap_table = layout {
-    mGRV, m1, m2, m3, m4, m5, m6, m7, m8, m9, m0, mMINUS, mEQUAL, mBKSP, DEL,
-    mTAB, "Q", "W", "E", "R", "T", "Y", "U", "I", "O", mP, mLBRAC, "]", "\\", HOME,
-    tFN, "A", "S", "D", "F", "G", mH, mJ, mK, mL, ";", "'", tENTER, PGUP,
-    mLSHFT, "Z", "X", "C", "V", mB, "N", "M", ",", ".", "/", tRSHFT, UP, PGDN,
-    "LALT", "LGUI", LCTRL, tSPACE, RCTRL, "RALT", LEFT, mDOWN, RIGHT
+    "`", m1, m2, m3, m4, m5, m6, m7, m8, m9, m0, mMINUS, mEQUAL, mBKSP, mDEL,
+    tTAB, "Q", "W", "E", "R", "T", "Y", "U", "I", "O", mP, mLBRAC, "]", "\\", "HOME",
+    tFN, "A", "S", "D", "F", "G", mH, mJ, mK, mL, ";", "'", tENTER, "PGUP",
+    mLSHFT, "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", tRSHFT, "UP", "PGDN",
+    "LALT", "LGUI", "LCTRL", tSPACE, "RCTRL", "RALT", "LEFT", mDOWN, mRIGHT
 }
 
 -- https://stackoverflow.com/questions/21737613/image-of-hsv-color-wheel-for-opencv
-Effect.c_active_effect = FingerTracer(8192, 30 * HSV_HUE_STEPS // 360, 255, 255) -- Orange
--- Effect.c_active_effect = Fixed(90 * HSV_HUE_STEPS // 360, 255, 255)   -- Spring Green
--- Effect.c_active_effect = Fixed(120 * HSV_HUE_STEPS // 360, 255, 255)  -- Mild Green
+local Orange      = 30  * HSV_HUE_STEPS // 360
+local MildYellow  = 60  * HSV_HUE_STEPS // 360
+local SpringGreen = 90  * HSV_HUE_STEPS // 360
+local MildGreen   = 120 * HSV_HUE_STEPS // 360
+Effect.c_active_effect = FingerTracer(8000, MildYellow, 255, 255)
+-- Effect.c_active_effect = Fixed(SpringGreen, 255, 255)
 
 
 

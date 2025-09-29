@@ -23,7 +23,7 @@ Flash memory is organized into two distinct slots:
 
 You can enter the bootloader (DFU mode) using either of the following methods:
 - Press the external Reset pin.
-- Call `fw.reboot_to_bootloader()` from the Lua REPL or trigger it via a keymap.
+- Execute `fw.enter_bootloader()` from the Lua REPL or trigger it via a keymap.
 Note: If a critical error occurs (e.g. a runtime error when executing Lua bytecode), the system automatically enters DFU mode as a failsafe.
 
 To boot into the firmware from the bootloader, simply press Enter.

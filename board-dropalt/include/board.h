@@ -222,7 +222,7 @@ NORETURN static inline void system_reset(void) { NVIC_SystemReset(); }
 /**
  * @brief   Reboot to the bootloader.
  */
-NORETURN static inline void reboot_to_bootloader(void)
+NORETURN static inline void enter_bootloader(void)
 {
     *(uint32_t*)RIOTBOOT_MAGIC_ADDR = RIOTBOOT_MAGIC_NUMBER;
     system_reset();

@@ -52,7 +52,7 @@ static uint8_t nvm_init(void)
             __builtin_free(s);
         }
 
-        reboot_to_bootloader();
+        enter_bootloader();
         UNREACHABLE();
     }
 

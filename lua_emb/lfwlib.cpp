@@ -1,9 +1,11 @@
 // The "fw" module exposes firmware utility functions to Lua.
 
 #include "board.h"              // for system_reset(), sam0_flashpage_aux_get(), ...
+#include "compiler_hints.h"     // for UNREACHABLE()
 #include "is31fl3733.h"         // for is31_set_color(), IS31_LEDS, ...
 #include "log.h"                // for get/set_log_mask()
 #include "thread.h"             // for thread_isr_stack_usage(), ...
+#include "usb2422.h"            // for usbhub_host_port()
 
 #include "hid_keycodes.hpp"     // for keycode_to_name[]
 #include "hsv.hpp"              // for fast_hsv2rgb_32bit(), CIE1931_CURVE[]
@@ -19,22 +21,25 @@
 
 namespace lua {
 
-// fw.system_reset()
 static int fw_system_reset(lua_State*)
 {
     system_reset();
     return 0;
 }
 
-// fw.reboot_to_bootloader()
-static int fw_reboot_to_bootloader(lua_State*)
+static int fw_enter_bootloader(lua_State*)
 {
-    reboot_to_bootloader();
+    uint8_t current_port = usbhub_host_port();
+    // Let the bootloader acquire the current host port.
+    if ( current_port != USB_PORT_UNKNOWN ) {
+        persistent::set("last_host_port", current_port);
+        persistent::commit_now();
+    }
+
+    enter_bootloader();
     return 0;
 }
 
-// fw.led0() -> int
-// fw.led0(int x) -> void
 static int fw_led0(lua_State* L)
 {
     if ( lua_gettop(L) == 0 ) {
@@ -53,11 +58,11 @@ static int fw_led0(lua_State* L)
     return 0;
 }
 
-// fw.led_set_rgb(int led_index, int r, int g, int b)
 static int fw_led_set_rgb(lua_State* L)
 {
     int led_index = luaL_checkinteger(L, 1);
-    luaL_argcheck(L, (led_index > 0 && led_index <= (int)ALL_LED_COUNT), 1, "invalid led_index");
+    luaL_argcheck(L, (led_index > 0 && led_index <= (int)ALL_LED_COUNT), 1,
+        "invalid led_index");
 
     uint8_t r = luaL_checkinteger(L, 2);
     uint8_t g = luaL_checkinteger(L, 3);
@@ -67,9 +72,12 @@ static int fw_led_set_rgb(lua_State* L)
     return 0;
 }
 
-// fw.led_set_hsv(int led_index, int h, int s, int v)
 static int fw_led_set_hsv(lua_State* L)
 {
+    int led_index = luaL_checkinteger(L, 1);
+    luaL_argcheck(L, (led_index > 0 && led_index <= (int)ALL_LED_COUNT), 1,
+        "invalid led_index");
+
     // References for implementating hsv-to-rgb:
     //  - https://www.vagrearg.org/content/hsvrgb
     //  - https://cs.stackexchange.com/questions/64549/convert-hsv-to-rgb-colors
@@ -83,15 +91,10 @@ static int fw_led_set_hsv(lua_State* L)
     // Use CIE 1931 curve to adjust intensity (v) for smoother perceptual transitions.
     fast_hsv2rgb_32bit(h, s, CIE1931_CURVE[v], &r, &g, &b);
 
-    lua_settop(L, 1);
-    lua_pushinteger(L, r);
-    lua_pushinteger(L, g);
-    lua_pushinteger(L, b);
-    return fw_led_set_rgb(L);
+    is31_set_color(IS31_LEDS[led_index - 1], r, g, b);
+    return 0;
 }
 
-// fw.led_refresh()
-// Refresh all LED colors to reflect their current colors.
 static int fw_led_refresh(lua_State*)
 {
     is31_refresh_colors();
@@ -112,48 +115,38 @@ static intptr_t loggable_value(lua_State* L, int i)
                 return lua_tointeger(L, i);
             else
                 // This converts a float to an integer numerically.
-                // Note: Even if the float's bit pattern is preserved via casting to
-                // intptr_t, '%f' formatting will not work as expected. In variadic
-                // functions, C automatically promotes float arguments to 8-byte doubles
-                // (Default Argument Promotion Rules) - even on 32-bit systems like
-                // Cortex-M4F. This remains true even when using printf_float() from
-                // newlib-nano. In our case, since fw_log() passes all arguments as
-                // 4-byte values, '%f' will not receive valid double data, and may print
-                // 0.0, garbage, or misinterpret memory.
-                return (int)lua_tonumber(L, i);
+                // Note that even if we preserved the float's 4-byte bit pattern by
+                // casting to intptr_t, '%f' formatting would not work as expected and
+                // would print 0.0, garbage, or misinterpret memory. This is because in
+                // variadic functions like log_backup(), C promotes float arguments to
+                // 8-byte doubles (per Default Argument Promotion Rules), even on 32-bit
+                // systems like Cortex-M4F. This behavior remains true even when using
+                // printf_float() from newlib-nano.
+                return static_cast<int>(lua_tonumber(L, i));
 
         case LUA_TSTRING:
-            return (intptr_t)lua_tostring(L, i);
+            return reinterpret_cast<intptr_t>(lua_tostring(L, i));
 
         default:
-            return (intptr_t)lua_topointer(L, i);
+            return reinterpret_cast<intptr_t>(lua_topointer(L, i));
     }
 }
 
-// fw.log(value...) -> void
-// Lightweight printf-style logger optimized for embedded Lua environment.
-// Avoids luaL_tolstring() to prevent allocating temporary strings, minimizing garbage
-// collection pressure during frequent logging.
-
-// Note: This function is specifically designed for 32-bit ARM architecture that support
-// the Thumb-2 instruction set (typically ARMv7-A/M). It relies on AAPCS (ARM
-// Architecture Procedure Call Standard), which passes the first four function arguments
-// in r0–r3 and additional arguments via the stack.
+static int fw_log(lua_State* L)
+{
 #if !( defined(__ARM_ARCH) && (__ARM_ARCH >= 7) && defined(__thumb__) )
+    // Note: This function assumes a 32-bit ARM architecture with support for the
+    // Thumb-2 instruction set (typically ARMv7-A/M). It relies on AAPCS (ARM
+    // Architecture Procedure Call Standard), which passes the first four function
+    // arguments in r0–r3 and any additional arguments via the stack.
     #error "fw_log() requires Thumb-2 and ARMv7 or newer architecture"
 #endif
 
-// Note: It supports only '%d', '%s' and '%p' based on each argument type.
-//  - %d for integers, floats (converted numerically to integers), booleans (0/1), or
-//    nil (-1).
-//  - %s for strings (passed as a C string)
-//  - %p for tables, functions, or userdata (passed as raw pointers, e.g. 0xXXXX)
-static int fw_log(lua_State* L)
-{
     const char* format = luaL_checkstring(L, 1);
     int argc = lua_gettop(L);
 
-    // Push extra arguments (from index 4 and beyond) onto the C stack.
+    // Push extra arguments (from index 4 onward) onto the C stack. These arguments will
+    // be accessed by log_backup() beyond r0–r3.
     const int extras = argc - 3;
     if ( extras > 0 ) {
         __asm__ volatile (
@@ -173,7 +166,8 @@ static int fw_log(lua_State* L)
         }
     }
 
-    // Call log_backup(LOG_DEBUG, ...) via inline assembly.
+    // Call log_backup(LOG_DEBUG, ...) via inline assembly. The first four Arguments are
+    // passed in r0–r3 according to AAPCS.
     __asm__ volatile (
         "mov r0, %[level]\n"
         "mov r1, %[a1]\n"
@@ -201,8 +195,6 @@ static int fw_log(lua_State* L)
     return 0;
 }
 
-// fw.log_mask() -> int
-// fw.log_mask(int mask) -> void
 static int fw_log_mask(lua_State* L)
 {
     if ( lua_gettop(L) == 0 ) {
@@ -262,10 +254,6 @@ static int fw_log_mask(lua_State* L)
 //     end
 // end
 
-// fw.product_serial() -> string
-// fw.product_serial(string s) -> (system reset)
-// Note that it cannot overwrite the existing product serial as it does not erase the
-// USER page.
 static int fw_product_serial(lua_State* L)
 {
     char* p = (char*)sam0_flashpage_aux_get(0);
@@ -288,8 +276,6 @@ static int fw_product_serial(lua_State* L)
     return 0;
 }
 
-// Read from NVM (e.g. print(fw.nvm.var)).
-// ( nvm name -- value | nil )
 int _nvm_index(lua_State* L)
 {
     const char* name = luaL_checkstring(L, -1);
@@ -297,12 +283,11 @@ int _nvm_index(lua_State* L)
     auto it = persistent::_find(name);
 
     if ( it == persistent::end() )
-        lua_pushnil(L);
+        return 0;
 
-    else
     switch ( it->value_type ) {
         case persistent::TSTRING:
-            lua_pushstring(L, (char*)it.pvalue());
+            lua_pushstring(L, (char*)it.to_value());
             break;
 
         case persistent::TFLOAT: {
@@ -321,91 +306,83 @@ int _nvm_index(lua_State* L)
             break;
         }
     }
-
-    // "The function does not need to clear the stack before pushing its results. After
-    // it returns, Lua automatically saves its results and clears its entire stack."
-    // lua_insert(L, 1);
-    // lua_settop(L, 1);
     return 1;
 }
 
-// Write to NVM (e.g. fw.nvm.var = 27).
-// ( nvm name value -- )
 int _nvm_newindex(lua_State* L)
 {
     const char* name = luaL_checkstring(L, -2);
     persistent::lock_guard::lock();
     auto it = persistent::_find(name);
 
-    if ( lua_isnil(L, -1) ) {
-        // Do not trigger an error for deleting non-existent keys.
-        persistent::_remove(it);
-        return 0;
-    }
-
     bool success = false;
-    if ( lua_isinteger(L, -1) ) {
-        int value = lua_tointeger(L, -1);
-        if ( it == persistent::end() )
-            success = persistent::_create(name, &value, sizeof(value), sizeof(int));
+    switch ( lua_type(L, -1) ) {
+        case LUA_TNIL:
+            persistent::_remove(it);
+            // Do not trigger an error for deleting non-existent keys.
+            success = true;
+            break;
 
-        else
-        switch ( it->value_type ) {
-            case persistent::TSTRING:
-            case persistent::TFLOAT:
-                success = persistent::_remove(it)
-                    && persistent::_create(name, &value, sizeof(value), sizeof(int));
-                break;
+        case LUA_TNUMBER:
+            if ( lua_isinteger(L, -1) ) {
+                int value = lua_tointeger(L, -1);
+                if ( it == persistent::end() )
+                    success = persistent::_create(
+                        name, &value, sizeof(value), sizeof(int));
 
-            // If the stored value size is less than 4 bytes, only the LSBs that fit
-            // within the size will be stored.
-            default:
-                success = persistent::_set(name, &value, sizeof(value));
-                break;
-        }
-    }
+                else if ( it->value_type == persistent::TSTRING
+                       || it->value_type == persistent::TFLOAT )
+                    success = persistent::_remove(it)
+                        && persistent::_create(name, &value, sizeof(value), sizeof(int));
 
-    else if ( lua_isnumber(L, -1) ) {
-        float value = lua_tonumber(L, -1);
-        if ( it == persistent::end() )
-            success = persistent::_create(
-                name, &value, sizeof(value), persistent::TFLOAT);
+                else
+                    // If the stored value size is less than 4 bytes, only the LSBs that
+                    // fit within the size will be stored.
+                    success = persistent::_set(name, &value, sizeof(value));
+            }
 
-        else
-        switch ( it->value_type ) {
-            case persistent::TFLOAT:
-                success = persistent::_set(name, &value, sizeof(value));
-                break;
-
-            default:
-                success = persistent::_remove(it)
-                    && persistent::_create(
+            else {
+                float value = lua_tonumber(L, -1);
+                if ( it == persistent::end() )
+                    success = persistent::_create(
                         name, &value, sizeof(value), persistent::TFLOAT);
-                break;
+
+                else if ( it->value_type == persistent::TFLOAT )
+                    success = persistent::_set(name, &value, sizeof(value));
+
+                else
+                    success = persistent::_remove(it)
+                        && persistent::_create(
+                            name, &value, sizeof(value), persistent::TFLOAT);
+            }
+            break;
+
+        case LUA_TSTRING: {
+            const char* value = lua_tostring(L, -1);
+            persistent::_remove(it);
+            success = persistent::_create(
+                name, value, __builtin_strlen(value) + 1, persistent::TSTRING);
+            break;
         }
-    }
 
-    else if ( lua_isstring(L, -1) ) {
-        const char* value = lua_tostring(L, -1);
-        persistent::_remove(it);
-        success = persistent::_create(
-            name, value, __builtin_strlen(value) + 1, persistent::TSTRING);
-    }
-
-    else {
-        // Unlock the mutex manually before luaL_argerror() terminates the function.
-        persistent::lock_guard::unlock();
-        luaL_argerror(L, 3, "type not allowed in NVM");
+        default:
+            // Unlock the mutex manually before luaL_argerror() terminates the function.
+            persistent::lock_guard::unlock();
+            luaL_argerror(L, 3, "type not allowed in NVM");
+            UNREACHABLE();
     }
 
     persistent::lock_guard::unlock();
-    if ( !success )
+    if ( !success ) {
         luaL_error(L, "cannot add a new key to NVM");
+        UNREACHABLE();
+    }
     return 0;
 }
 
-// An iterator invoked by `pairs(fw.nvm)` to traverse all entries in the table.
-// ( nvm key -- next_key next_value | nil )
+// _nvm_iterator(nvm, name: string): (string, value) | void
+// An iterator (a.k.a. next function) returned from `fw.nvm.__pairs(fw.nvm)` to traverse
+// all entries in the `nvm` table.
 static int _nvm_iterator(lua_State* L)
 {
     const char* name = nullptr;
@@ -414,16 +391,13 @@ static int _nvm_iterator(lua_State* L)
 
     name = persistent::next(name);
     lua_pop(L, 1);
-    if ( name == nullptr ) {
-        lua_pushnil(L);
-        return 1;
-    }
+    if ( name == nullptr )
+        return 0;
 
     lua_pushstring(L, name);
     return 1 + _nvm_index(L);  // Return (name, value) pair.
 }
 
-// ( nvm -- iterator nvm nil )
 static int _nvm_pairs(lua_State* L)
 {
     lua_pushcfunction(L, _nvm_iterator);
@@ -432,22 +406,6 @@ static int _nvm_pairs(lua_State* L)
     return 3;
 }
 
-// Number of entries in the NVM.
-// ( nvm -- count )
-static int _nvm_len(lua_State* L)
-{
-    lua_pushinteger(L, persistent::size());
-    return 1;
-}
-
-// fw.nvm_clear() -> void
-static int fw_nvm_clear(lua_State*)
-{
-    persistent::remove_all();
-    return 0;
-}
-
-// fw.stack_usage() -> strings
 static int fw_stack_usage(lua_State* L)
 {
     lua_pushfstring(L, "ISR stack: %d / %d bytes",
@@ -466,13 +424,12 @@ static int fw_stack_usage(lua_State* L)
     return lua_gettop(L);
 }
 
-// fw.keycode(string keyname) -> int | nil
-// Note: This uses an unoptimized linear search to find the keyname.
 static int fw_keycode(lua_State* L)
 {
     const char* keyname = luaL_checkstring(L, 1);
     constexpr int NUM_KEYCODES = sizeof(keycode_to_name) / sizeof(keycode_to_name[0]);
 
+    // Note that we use a simple linear search to look up the keyname.
     int result = KC_NO;  // KC_NO (= 0) is not a valid keycode.
     for ( int keycode = KC_A ; keycode < NUM_KEYCODES ; keycode++ )
         if ( __builtin_strcmp(keyname, keycode_to_name[keycode]) == 0 ) {
@@ -480,11 +437,14 @@ static int fw_keycode(lua_State* L)
             break;
         }
 
+    if ( result == KC_NO ) {
+        luaL_error(L, "invalid keyname \"%s\"", keyname);
+        UNREACHABLE();
+    }
     lua_pushinteger(L, result);
-    return result != KC_NO;
+    return 1;
 }
 
-// fw.send_key(int keycode, bool is_press) -> void
 static int fw_send_key(lua_State* L)
 {
     uint8_t keycode = luaL_checkinteger(L, 1);
@@ -495,61 +455,199 @@ static int fw_send_key(lua_State* L)
     return 0;
 }
 
-// fw.switchover() -> void
-// Note: This function performs an immediate switchover, which may leave residual key
-// states in the old environment. See comments in usbus_hid_keyboard_t::on_reset() for
-// details. It's safe to execute this within REPL, as REPL runs only when threads are
-// idle. However, to safely call this from a keymap, call it through fw.execute_later().
 static int fw_switchover(lua_State*)
 {
     usbhub_thread::request_usbport_switchover();
     return 0;
 }
 
+
+
 int luaopen_fw(lua_State* L)
 {
     static constexpr luaL_Reg fw_lib[] = {
+// fw.defer_start(): void
+// Starts defer mode.
+// The `fw.defer_*()` functions support the Defer class implementation. See comments in
+// core.lua for more details on defer mode operations.
         { "defer_start", key_queue::defer_start },
+
+// fw.defer_stop(): void
+// Stops defer mode.
         { "defer_stop", key_queue::defer_stop },
+
+// fw.defer_is_pending(slot_index: int, is_press: bool): bool
+// Checks if a key press/release event is deferred on the given slot.
         { "defer_is_pending", key_queue::defer_is_pending },
+
+// fw.defer_remove_last(): void
+// Discards the most recent deferred event (if any).
         { "defer_remove_last", key_queue::defer_remove_last },
+
+// fw.enter_bootloader(): void
+// Reboots the system into the bootloader.
+        { "enter_bootloader", fw_enter_bootloader },
+
+// fw.execute_later(f, arg1, ...): void
+// Schedules `f(arg1, ...)` to execute after all current key event processing completes.
         { "execute_later", execute_later },
+
+// fw.keycode(keyname: string): int | void
+// Returns the keycode (a.k.a. scan code) for the given keyname, which can be passed to
+// fw.send_key(). Refer to hid_keycodes.hpp for valid key names.
         { "keycode", fw_keycode },
+
+// fw.led0(): int
+// Returns 1 if the debug LED is on, or 0 if it's off.
+//
+// fw.led0(x: int): void
+// Turns the debug LED on (x=1), off (x=0), or toggle (x=-1).
         { "led0", fw_led0 },
+
+// fw.led_refresh(): void
+// Applies buffered color updates to the RGB LEDs. Changes are staged via
+// fw.led_set_rgb() or fw.led_set_hsv().
         { "led_refresh", fw_led_refresh },
+
+// fw.led_set_hsv(led_index: int, h: int, s: int, v: int): void
+// Sets the HSV color of the RGB LED at the given led_index (also known as slot_index).
+// Changes are buffered and take effect only after calling fw.led_refresh().
+//
+// HSV is well-suited for smooth color transitions and dynamic lighting:
+//   - Rotating the Hue produces seamless rainbow animations.
+//   - Adjusting the Value controls brightness without altering color tone.
+// See hsv.hpp for details on HSV encoding, including valid ranges and hue sextant
+// structure.
         { "led_set_hsv", fw_led_set_hsv },
+
+// fw.led_set_rgb(led_index: int, r: int, g: int, b: int): void
+// Sets the RGB color of the RGB LED at the given led_index (also known as slot_index).
+// Changes are buffered and take effect only after calling fw.led_refresh().
         { "led_set_rgb", fw_led_set_rgb },
+
+// fw.log(format: string, arg1, ...): void
+// Lightweight printf-style logger optimized for embedded Lua environments, avoiding
+// luaL_tolstring() to prevent temporary string allocations and reduce garbage
+// collection overhead during frequent logging.
+//
+// Supported format specifiers are limited to '%d', '%s', and '%p', determined by
+// each argument type:
+//   - %d: integers, floats (converted to int), booleans (0/1), or nil (-1)
+//   - %s: strings (passed as C strings)
+//   - %p: tables, functions, or userdata (logged as raw pointers, e.g., 0xXXXX)
         { "log", fw_log },
+
+// fw.log_mask(): int
+// Returns the current log mask configured in the firmware.
+//
+// fw.log_mask(mask: int): void
+// Sets the log mask to filter which subsystems emit logs.
+//
+// Log mask values (can be combined using bitwise OR):
+//   - 1: Welcome message when starting `dalua`
+//   - 2: Logs from usb_thread
+//   - 4: Logs from matrix_thread
+//   - 8: Logs from usbhub_thread
+//   - 128: Logs from main_thread
         { "log_mask", fw_log_mask },
+
+// fw.nvm: table (userdata, actually)
+// Table of (name, value) pairs stored in NVM, persisting across reboots. Supported
+// value types are int, float, and string. Assigning nil removes the entry from NVM.
+// E.g. fw.nvm.foo = 1.2; fw.nvm.foo = "bar"; fw.nvm["foo"] = nil
         { "nvm", nullptr },  // placeholder for the `nvm` table
-        { "nvm_clear", fw_nvm_clear },
+
+// fw.pack(...): table
+// Equivalent to table.pack(); packs arguments into a table with a field 'n' for count.
         // { "pack", fw_pack },
+
+// fw.unpack(t: table [, i: int [, j: int]]): (...)
+// Equivalent to table.unpack(); returns the elements of the table from index i to j.
         // { "unpack", fw_unpack },
+
+// fw.product_serial(): string
+// Returns the product serial number inscribed in the USER page.
+//
+// fw.product_serial(s: string): void (triggers system reset)
+// Writes the given product serial number into the USER page, but only if it is blank.
+// Note that it cannot overwrite an existing product serial as it does not erase the
+// USER page.
         { "product_serial", fw_product_serial },
-        { "reboot_to_bootloader", fw_reboot_to_bootloader },
+
+// fw.send_key(keycode: int, is_press: bool): void
+// Sends a key press or release event to the host.
+// Note: No delay is needed between consecutive calls - timing is handled internally.
+// You can safely call fw.send_key() back-to-back to send a press followed immediately
+// by a release for the same key.
         { "send_key", fw_send_key },
+
+// fw.stack_usage(): (string, ...)
+// Returns a list of strings describing the stack usage of each thread.
+// E.g.
+//   ISR stack: 664 / 1024 bytes
+//   main stack: 1292 / 2048 bytes
+//   usbhub_thread stack: 552 / 1024 bytes
+//   usbus stack: 932 / 1024 bytes
+//   matrix_thread stack: 556 / 1024 bytes
         { "stack_usage", fw_stack_usage },
+
+// fw.system_reset(): void
+// Performs a system reset, rebooting the system.
         { "system_reset", fw_system_reset },
+
+// fw.switchover(): void
+// When both USB ports are connected to hosts, switches to the inactive host.
+// Note: This triggers an immediate switchover and may leave residual key states in the
+// previous host. See comments in usbus_hid_keyboard_t::on_reset() for details. It is
+// OK to call from REPL, as REPL runs only when threads are idle. However, to safely call
+// this from a keymap, wrap the call with fw.execute_later().
         { "switchover", fw_switchover },
+
+// fw.timer_create(): userdata
+// Creates and returns a timer instance.
+// The `fw.timer_*()` functions support the Timer class implementation. See comments in
+// core.lua for more details.
         { "timer_create", _timer_t::create },
+
+// fw.timer_now(timer: userdata): int | void
+// Returns the elapsed time since the epoch if the timer is active, or nothing otherwise.
         { "timer_now", _timer_t::now },
+
+// fw.timer_start(timer: userdata, timeout_ms: int, callback [, repeated: bool]): int
+// Starts or restarts the timer, setting its epoch to the current time. Returns 0 as the
+// initial elapsed time since the epoch. `callback` is called when the timer expires
+// later.
         { "timer_start", _timer_t::start },
+
+// fw.timer_stop(timer: userdata): bool
+// Stops the timer; returns true if the timer is active, or false if the timer was
+// expired or never started.
         { "timer_stop", _timer_t::stop },
+
         { nullptr, nullptr }
     };
 
     luaL_newlib(L, fw_lib);
-    (void)lua_newuserdata(L, 0);  // Create a new (full) userdata for the "nvm" object.
+    (void)lua_newuserdata(L, 0);  // Create a new (full) userdata for the `nvm` object.
 
     lua_newtable(L);
+
+// fw.nvm.__index(nvm, name: string): int | float | string | void
+// Reads the value associated with the given key from NVM.
     lua_pushcfunction(L, _nvm_index);
     lua_setfield(L, -2, "__index");
+
+// fw.nvm.__newindex(nvm, name: string, value): void
+// Writes a (name, value) pair into NVM.
     lua_pushcfunction(L, _nvm_newindex);
     lua_setfield(L, -2, "__newindex");
-    lua_pushcfunction(L, _nvm_len);
-    lua_setfield(L, -2, "__len");
+
+// fw.nvm.__pairs(nvm): (iterator, nvm, nil)
+// Returns an iterator and its initial arguments for traversing all entries in the `nvm`
+// table.
     lua_pushcfunction(L, _nvm_pairs);
     lua_setfield(L, -2, "__pairs");
+
     lua_setmetatable(L, -2);
 
     lua_setfield(L, -2, "nvm");

@@ -2,7 +2,7 @@
 #include "assert.h"
 #include "log.h"
 
-#include "lua.hpp"              // for lua::L
+#include "lua.hpp"              // for lua::global_lua_state
 #include "main_thread.hpp"      // for main_thread::signal_event()
 #include "timer.hpp"
 
@@ -84,7 +84,8 @@ void _timer_t::_hdlr_timeout(event_t* event)
     // (that->m_rcallback != LUA_NOREF). If it isn't, we discard the event and prevent
     // on_timeout() from executing.
     if ( that->m_rcallback != LUA_NOREF ) {
-        using lua::L;
+        lua::global_lua_state L;
+
         // Invoke the Lua callback function.
         lua_rawgeti(L, LUA_REGISTRYINDEX, that->m_rcallback);
         // ( -- callback )

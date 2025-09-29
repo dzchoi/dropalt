@@ -11,7 +11,7 @@ if ! dfu-util -l -a1 |grep -q 'RIOT-OS'; then
     dalua -e nil >/dev/null || exit
 
     # This command is expected to fail with "no response from serial port".
-    dalua -e 'require("fw").reboot_to_bootloader()'; sleep 3
+    dalua -e 'require("fw").enter_bootloader()'; sleep 3
 fi
 
 dfu-util -a1 -D "$tmpfile"

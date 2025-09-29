@@ -11,17 +11,21 @@ struct lua_State;
 // Internal C++ helper for the `Timer` class in Lua. Wraps ztimer_t.
 class _timer_t: public ztimer_t {
 public:
-    static int create(lua_State* L);  // ( -- userdata )
+    // fw.timer_create(): userdata
+    static int create(lua_State* L);
 
     // Note: This class is intentionally minimal and does not define an explicit
     // `destroy()` method. The callback reference (`m_rcallback`) is managed exclusively
     // through the `start()` and `stop()` methods invoked from Lua.
 
-    static int start(lua_State* L);  // ( userdata timeout_ms callback [repeated] -- 0 )
+    // fw.timer_start(timer: userdata, timeout_ms: int, callback [, repeated: bool]): int
+    static int start(lua_State* L);
 
-    static int stop(lua_State* L);  // ( userdata -- bool )
+    // fw.timer_stop(timer: userdata): bool
+    static int stop(lua_State* L);
 
-    static int now(lua_State* L);  // ( userdata -- [int] )
+    // fw.timer_now(timer: userdata): int | void
+    static int now(lua_State* L);
 
 protected:
     explicit _timer_t()

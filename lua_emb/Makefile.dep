@@ -1,6 +1,6 @@
-# This will automatically download Lua 5.3.4 source files in riot/build/pkg/lua, and
+# This will automatically download Lua 5.3.6 source files in riot/build/pkg/lua, and
 # patch them.
-USEPKG += lua               # Lua 5.3.4
+USEPKG += lua               # Lua 5.3.6
 
 # Exclude the parsing modules (lcode, llex, lparser) when building the Lua core.
 USEMODULE += lua-contrib_noparser

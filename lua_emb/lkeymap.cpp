@@ -4,7 +4,7 @@
 #include "riotboot/slot.h"      // for riotboot_slot_get_hdr(), ...
 
 #include "lkeymap.hpp"
-#include "lua.hpp"              // for lua::L, status_t
+#include "lua.hpp"
 
 
 
@@ -32,6 +32,8 @@ static const char* _reader(lua_State*, void* arg, size_t* psize)
 
 void load_keymap()
 {
+    global_lua_state L;
+
     // Verify the validity of the slot header in slot 1.
     assert( riotboot_slot_validate(SLOT1) == 0 );
 
@@ -88,6 +90,8 @@ void load_keymap()
 
 void handle_key_event(unsigned slot_index, bool is_press)
 {
+    global_lua_state L;
+
     lua_pushlightuserdata(L, (void*)&handle_key_event);
     lua_gettable(L, LUA_REGISTRYINDEX);
     // ( -- handle_key_event )
@@ -100,6 +104,8 @@ void handle_key_event(unsigned slot_index, bool is_press)
 
 void handle_lamp_state(uint_fast8_t lamp_state)
 {
+    global_lua_state L;
+
     lua_pushlightuserdata(L, (void*)&handle_lamp_state);
     lua_gettable(L, LUA_REGISTRYINDEX);
     // ( -- handle_lamp_state )

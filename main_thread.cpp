@@ -11,7 +11,7 @@
 
 #include "adc.hpp"              // for adc::init()
 #include "event_ext.hpp"        // for event_post(), event_queue_init(), event_get()
-#include "lua.hpp"              // for lua::init()
+#include "lua.hpp"              // for lua::global_lua_state::init()
 #include "config.hpp"           // for ENABLE_CDC_ACM, ENABLE_LUA_REPL
 #include "key_queue.hpp"        // for key_queue::push(), key_queue::get(), ...
 #include "lexecute.hpp"         // for lua::execute_pending_calls(), ...
@@ -152,8 +152,9 @@ NORETURN void* main_thread::_thread_entry(void*)
     // The event_queue_init() should be called from the queue-owning thread.
     event_queue_init(&m_event_queue);
 
-    // Initialize keymaps and LED effect.
-    lua::init();
+    // Set up the global Lua state and load the keymap module, initializing all keymaps
+    // and LED effects.
+    lua::global_lua_state::init();
 
     while ( true ) {
         // Kick the watchdog timer to keep the system alive. If we don't come back here

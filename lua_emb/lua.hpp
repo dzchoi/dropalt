@@ -2,13 +2,10 @@
 
 #pragma once
 
-#include <climits>              // for INT_MIN
-#include <cstdint>              // for uint32_t, int8_t
-
 #include "log.h"
 
 extern "C" {
-// #include "lua.h"
+// #include "lua.h"             // already included by lauxlib.h
 #include "lauxlib.h"            // declares luaL_*().
 }
 
@@ -25,37 +22,42 @@ extern "C" {
 
 
 
-constexpr int LUA_NOSTATUS = INT_MIN;
-
 namespace lua {
 
-using status_t = int;
+// Two categories of Lua functions that operate on `L` (lua_State):
+//
+// [lua_CFunction]
+// - Signature: `int (*)(lua_State*)`
+// - Receives its own stack frame for passing arguments and returning results.
+// - Upon return, the Lua interpreter (e.g. `lua_pcall()`) automatically discards stack
+//   elements below the returned results; manual cleanup is not required.
+// - Should be self-contained: validate arguments using `luaL_check*()` or
+//   `luaL_argcheck()`, and use `lua_error()` instead of C `assert()` to report errors.
+//
+// [C-side Lua utilities]
+// - Examples: lua_insert(), lua::load_keymap(), lua::repl::execute(), ...
+// - The state of the stack below the expected arguments is undefined.
+// - Therefore, only negative indices (relative to the top of the stack) should be used
+//   to reference stack elements reliably.
 
-// Shared global Lua state used by both the keymap and REPL modules.
-inline lua_State* L = nullptr;
-
-void init();
-
-class ping {
+// Initialize a global Lua state shared by both the keymap and REPL modules.
+// local declaration of `global_lua_state L;` provides access to the shared Lua state
+// using `L` and asserts that the Lua stack is empty when it goes out of scope.
+// Note that though the state is accessed by multiple subsystems, including timer
+// callbacks, all accesses are serialized to prevent concurrent use.
+class global_lua_state {
 public:
-    constexpr ping(status_t status):
-        hd0('['), hd1('}'), st(status + '0'), nl('\n') {}
+    ~global_lua_state();
 
-    operator uint32_t() const { return value; }
+    static void init();
 
-    // Retrieve the status embedded in the ping, or return -1 if the ping is invalid.
-    status_t status() const;
+    operator lua_State*() { return L; }
 
 private:
-    union {
-        uint32_t value;
-        struct {
-            const char hd0;   // '['
-            const char hd1;   // '}'
-            const int8_t st;  // 1 byte of status
-            const char nl;    // '\n'
-        } __attribute__((packed));
-    };
+    static inline lua_State* L = nullptr;
 };
+
+// Type alias for Lua status codes (e.g. LUA_OK) defined in lua.h.
+using status_t = int;
 
 }

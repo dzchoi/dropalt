@@ -10,7 +10,7 @@
 #include "ztimer.h"             // for ztimer_set(), ztimer_remove(), ...
 
 #include "config.hpp"           // for ENABLE_CDC_ACM, ENABLE_LUA_REPL
-#include "lua.hpp"              // for lua::ping
+#include "repl.hpp"             // for lua::ping
 #include "main_thread.hpp"      // for signal_dte_state(), signal_dte_ready()
 #include "timed_stdin.hpp"
 

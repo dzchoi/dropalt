@@ -1,17 +1,11 @@
 * Fix: "CDCACM: line coding not supported".
 
 [Refactor]
-* Rename reboot_to_bootloader -> jump_to_bootloader in board-dropalt, Lua and bootloader.
 * Rename .value -> .uint?. Search for "union" across sources.
 * Rename key_queue -> main_key_events, key_event_queue_t -> usb_key_events.
 * `assert( false )` and `assert( status == LUA_OK )` are not the proper way to shutdown. Use abort(), lua_error() or luaL_error() instead.
   `assert()` for only "non-trivial" logical error.
 * Manage all thread stack sizes in one place.
-
-[Keymap]
-* Context-remembering keymaps:
-  Pressing End the first time triggers End, then triggers Home on the 2nd and 3rd
-  presses. Can be implemented using TapSeq with a longer tapping_term_ms.
 
 [Debouncing]
 * DEBOUNCE_PRESS_MS and DEBOUNCE_RELEASE_MS defined in NVM.
@@ -26,6 +20,9 @@
 * RGB is enabled or disabled dynamically from Effects in Lua?
 * Adjustable threshold values (ADC_CON1_NOMINAL) in NVM?
 
+[Lua]
+* Upload the userpage (512 bytes).
+
 [Tips]
 * Redefine Riot-independent #define constants using "static const" and "static inline".
 * Change m_pthread->flags directly instead calling thread_flags_set(), if we don't need to yield to other threads at this moment, and there is no other threads or interrupt that can change it simultaneously (So irq_disable() is not necessary).
@@ -34,16 +31,12 @@
 * CFLAGS from parent Makefile are inherited, but the changes in child Makefiles do not propagate back.
 * Use `likely(x)` (== `__builtin_expect((uintptr_t)(x), 1)`) if appropriate.
 * Allocate variables in ".noinit" section (NOINIT) unless initialization is strictly necessary.
-* Favor fputs() over printf() and puts() if possible to minimize code size.
+* Favor stdio_write() over printf() and fputs() if possible to minimize code size.
 * Don't waste assert(). Even a simple `assert( m_pthread );` consumes 56 bytes.
 * Don't include <cstdbool>, <cstddef> and <cstdint> for each source file, as they would
   have been already included in the header file that provides the functions with those
   types as parameters or as a return value.
 * Binary size is also affected by .data section. Walk through those variables that initialize with non-zero values.
-
-[Lua C API]
-* The standard `int (*)(Lua_State*)` can assume the stack contains its own arguments, but other helper functions (e.g. `lua_insert()`, `handle_key_event()`, ...) cannot, and they must manipulate only top stack entries.
-* `Function(f)` executes f through `fw.execute_later()`?
 
 [Log]
 * Newlib-nano does not include `%f` support in printf, sprintf, etc.
@@ -69,25 +62,56 @@ void print_double(double x) { printf("%lf\n", x); }
 void print_str(const char* x) { printf("%s\n", x); }
 ```
 * Formatted log: Current time, thread name, color, ...
+* `fw.log()` automatically appends '\n'. Otherwise, it disrupts `dalua`.
+* `thread_get_active()` returns NULL from interrupt context.
 
 * Use MODULE_CORE_IDLE_THREAD to enable CPU sleep when idle.
+
+[No bootloader]
+* The system uses a single firmware application without a separate bootloader. This application supports both DFU mode and normal operation.
+* The application is headerless.
+* The application is flashed into the alternate bank of dual memory (e.g. A -> B -> A -> ...).
+* When flashed using the legacy `mdloader`, a large combined image is written—including 112KB of padding followed by the application. The initial portion of this padding contains machine code that swaps the flash banks and triggers a system reset.
+* On boot, the application determines whether to enter DFU mode or normal mode.
+* After flashing the application, the Lua chunk code and seeprom (NVM) must also be reflashed.
+
+* riot/sys/include/usb/dfu.h
+```
+#define USB_DFU_WILL_DETACH             0x08    /**< DFU Detach capability attribute */
+
+#define USB_DFU_PROTOCOL_RUNTIME_MODE   0x01 /**< Runtime mode */
+#define USB_DFU_PROTOCOL_DFU_MODE       0x02 /**< DFU mode */
+
+    USB_DFU_STATE_APP_IDLE,               /**< DFU application idle */
+    USB_DFU_STATE_APP_DETACH,             /**< DFU application detach (reboot to DFU mode) */
+    USB_DFU_STATE_DFU_IDLE,               /**< DFU runtime mode idle */
+    USB_DFU_STATE_DFU_DL_SYNC,            /**< DFU download synchronization */
+```
+* See riot/tests/sys/usbus_board_reset/main.c for usbus + cdc_acm + dfu.
 
 [Bootloader Updater]
 * Headerless application
 * pkg->index(?) indicates the slot number.
 * Upload the existing bootloader. [slot 0]
   Assuming it is the first(?) application placed immediately after the bootloader, it uploads the bootloader image of any size, excluding the trailing 0xFFs.
-* Upload the userpage (512 bytes). [slot 1]
+* Two types of images are generated: slot0.bin and slot0.xxx.bin
 * E.g. `make riotboot/slot0` generates two binaries: one with a header and one without.
 * Generic updater that does not setup EEPROM. Can flash ANY bootloader of size <= 16KB.
 * `dfu-util` can flash a bootloader at slot 0.
-* Two types are generated: slot0.bin and slot0.xxx.bin
 * Provides slot 0 in dfu-util to flash the real bootloader.
 * Allocate and initialize SEEPROM, or hardfault will occur otherwise.
 * Maybe we could utilize an intermediary bootloader to flash the final bootloader, using memory banks and switching them.
 * Debug led pattern during execution?
 
+[Bootloader itself as bootloader updater]
+* Bootloader is built as a relocatable code so that it can be flashed in any region of the memory.
+* It checks whether it started as a firmware or as a bootloader (at 0x0).
+* If it started as an application:
+  - Wait for dfu-util, then flash the bootloader.
+  - Wait for a user key press, then copy its own code into the bootloader region.
+
 [Bootloader]
+* wait_for_host_connection() starts from the host port on which `enter_bootloader()` executed.
 * Do not reboot after downloading (flashing); `dfu-util` provides `-e` and `-R` as a separate option. No USB_DFU_WILL_DETACH?
 * Flash and start both headered and headerless images.
   `dfu->skip_signature = true` only if the firmware image includes "RIOT" at the slot header.

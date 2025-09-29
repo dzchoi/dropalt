@@ -3,17 +3,17 @@ local fw = require "fw"
 
 
 -------- Configuration
--- Rate for updating RGB leds to show effects. 17 ms corresponds to ~60 fps.
+-- Rate for updating RGB leds to update effects. 17 ms corresponds to ~60 fps.
 RGB_UPDATE_PERIOD_MS = 17
 
 -------- LED constants from led_conf.h
-HSV_HUE_STEPS     = 0x600
-KEY_LED_COUNT     = 67  -- slot_index <= 67 corresponds to a key LED.
-LED_BOTTOM_LEFT   = 68  -- slot_index >= 68 corresponds to an underglow LED.
+KEY_LED_COUNT     = 67  -- Key LEDs: slot_index (a.k.a. led_index) from 1 to 67
+LED_BOTTOM_LEFT   = 68  -- Underglow LEDs: slot_index >= 68
 LED_BOTTOM_RIGHT  = 82
 LED_TOP_RIGHT     = 87
 LED_TOP_LEFT      = 101
 ALL_LED_COUNT     = 105
+HSV_HUE_STEPS     = 0x600  -- Number of hue steps for HSV color space
 
 -------- Lamp ID
 LAMP_NUMLOCK      = 1
@@ -25,14 +25,16 @@ LAMP_SCRLOCK      = 3
 
 
 -------- Effect
+-- Effect: Base class for keyboard LED animation schemes.
 Effect = Class()
 
--- Set the default effect to Effect to disable LED activity.
--- Note: Do not override this default effect when ENABLE_RGB_LED is false.
+-- Effect.c_active_effect is set to Effect to disable LED activity by default. It can
+-- later be overriden by a subclass of Effect.
+-- Note: Do not override if ENABLE_RGB_LED is false.
 Effect.c_active_effect = Effect
 
--- Tracks slot indices that should be excluded from Effect updates. Each entry can hold
--- one of three states:
+-- Effect.c_lamp_lit_slots tracks slot indices that should be excluded from Effect
+-- updates. Each entry can hold one of three states:
 --   - nil:   lamp is inactive
 --   - false: lamp is inactive, but its activator key has been pressed
 --   - true:  lamp is active
@@ -47,6 +49,9 @@ Effect.c_active_effect = Effect
 -- * Only these three cases execute on_press/release().
 Effect.c_lamp_lit_slots = {}
 
+-- Effect:init() is invoked when an Effect instance is created during keymap module
+-- loading. The effect becomes visible upon the USB resume event, which enables GCR
+-- across all LEDs.
 function Effect:init() end
 
 function Effect:on_press(slot_index) end
@@ -148,19 +153,26 @@ end
 
 
 -------- Lamp
--- Associate an indicator lamp with an LED.
+-- Associates an indicator lamp with an LED.
 --   - Lamp(lamp_id, slot_index): directly links the lamp to the specified slot index.
 --   - Lamp(lamp_id, keymap): links the lamp to the slot that will later be assigned to
---     the keymap via layout().
+--     the keymap.
+--     Note: In this case, the keymap is temporarily modified to include a `_lamp` field,
+--     which references this Lamp instance. When the keymap is assigned to a slot later,
+--     `Lamp.m_slot_index` should be updated to reflect the assigned slot index. See
+--     `layout()` for an example.
+--
 -- Custom behavior can optionally be defined through on_lamp_active/inactive(), which
 -- is invoked when the lamp is turned on or off.
+--
+-- Note: unlike keymap classes, there's no need to save Lamp class instances in the
+-- global environment to survive garbage collection, because each instance is
+-- automatically stored in the class variable `Lamp.c_lamp_slots[]`.
 Lamp = Class()
 
 Lamp.c_current_lamp_state = 0
 Lamp.c_lamp_slots = {}  -- Lists of slot indices associated with each each lamp ID.
 
--- Note that each `Lamp()` instance is automatically stored in c_lamp_slots[], so
--- explicit global assignment is unnecessary.
 function Lamp:init(lamp_id, slot_index_or_keymap)
     if type(slot_index_or_keymap) == "number" then
         self.m_slot_index = slot_index_or_keymap
@@ -183,12 +195,8 @@ function Lamp:on_lamp_inactive() end
 
 
 
-return ...,
-
 -- Driver for keyboard indicator lamps, responsible for managing their on/off states.
--- This function, along with the keymap driver, is returned and passed to the next
--- script in the compilation sequence.
-function(lamp_state)
+local function handle_lamp_state(lamp_state)
     -- Compute the difference between the old and new states.
     lamp_state = lamp_state ~ Lamp.c_current_lamp_state
     -- Store the new state to c_current_lamp_state.
@@ -218,3 +226,7 @@ function(lamp_state)
         lamp_id = lamp_id + 1
     end
 end
+
+-- Pass the indicator lamp driver along with the received keymap driver to the next
+-- script in the compilation sequence.
+return ..., handle_lamp_state

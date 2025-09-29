@@ -11,14 +11,16 @@
 
 
 
-// SEEPROM is structured as a single associative array, providing efficient storage and
-// retrieval of name-value pairs. Internally, the 4K SEEPROM space is managed using the
-// "Buddy" system, which prevents performance degradation from gradual defragmentation.
-// See Dynamic Storage Allocation in *The Art of Computer Programming* for reference.
+// SEEPROM is organized as a single associative array for efficient name-value storage
+// and retrieval. Internally, the 4KB space is managed using "Buddy" allocation system
+// to minimize write overhead during allocation and deallocation, and to prevent
+// performance degradation from gradual fragmentation. See Dynamic Storage Allocation in
+// *The Art of Computer Programming* for reference.
+//
 // Writes to SEEPROM are performed in buffered mode to optimize wear leveling. Buffered
 // data is automatically committed to SEEPROM either after a predefined delay
 // (NVM_WRITE_DELAY_MS) or immediately upon being read back.
-
+//
 // Structure of each name-value pair:
 //  +0: block_header (1 byte)
 //  +1: null-terminated name string (n bytes)
@@ -42,15 +44,20 @@ public:
 
     static const char* get(const char* name);
 
-    // Assign a value to the given name. If the name-value pair does not exist a new
-    // entry is created with the given value.
-    // Ensure that the type T used between get() and set() remains consistent.
+    // Assign a value to the given name. If the name does not already exist, a new entry
+    // is created.
+    // Note: The type T used with set() must match the type expected by get() to ensure
+    // consistency.
     template <typename T>
     static bool set(const char* name, const T& value);
 
     static bool set(const char* name, float value);
 
     static bool set(const char* name, const char* value);
+
+    // Commit the change made by set() now. Otherwise, it will be automatically
+    // committed after NVM_WRITE_DELAY_MS.
+    static void commit_now() { seeprom_flush(); }
 
     // Remove all entries.
     static void remove_all();
@@ -116,7 +123,6 @@ private:
 
         block_header& operator*() { return *p; }
         block_header* operator->() { return p; }
-        operator char*() { return (char*)p; }
 
         iterator& operator++() { p += 1 << p->size2; return *this; }
         iterator operator++(int) { block_header* q = p; p += 1 << p->size2; return q; }
@@ -124,7 +130,8 @@ private:
         // `iterator operator+(int offset) const` is not provided; instead, the iterator
         // will be converted to `char*` for pointer arithmetic.
 
-        void* pvalue() const { return p + 1 + __builtin_strlen((char*)p + 1) + 1; }
+        char* to_name() { return (char*)p + 1; }
+        void* to_value() { return p + 1 + __builtin_strlen((char*)p + 1) + 1; }
 
         // SEEPROM_ADDR must end with enough 0s to enable bit operations with the block
         // sizes in the range [2^0, 2^SEEPROM_SIZE2).
@@ -155,13 +162,10 @@ private:
 
     static bool _set(const char* name, const void* value, size_t value_size);
 
-    // Commit the change now.
-    static void _commit_now() { seeprom_flush(); }
-
     // Commit the change in SEEPROM in NVM_WRITE_DELAY_MS.
     static void _commit_later() {
         static ztimer_t timer = {
-            .callback = [](void*) { _commit_now(); },
+            .callback = [](void*) { commit_now(); },
             .arg = nullptr
         };
         ztimer_set(ZTIMER_MSEC, &timer, NVM_WRITE_DELAY_MS);

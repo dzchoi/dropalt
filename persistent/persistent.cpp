@@ -43,10 +43,10 @@ bool persistent::_create(const char* name, const void* value, size_t value_size,
             if ( new_size2 < it->size2 && it->size2 < found->size2 )
                 found = it;
         }
-        else if ( __builtin_strcmp(name, it + 1) == 0 )
+        else if ( __builtin_strcmp(name, it.to_name()) == 0 )
             return false;  // Already existing.
 
-    // Return NULL if not found.
+    // Return false if not found.
     if ( !found->free )
         return false;
 
@@ -60,11 +60,11 @@ bool persistent::_create(const char* name, const void* value, size_t value_size,
     *found = block_header(new_size2, value_type, false);
 
     // Populate the name field and value field
-    __builtin_memcpy(found + 1, name, name_size);
-    __builtin_memcpy(found + 1 + name_size, value, value_size);
+    __builtin_memcpy(found.to_name(), name, name_size);
+    __builtin_memcpy(found.to_name() + name_size, value, value_size);
     // LOG_DEBUG("seeprom: _create \"%s\" type=%d\n", name, value_type);
     // _commit_later();  // will be performed by get()/set() outside.
-    return true;  // Return the value field address.
+    return true;
 }
 
 bool persistent::_remove(iterator it)
@@ -74,17 +74,17 @@ bool persistent::_remove(iterator it)
 
     // Merge the buddy blocks if they are free.
     uint8_t blk_size2 = it->size2;
-    while ( blk_size2 < SEEPROM_SIZE2 ) {
+    for ( ; blk_size2 < SEEPROM_SIZE2 ; blk_size2++ ) {
         auto buddy = it.buddy(1 << blk_size2);
         if ( !(buddy->free && buddy->size2 == blk_size2) )
             break;
         // If the buddy block is free, do not change it but move up to the parent block.
-        it = it.parent(1 << blk_size2++);
+        it = it.parent(1 << blk_size2);
     }
 
     // Make this block free.
     *it = block_header(blk_size2);
-    // LOG_DEBUG("seeprom: _remove \"%s\"\n", name);
+    // LOG_DEBUG("seeprom: _remove \"%s\"\n", it.to_name());
     _commit_later();
     return true;
 }
@@ -93,7 +93,7 @@ persistent::iterator persistent::_find(const char* name)
 {
     if ( name )
         for ( auto it = begin() ; it != end() ; ++it ) {
-            if ( !it->free && __builtin_strcmp(name, it + 1) == 0 )
+            if ( !it->free && __builtin_strcmp(name, it.to_name()) == 0 )
                 return it;
         }
 
@@ -113,7 +113,7 @@ const char* persistent::next(const char* name)
     while ( it != end() && it->free )
         ++it;
 
-    return it != end() ? it + 1 : nullptr;
+    return it != end() ? it.to_name() : nullptr;
 }
 
 bool persistent::_get(const char* name, void* value, size_t value_size)
@@ -125,14 +125,14 @@ bool persistent::_get(const char* name, void* value, size_t value_size)
         // Note that value_size would be 4 if value_type = TFLOAT (=7).
         value_size = it->value_type;
 
-    __builtin_memcpy(value, it.pvalue(), value_size);
+    __builtin_memcpy(value, it.to_value(), value_size);
     return true;
 }
 
 const char* persistent::get(const char* name)
 {
     lock_guard nvm_lock;
-    return (const char*)_find(name).pvalue();
+    return (const char*)_find(name).to_value();
 }
 
 bool persistent::_set(const char* name, const void* value, size_t value_size)
@@ -143,7 +143,7 @@ bool persistent::_set(const char* name, const void* value, size_t value_size)
     if ( value_size > it->value_type )
         value_size = it->value_type;
 
-    __builtin_memcpy(it.pvalue(), value, value_size);
+    __builtin_memcpy(it.to_value(), value, value_size);
     _commit_later();
     return true;
 }
@@ -170,7 +170,7 @@ void persistent::remove_all()
     // watchdog reset.
     // __builtin_memset(begin(), 0xff, sizeof(nvm));  // Clear the SEEPROM.
     *begin() = block_header(SEEPROM_SIZE2);
-    _commit_now();
+    commit_now();
 }
 
 size_t persistent::size()
@@ -178,6 +178,8 @@ size_t persistent::size()
     lock_guard nvm_lock;
     size_t count = 0;
     for ( auto it = begin() ; it != end() ; ++it ) {
+        // LOG_DEBUG("seeprom: %p size=%d type=%d free=%d\n",
+        //     it.operator->(), 1 << it->size2, it->value_type, it->free);
         if ( !it->free )
             count++;
     }

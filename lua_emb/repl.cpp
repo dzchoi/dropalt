@@ -1,11 +1,9 @@
-#include <cstdio>               // for fputs()
-
 #include "assert.h"
 #include "log.h"                // for get_log_mask()
 #include "stdio_base.h"         // for stdio_write()
 
 #include "config.hpp"           // for ENABLE_LUA_REPL
-#include "lua.hpp"              // for lua::L, l_message()
+#include "lua.hpp"              // for LUA_COPYRIGHT, l_message(), ...
 #include "repl.hpp"
 #include "timed_stdin.hpp"      // for timed_stdin::_reader()
 
@@ -17,13 +15,19 @@ namespace lua {
 
 void repl::start()
 {
-    respond(LUA_OK);                             // Indicate that REPL is ready.
-    if ( get_log_mask() & LOG_MASK_WELCOME )
-        std::fputs(LUA_COPYRIGHT "\n", stdout);  // Then output the welcome message.
+    respond(LUA_OK);  // Indicate that REPL is ready.
+
+    if ( get_log_mask() & LOG_MASK_WELCOME ) {
+        constexpr char welcome_msg[] = LUA_COPYRIGHT "\n";
+        // Then output the welcome message.
+        stdio_write(welcome_msg, __builtin_strlen(welcome_msg));
+    }
 }
 
 void repl::report(status_t status)
 {
+    global_lua_state L;
+
     if ( status == LUA_OK ) {
         for ( int i = -lua_gettop(L) ; i < 0 ; i++ ) {
             size_t l;
@@ -51,7 +55,6 @@ void repl::report(status_t status)
         l_message(lua_tostring(L, -1));
         lua_pop(L, 1);  // remove the error message.
     }
-    assert( lua_gettop(L) == 0 );
 }
 
 void repl::respond(status_t status)
@@ -64,7 +67,9 @@ void repl::respond(status_t status)
 
 void repl::execute()
 {
+    global_lua_state L;
     LOG_DEBUG("Lua: repl::execute()\n");
+
     // We use a timed reader function here instead of stdio_read() from stdio_base.h.
     // This ensures that if the host's serial terminal (e.g., dalua) is malfunctioning
     // and fails to provide the expected input, the REPL does not become unresponsive.
@@ -78,6 +83,13 @@ void repl::execute()
 
     report(status);   // Show the result or error.
     respond(status);  // Respond to the host with the status.
+}
+
+status_t ping::status() const
+{
+    if ( hd0 == '[' && hd1 == '}' && nl == '\n' )
+        return st - '0';
+    return LUA_NOSTATUS;
 }
 
 }

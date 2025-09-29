@@ -89,7 +89,6 @@ bool key_queue::terminal_full()
     return result;
 }
 
-// ( -- )
 int key_queue::defer_start(lua_State*)
 {
     // assert( main_thread::is_active() );
@@ -97,7 +96,6 @@ int key_queue::defer_start(lua_State*)
     return 0;
 }
 
-// ( -- )
 int key_queue::defer_stop(lua_State*)
 {
     // assert( main_thread::is_active() );
@@ -105,7 +103,6 @@ int key_queue::defer_stop(lua_State*)
     return 0;
 }
 
-// ( slot_index is_press -- true | false )
 int key_queue::defer_is_pending(lua_State* L)
 {
     int slot_index = luaL_checkinteger(L, 1);
@@ -125,7 +122,6 @@ int key_queue::defer_is_pending(lua_State* L)
     return 1;
 }
 
-// ( -- )
 int key_queue::defer_remove_last(lua_State*)
 {
     mutex_lock(&m_access_lock);

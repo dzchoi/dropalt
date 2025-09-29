@@ -3,7 +3,7 @@
 #define USB_H_USER_IS_RIOT_INTERNAL
 
 #include "backup_ram.h"         // for backup_ram_read()
-#include "board.h"              // for system_reset(), reboot_to_bootloader()
+#include "board.h"              // for system_reset(), enter_bootloader()
 #include "usb/dfu.h"
 #include "usb/descriptor.h"
 #include "usb/usbus.h"
@@ -70,7 +70,7 @@ static const usbus_descr_gen_funcs_t _dfu_descriptor = {
 static void reboot_now(void* to_bootloader)
 {
     if ( to_bootloader )
-        reboot_to_bootloader();
+        enter_bootloader();
     else
         system_reset();
 }

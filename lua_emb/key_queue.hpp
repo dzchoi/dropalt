@@ -35,14 +35,16 @@ public:
     static bool terminal_full();
 
     // Start or stop defer mode.
-    static int defer_start(lua_State* L);  // ( -- )
-    static int defer_stop(lua_State* L);   // ( -- )
+    static int defer_start(lua_State* L);  // fw.defer_start(): void
+    static int defer_stop(lua_State* L);   // fw.defer_stop(): void
 
-    // Check if an event on the given slot is deferred (i.e. if it was peeked).
-    static int defer_is_pending(lua_State* L);  // ( slot_index is_press -- true | false )
+    // Check if a key event is deferred on the given slot (i.e. if it was peeked).
+    // fw.defer_is_pending(slot_index: int, is_press: bool): bool
+    static int defer_is_pending(lua_State* L);
 
     // Remove the most recent deferred event from the queue.
-    static int defer_remove_last(lua_State* L);  // ( -- )
+    // fw.defer_remove_last(): void
+    static int defer_remove_last(lua_State* L);
 
 private:
     constexpr key_queue() =delete;  // Ensure a static class
