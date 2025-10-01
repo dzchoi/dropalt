@@ -36,16 +36,16 @@ void backup_ram_init(void)
     buffer[sizeof(buffer) - 1] = 0;
 }
 
-const char* backup_ram_write(const char* format, va_list vlist)
+const char* backup_ram_write(const char* format, va_list args)
 {
-    va_list vlist_copy;
-    va_copy(vlist_copy, vlist);
+    va_list args_copy;
+    va_copy(args_copy, args);
 
     // Note: vsnprintf() returns the total number of characters (excluding the
     // terminating null byte) which was written successfully or would have been written
     // if not limited by the buffer size.
     int n = vsnprintf(
-        buffer + write_offset, sizeof(buffer) - write_offset, format, vlist);
+        buffer + write_offset, sizeof(buffer) - write_offset, format, args);
     assert( n >= 0 && (size_t)n < sizeof(buffer) );  // n excludes the null terminator.
 
     if ( likely(write_offset + (size_t)n < sizeof(buffer)) )
@@ -58,12 +58,12 @@ const char* backup_ram_write(const char* format, va_list vlist)
 
         // Note that this second vsnprintf() should not overflow the buffer, as it was
         // already verified at the first vsnprintf() call.
-        n = vsnprintf(buffer, sizeof(buffer), format, vlist_copy);
+        n = vsnprintf(buffer, sizeof(buffer), format, args_copy);
         size_limited = write_offset;
         write_offset = n;
     }
 
-    va_end(vlist_copy);
+    va_end(args_copy);
     return buffer + (write_offset - n);
 }
 

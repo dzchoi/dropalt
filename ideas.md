@@ -23,6 +23,9 @@
 [Lua]
 * Upload the userpage (512 bytes).
 
+[dalua]
+* Do not assume the remote status ("[}0\n") appears on its own line. The preceding line may not end with a newline character.
+
 [Tips]
 * Redefine Riot-independent #define constants using "static const" and "static inline".
 * Change m_pthread->flags directly instead calling thread_flags_set(), if we don't need to yield to other threads at this moment, and there is no other threads or interrupt that can change it simultaneously (So irq_disable() is not necessary).
@@ -37,43 +40,41 @@
   have been already included in the header file that provides the functions with those
   types as parameters or as a return value.
 * Binary size is also affected by .data section. Walk through those variables that initialize with non-zero values.
-
-[Log]
-* Newlib-nano does not include `%f` support in printf, sprintf, etc.
-  You must explicitly enable it using the linker flag: `-u _printf_float`.
-* LOG_DEBUG() and fw.log() add '\n' automatically at the end.
-* Replace printf() with cout, calling usbus_cdc_acm_flush() when '\n' is hit. LOG_*() can also be implemented using an ostream.
-* Store a format string and its parameters for a log record.
-  All parameters will be 4 bytes in size, except for doubles.
-  Consider Default Argument Promotion Rules for variadic functions in C/C++.
-* C++ logger (Refer to C11 _Generic())
-```
-#define print(x) _Generic((x), \
-    int: print_int, \
-    float: print_float, \
-    double: print_double, \
-    char*: print_str, \
-    const char*: print_str \
-)(x)
-
-void print_int(int x) { printf("%d\n", x); }
-void print_float(float x) { printf("%f\n", x); }
-void print_double(double x) { printf("%lf\n", x); }
-void print_str(const char* x) { printf("%s\n", x); }
-```
-* Formatted log: Current time, thread name, color, ...
-* `fw.log()` automatically appends '\n'. Otherwise, it disrupts `dalua`.
 * `thread_get_active()` returns NULL from interrupt context.
 
+[panic]
+* _panic() should reboot into bootloader instead of idling. What boot reason?
 * Use MODULE_CORE_IDLE_THREAD to enable CPU sleep when idle.
 
-[No bootloader]
-* The system uses a single firmware application without a separate bootloader. This application supports both DFU mode and normal operation.
+[Log]
+* LOG_DEBUG() and fw.log() append '\n' automatically, if it not there. Otherwise, it disrupts `dalua`.
+
+[Formatted logs]
+* Log messages are segmented and stored in backup RAM, then reconstructed using a host-side utility.
+* Each log record includes:
+  record size, thread ID, log level, timestamp, format string address, and corresponding arguments (each 4 bytes except for 8-byte doubles).
+* Consider the Default Argument Promotions for variadic functions in C/C++.
+* Prior to transmitting log entries, metadata containing all format strings and their respective addresses is sent first.
+
+[No bootloading]
+* A single application that can also work as bootloader. It supports both DFU mode and normal mode operations.
 * The application is headerless.
+* The application can occupy the full 128KB, which corresponds to one bank of the dual memory.
+* The application can output logs, which can be captured by dfu-util anytime during DFU mode, as long as Lua script is flashed.
+
 * The application is flashed into the alternate bank of dual memory (e.g. A -> B -> A -> ...).
-* When flashed using the legacy `mdloader`, a large combined image is written—including 112KB of padding followed by the application. The initial portion of this padding contains machine code that swaps the flash banks and triggers a system reset.
-* On boot, the application determines whether to enter DFU mode or normal mode.
+* When flashed using the legacy `mdloader`, a large combined image is written, which consists of:
+  - Small machine code that swaps the flash banks and triggers a system reset
+    (Set up SEEPROM?)
+  - 112KB of padding (0xFFs) to offset the application at other bank
+  - The application.
+* On boot, the application determines whether to start with DFU mode or normal mode.
 * After flashing the application, the Lua chunk code and seeprom (NVM) must also be reflashed.
+* Only one slot is provided to flash [slot 0].
+  Uploading from slot 0 will upload the logs in the backup RAM if the image at slot 0 (i.e. the alternate bank of dual memory) is NOT a compiled Lua chunk. Otherwise, it will upload the entire 128KB image at slot 0, excluding trailing 0xFFs.
+  The entire image can be the existing application or the old DropALT bootloader plus firmware.
+* backup_ram_init() is called only at the entry of normal mode. Thus, logs are collected during DFU mode, but will be erased when entering normal mode.
+* DEL key exists DFU mode.
 
 * riot/sys/include/usb/dfu.h
 ```
@@ -103,15 +104,7 @@ void print_str(const char* x) { printf("%s\n", x); }
 * Maybe we could utilize an intermediary bootloader to flash the final bootloader, using memory banks and switching them.
 * Debug led pattern during execution?
 
-[Bootloader itself as bootloader updater]
-* Bootloader is built as a relocatable code so that it can be flashed in any region of the memory.
-* It checks whether it started as a firmware or as a bootloader (at 0x0).
-* If it started as an application:
-  - Wait for dfu-util, then flash the bootloader.
-  - Wait for a user key press, then copy its own code into the bootloader region.
-
 [Bootloader]
-* wait_for_host_connection() starts from the host port on which `enter_bootloader()` executed.
 * Do not reboot after downloading (flashing); `dfu-util` provides `-e` and `-R` as a separate option. No USB_DFU_WILL_DETACH?
 * Flash and start both headered and headerless images.
   `dfu->skip_signature = true` only if the firmware image includes "RIOT" at the slot header.

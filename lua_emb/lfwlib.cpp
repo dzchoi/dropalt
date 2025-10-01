@@ -3,10 +3,11 @@
 #include "board.h"              // for system_reset(), sam0_flashpage_aux_get(), ...
 #include "compiler_hints.h"     // for UNREACHABLE()
 #include "is31fl3733.h"         // for is31_set_color(), IS31_LEDS, ...
-#include "log.h"                // for get/set_log_mask()
+#include "log.h"                // for get/set_log_mask(), vlog_backup()
 #include "thread.h"             // for thread_isr_stack_usage(), ...
 #include "usb2422.h"            // for usbhub_host_port()
 
+#include <cstdio>               // for std::vprintf(), va_list
 #include "hid_keycodes.hpp"     // for keycode_to_name[]
 #include "hsv.hpp"              // for fast_hsv2rgb_32bit(), CIE1931_CURVE[]
 #include "key_queue.hpp"        // for key_queue::start_defer(), ...
@@ -101,98 +102,89 @@ static int fw_led_refresh(lua_State*)
     return 0;
 }
 
-static intptr_t loggable_value(lua_State* L, int i)
+// Create a local stack frame in the C stack and populate it with all entries from the
+// Lua stack. This follows the AAPCS32 calling convention for variadic functions on
+// ARM32, where `va_list` is a simple pointer to the stack area containing all variadic
+// arguments. Each argument occupies 8 bytes if it's a double or float, and 4 bytes for
+// other types.
+// Note:
+//   - `args` must be a local array aligned to 8 bytes.
+//   - `args` must be large enough to hold all Lua stack entries (e.g. args[argc * 2]).
+static va_list make_va_list(lua_State* L, uint32_t* args, int argc)
 {
-    switch ( lua_type(L, i) ) {
-        case LUA_TNIL:
-            return -1;
+#if !defined(__arm__) || defined(__aarch64__)
+    #error "ARM32 is required"
+#endif
 
-        case LUA_TBOOLEAN:
-            return lua_toboolean(L, i);
+    static_assert( sizeof(float) == 4 );
+    static_assert( sizeof(double) == 8 );
+    static_assert( sizeof(va_list) == 4 );  // va_list is a simple pointer on ARM32.
 
-        case LUA_TNUMBER:
-            if ( lua_isinteger(L, i) )
-                return lua_tointeger(L, i);
-            else
-                // This converts a float to an integer numerically.
-                // Note that even if we preserved the float's 4-byte bit pattern by
-                // casting to intptr_t, '%f' formatting would not work as expected and
-                // would print 0.0, garbage, or misinterpret memory. This is because in
-                // variadic functions like log_backup(), C promotes float arguments to
-                // 8-byte doubles (per Default Argument Promotion Rules), even on 32-bit
-                // systems like Cortex-M4F. This behavior remains true even when using
-                // printf_float() from newlib-nano.
-                return static_cast<int>(lua_tonumber(L, i));
+    int n = 0;
+    for ( int i = 1 ; i <= argc ; i++ )
+        switch ( lua_type(L, i) ) {
+            case LUA_TNIL:
+                args[n++] = -1;
+                break;
 
-        case LUA_TSTRING:
-            return reinterpret_cast<intptr_t>(lua_tostring(L, i));
+            case LUA_TBOOLEAN:
+                args[n++] = lua_toboolean(L, i);
+                break;
 
-        default:
-            return reinterpret_cast<intptr_t>(lua_topointer(L, i));
-    }
+            case LUA_TNUMBER:
+                if ( lua_isinteger(L, i) )
+                    args[n++] = lua_tointeger(L, i);
+                else {
+                    n += (n % 2);  // Doubles must be 8-byte aligned.
+                    // We convert a float to a double because in variadic functions like
+                    // printf(), C promotes float arguments to 8-byte doubles according
+                    // to Default Argument Promotions, even on 32-bit systems like
+                    // Cortex-M4F. This promotion behavior remains true when using
+                    // printf_float() from newlib-nano.
+                    *(double*)(void*)(args + n) = (double)lua_tonumber(L, i);
+                    n += 2;
+                }
+                break;
+
+            case LUA_TSTRING:
+                args[n++] = (uintptr_t)lua_tostring(L, i);
+                break;
+
+            default:  // userdata, table, thread, or function
+                args[n++] = (uintptr_t)lua_topointer(L, i);
+                break;
+        }
+
+    // Even though va_list is a simple pointer on ARM32, its type definition
+    // (__builtin_va_list) is compiler-specific and opaque. As a result,
+    // reinterpret_cast<va_list>(args) or reinterpret_cast<void*>(args) does not work.
+    union {
+        void* ptr;
+        va_list vlist;
+    } v = { args };
+    return v.vlist;
 }
 
 static int fw_log(lua_State* L)
 {
-#if !( defined(__ARM_ARCH) && (__ARM_ARCH >= 7) && defined(__thumb__) )
-    // Note: This function assumes a 32-bit ARM architecture with support for the
-    // Thumb-2 instruction set (typically ARMv7-A/M). It relies on AAPCS (ARM
-    // Architecture Procedure Call Standard), which passes the first four function
-    // arguments in r0–r3 and any additional arguments via the stack.
-    #error "fw_log() requires Thumb-2 and ARMv7 or newer architecture"
-#endif
+    const char* const format = luaL_checkstring(L, 1);
+    lua_remove(L, 1);
+    const int argc = lua_gettop(L);
+    uint32_t args[argc * 2] __attribute__((aligned(sizeof(double))));
 
-    const char* format = luaL_checkstring(L, 1);
-    int argc = lua_gettop(L);
-
-    // Push extra arguments (from index 4 onward) onto the C stack. These arguments will
-    // be accessed by log_backup() beyond r0–r3.
-    const int extras = argc - 3;
-    if ( extras > 0 ) {
-        __asm__ volatile (
-            "sub sp, sp, %[sz]\n"
-            :
-            : [sz] "r" (extras * sizeof(intptr_t))
-        );
-
-        while ( argc > 3 ) {
-            __asm__ volatile (
-                "str %[val], [sp, %[offset]]\n"
-                :
-                : [val] "r" (loggable_value(L, argc)),
-                  [offset] "r" ((argc - 4) * sizeof(intptr_t))
-            );
-            argc--;
-        }
-    }
-
-    // Call log_backup(LOG_DEBUG, ...) via inline assembly. The first four Arguments are
-    // passed in r0–r3 according to AAPCS.
-    __asm__ volatile (
-        "mov r0, %[level]\n"
-        "mov r1, %[a1]\n"
-        "mov r2, %[a2]\n"
-        "mov r3, %[a3]\n"
-        "bl log_backup\n"
-        :
-        : [level] "I" (LOG_DEBUG),  // immediate constant
-          [a1] "r" (format),
-          [a2] "r" (loggable_value(L, 2)),
-          [a3] "r" (loggable_value(L, 3))
-        : "r0", "r1", "r2", "r3", "lr"
-    );
-
-    // Restore the C stack.
-    if ( extras > 0 ) {
-        __asm__ volatile (
-            "add sp, sp, %[sz]\n"
-            :
-            : [sz] "r" (extras * sizeof(intptr_t))
-        );
-    }
-
-    lua_settop(L, 0);
+    vlog_backup(LOG_DEBUG, format, make_va_list(L, args, argc));
     return 0;
+}
+
+static int fw_printf(lua_State* L)
+{
+    const char* const format = luaL_checkstring(L, 1);
+    lua_remove(L, 1);
+    const int argc = lua_gettop(L);
+    uint32_t args[argc * 2] __attribute__((aligned(sizeof(double))));
+
+    lua_pushinteger(L, std::vprintf(format, make_va_list(L, args, argc)));
+    return 1;
 }
 
 static int fw_log_mask(lua_State* L)
@@ -526,15 +518,16 @@ int luaopen_fw(lua_State* L)
         { "led_set_rgb", fw_led_set_rgb },
 
 // fw.log(format: string, arg1, ...): void
-// Lightweight printf-style logger optimized for embedded Lua environments, avoiding
-// luaL_tolstring() to prevent temporary string allocations and reduce garbage
-// collection overhead during frequent logging.
-//
-// Supported format specifiers are limited to '%d', '%s', and '%p', determined by
-// each argument type:
-//   - %d: integers, floats (converted to int), booleans (0/1), or nil (-1)
+// Printf-style logger optimized for embedded Lua environments. Avoids luaL_tolstring()
+// to prevent temporary string allocations and reduce garbage collection overhead during
+// frequent logging.
+// Note: All format specifiers from newlib-nano are supported, but the corresponding
+// arguments must match. Otherwise, an assertion failure may occur, even within a
+// protected Lua environment:
+//   - %d, %u, %x: integers, booleans (0/1), or nil (-1)
+//   - %e, %f, %g: floats
 //   - %s: strings (passed as C strings)
-//   - %p: tables, functions, or userdata (logged as raw pointers, e.g., 0xXXXX)
+//   - %p: tables, functions, or userdata (logged as raw pointers, e.g., 0x12345678)
         { "log", fw_log },
 
 // fw.log_mask(): int
@@ -564,6 +557,14 @@ int luaopen_fw(lua_State* L)
 // fw.unpack(t: table [, i: int [, j: int]]): (...)
 // Equivalent to table.unpack(); returns the elements of the table from index i to j.
         // { "unpack", fw_unpack },
+
+// fw.printf(format: string, args, ...): int
+// C-level printf(), intended to supersede Lua's string.format(). Returns the number of
+// characters written, similar to C printf().
+// Note: All format specifiers from newlib-nano are supported, but the corresponding
+// arguments must match. Otherwise, an assertion failure may occur, even within a
+// protected Lua environment.
+        { "printf", fw_printf },
 
 // fw.product_serial(): string
 // Returns the product serial number inscribed in the USER page.

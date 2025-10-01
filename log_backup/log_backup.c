@@ -19,17 +19,20 @@ static const char* COLOR_CODE[] = {
 
 static uint8_t log_mask = 0xff;
 
-// Core function for LOG_*(). It displays the log (if CDC ACM is connected) and stores it
-// in the backup ram.
 void log_backup(unsigned level, const char* format, ...)
 {
     va_list args;
     va_start(args, format);
+    vlog_backup(level, format, args);
+    va_end(args);
+}
 
-    // Defer context switching by preventing the PendSV interrupt. This ensures that
-    // stdio_write() can push log strings into cdcacm->tsrb without being preempted,
-    // and that the cdcacm->flush event will be processed only after irq_enable() is
-    // called.
+void vlog_backup(unsigned level, const char* format, va_list args)
+{
+    // Defer context switching by disabling the PendSV interrupt. This ensures that
+    // stdio_write() can safely push log strings into cdcacm->tsrb without being
+    // preempted, and that the cdcacm->flush event will only be processed after
+    // irq_enable() is called.
     unsigned state = irq_disable();
 
     // All logs are first saved to backup RAM, regardless of log_mask filtering.
@@ -61,8 +64,6 @@ void log_backup(unsigned level, const char* format, ...)
     }
 
     irq_restore(state);
-
-    va_end(args);
 }
 
 uint_fast8_t get_log_mask(void)

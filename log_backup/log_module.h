@@ -1,7 +1,8 @@
-// Custom log_module.h included in log.h.
+// Custom log_module.h automatically included in log.h.
 
 #pragma once
 
+#include <stdarg.h>             // for va_list
 #include <stdint.h>             // for uint8_t
 
 #include "log.h"                // for LOG_NONE
@@ -18,7 +19,12 @@
 extern "C" {
 #endif
 
+// Core function for LOG_*(). It displays the log (if CDC ACM is connected) and stores it
+// in the backup ram.
 void log_backup(unsigned level, const char* format, ...);
+
+// va_list variant of log_backup().
+void vlog_backup(unsigned level, const char* format, va_list args);
 
 uint_fast8_t get_log_mask(void);
 
