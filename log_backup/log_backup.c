@@ -31,35 +31,42 @@ void vlog_backup(unsigned level, const char* format, va_list args)
 {
     // Defer context switching by disabling the PendSV interrupt. This ensures that
     // stdio_write() can safely push log strings into cdcacm->tsrb without being
-    // preempted, and that the cdcacm->flush event will only be processed after
-    // irq_enable() is called.
+    // preempted or interrupted, and that the cdcacm->flush events triggered by
+    // stdio_write() are deferred and processed together only after irq_enable() is
+    // called.
     unsigned state = irq_disable();
 
     // All logs are first saved to backup RAM, regardless of log_mask filtering.
-    const char* log = backup_ram_write(format, args);
+    const char* line = backup_ram_write(format, args);
 
-    if ( level == LOG_LUA_ERROR  // LOG_LUA_ERROR is displayed regardless of the thread.
+    // LOG_LUA_ERROR is always displayed, regardless of the current thread.
+    if ( level == LOG_LUA_ERROR
+      // All LOG_* messages are displayed during boot code (kernel_init() and main()).
+      || unlikely(thread_get_active() == NULL)
+      // Otherwise, LOG_* messages are filtered based on log_mask and thread priority.
       || (log_mask & (1 << thread_get_priority(thread_get_active()))) ) {
-        const size_t log_l = __builtin_strlen(log);
+        const size_t len = __builtin_strlen(line);
+        // assert( len > 0 && line[len - 1] == '\n' );
         switch ( level ) {
-        case LOG_ERROR:
-        case LOG_WARNING:
-        case LOG_INFO:
-            // Restore color before the trailing '\n'; otherwise, the reset sequence will
-            // appear as the next input in canonical-mode terminal.
-            stdio_write(COLOR_CODE[level], __builtin_strlen(COLOR_CODE[level]));
-            if ( log[log_l - 1] == '\n' ) {
-                stdio_write(log, log_l - 1);
-                stdio_write(
-                    COLOR_CODE[LOG_DEBUG], __builtin_strlen(COLOR_CODE[LOG_DEBUG]));
-                stdio_write("\n", 1);
-                break;
-            }
-            // intentional fall-through
+            case LOG_ERROR:
+            case LOG_WARNING:
+            case LOG_INFO:
+                if ( len > 1 ) {  // If the line is not just "\n",
+                    // Restore color before the trailing '\n'; In canonical-mode
+                    // terminals, escape sequences after a newline will appear as part
+                    // of the next line input.
+                    stdio_write(COLOR_CODE[level], __builtin_strlen(COLOR_CODE[level]));
+                    stdio_write(line, len - 1);
+                    stdio_write(
+                        COLOR_CODE[LOG_DEBUG], __builtin_strlen(COLOR_CODE[LOG_DEBUG]));
+                    stdio_write("\n", 1);
+                    break;
+                }
+                // Intentional fall-through
 
-        default:
-            stdio_write(log, log_l);
-            break;
+            default:
+                stdio_write(line, len);
+                break;
         }
     }
 

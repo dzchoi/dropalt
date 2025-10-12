@@ -84,7 +84,7 @@ void load_keymap()
 
     // Clean up the local objects in the module that are no longer referenced.
     lua_gc(L, LUA_GCCOLLECT, 0);
-    LOG_DEBUG("Lua: current memory usage = %d KB\n", lua_gc(L, LUA_GCCOUNT, 0));
+    LOG_DEBUG("Lua: current memory usage = %d KB", lua_gc(L, LUA_GCCOUNT, 0));
     lua_settop(L, 0);
 }
 

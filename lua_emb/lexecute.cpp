@@ -9,7 +9,7 @@ namespace lua {
 
 int execute_later(lua_State* L)
 {
-    LOG_DEBUG("Lua: execute_later()\n");
+    LOG_DEBUG("Lua: execute_later()");
     luaL_checktype(L, 1, LUA_TFUNCTION);
     int n = lua_gettop(L);
     lua_newtable(L);
@@ -48,7 +48,7 @@ bool execute_is_pending()
 void execute_pending_calls()
 {
     global_lua_state L;
-    LOG_DEBUG("Lua: execute_pending_calls()\n");
+    LOG_DEBUG("Lua: execute_pending_calls()");
 
     lua_pushlightuserdata(L, (void*)&execute_later);
     lua_pushvalue(L, -1);

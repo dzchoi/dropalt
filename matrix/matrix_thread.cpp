@@ -15,9 +15,9 @@
 thread_t* matrix_thread::m_pthread = nullptr;
 
 #ifdef DEVELHELP
-    char matrix_thread::m_thread_stack[THREAD_STACKSIZE_MEDIUM];
+    alignas(8) char matrix_thread::m_thread_stack[THREAD_STACKSIZE_MEDIUM];
 #else
-    char matrix_thread::m_thread_stack[THREAD_STACKSIZE_SMALL];
+    alignas(8) char matrix_thread::m_thread_stack[THREAD_STACKSIZE_SMALL];
 #endif
 
 // Start matrix_thread by sleeping; will wake up on an interrupt.
@@ -173,7 +173,7 @@ NORETURN void* matrix_thread::_thread_entry(void*)
         else {
             m_is_polling = false;
             main_thread::signal_thread_idle();
-            // LOG_DEBUG("Matrix: ---------> @%lu\n", ztimer_now(ZTIMER_MSEC));
+            // LOG_DEBUG("Matrix: ---------> @%lu", ztimer_now(ZTIMER_MSEC));
             ztimer_release(ZTIMER_USEC);
             matrix_enable_interrupt();
             // The thread will sleep until the interrupt releases m_sleep_lock.
@@ -193,6 +193,6 @@ void matrix_thread::_isr_any_key_down(void* arg)
     ztimer_acquire(ZTIMER_USEC);
     m_wakeup_us = ztimer_now(ZTIMER_USEC);
     m_is_polling = true;
-    // LOG_DEBUG("Matrix: <--------- @%lu\n", ztimer_now(ZTIMER_MSEC));
+    // LOG_DEBUG("Matrix: <--------- @%lu", ztimer_now(ZTIMER_MSEC));
     mutex_unlock(static_cast<mutex_t*>(arg));
 }

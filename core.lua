@@ -315,7 +315,7 @@ function Defer:on_other_press() end
 function Defer:on_other_release() end
 
 function Defer:start_defer()  -- Start defer mode.
-    fw.log("Map: start defer\n")
+    fw.log("Map: start defer")
     self.m_next = false
 
     if not Defer.c_owner then
@@ -336,7 +336,7 @@ end
 
 -- Any deferrer in the chain can stop defer mode, in any sequence.
 function Defer:stop_defer()  -- Stop defer mode.
-    fw.log("Map: stop defer\n")
+    fw.log("Map: stop defer")
     local deferrer = Defer.c_owner
 
     if deferrer == self then
@@ -496,14 +496,14 @@ end
 
 function TapHold:on_press()
     self.m_my_slot = Base.c_current_slot_index
-    fw.log("TapHold [%d] on_press()\n", self.m_my_slot)
+    fw.log("TapHold [%d] on_press()", self.m_my_slot)
     assert( self.m_map_chosen == false )
     self:start_timer(self.m_tapping_term_ms)
     self:start_defer()
 end
 
 function TapHold:on_release()
-    fw.log("TapHold [%d] on_release()\n", self.m_my_slot)
+    fw.log("TapHold [%d] on_release()", self.m_my_slot)
     if not self.m_map_chosen then
         -- Note: During defer mode, on_release()—rather than on_other_release()—is called
         -- on the deferrer (Defer.c_owner). In this case, the deferrer's on_release()
@@ -520,7 +520,7 @@ function TapHold:on_release()
         -- twice upon its release: once to trigger the tapping key's press (via e.g.
         -- bool on_early_release()), and again to trigger its normal release (via
         -- on_release()).
-        fw.log("TapHold [%d] decide tap on release\n", self.m_my_slot)
+        fw.log("TapHold [%d] decide tap on release", self.m_my_slot)
         self:decide_tap()
     end
 
@@ -529,17 +529,17 @@ function TapHold:on_release()
 end
 
 function TapHold:on_timeout()
-    fw.log("TapHold [%d] decide hold on timeout\n", self.m_my_slot)
+    fw.log("TapHold [%d] decide hold on timeout", self.m_my_slot)
     self:decide_hold()
 end
 
 function TapHold:on_other_press()
     if self.m_flavor & HoldOnPress ~= 0 then
-        fw.log("TapHold [%d] decide hold on other press\n", self.m_my_slot)
+        fw.log("TapHold [%d] decide hold on other press", self.m_my_slot)
         self:decide_hold()
 
     elseif self.m_flavor & TapOnPress ~= 0 then
-        fw.log("TapHold [%d] decide tap on other press\n", self.m_my_slot)
+        fw.log("TapHold [%d] decide tap on other press", self.m_my_slot)
         self:decide_tap()
     end
 end
@@ -558,11 +558,11 @@ function TapHold:on_other_release()
     end
 
     if self.m_flavor & HoldOnRelease ~= 0 then
-        fw.log("TapHold [%d] decide hold on other release\n", self.m_my_slot)
+        fw.log("TapHold [%d] decide hold on other release", self.m_my_slot)
         self:decide_hold()
 
     elseif self.m_flavor & TapOnRelease ~= 0 then
-        fw.log("TapHold [%d] decide tap on other release\n", self.m_my_slot)
+        fw.log("TapHold [%d] decide tap on other release", self.m_my_slot)
         self:decide_tap()
     end
 end
@@ -609,7 +609,7 @@ end
 function TapDance:on_finish() end
 
 function TapDance:finish()
-    fw.log("TapDance [%d] finish()\n", self.m_my_slot)
+    fw.log("TapDance [%d] finish()", self.m_my_slot)
     -- Will skip calling on_finish().
     self:stop_timer()
     self:stop_defer()
@@ -619,7 +619,7 @@ end
 function TapDance:on_proxy_press()
     self.m_step = self.m_step + 1
     self.m_my_slot = Base.c_current_slot_index
-    fw.log("TapDance [%d] on_proxy_press() m_step=%d\n", self.m_my_slot, self.m_step)
+    fw.log("TapDance [%d] on_proxy_press() m_step=%d", self.m_my_slot, self.m_step)
     if self.m_step == 1 then
         assert( self.m_is_finished )
         self.m_is_finished = false  -- Start the dance.
@@ -631,7 +631,7 @@ function TapDance:on_proxy_press()
 end
 
 function TapDance:on_proxy_release()
-    fw.log("TapDance [%d] on_proxy_release() m_step=%d\n", self.m_my_slot, self.m_step)
+    fw.log("TapDance [%d] on_proxy_release() m_step=%d", self.m_my_slot, self.m_step)
     if self.m_is_finished then
         self:on_release()
         self.m_step = 0
@@ -639,7 +639,7 @@ function TapDance:on_proxy_release()
 end
 
 function TapDance:on_timeout()
-    fw.log("TapDance [%d] on_other_press/timeout()\n", self.m_my_slot)
+    fw.log("TapDance [%d] on_other_press/timeout()", self.m_my_slot)
     self:stop_defer()
     self.m_is_finished = true  -- Finish the dance.
     self:on_finish()
@@ -709,12 +709,12 @@ local function handle_key_event(slot_index, is_press)
     if deferrer then
         -- In defer mode, if the event targets the deferrer, execute it immediately.
         if slot_index == Defer.c_slot_index then
-            fw.log("Map: [%d] handle deferrer %s\n", slot_index, press_or_release)
+            fw.log("Map: [%d] handle deferrer %s", slot_index, press_or_release)
 
         -- In defer mode, if the event targets a slot other than the deferrer's, notify
         -- the deferrer first.
         else
-            fw.log("Map: [%d] handle other %s @[%d]\n",
+            fw.log("Map: [%d] handle other %s @[%d]",
                 Defer.c_slot_index, press_or_release, slot_index)
             if not deferrer:_other_event(is_press) then
                 return
@@ -722,7 +722,7 @@ local function handle_key_event(slot_index, is_press)
 
             -- If the deferrer has opted not to defer this event by returning a non-nil,
             -- execute it immediately.
-            fw.log("Map: [%d] execute immediate %s\n", slot_index, press_or_release)
+            fw.log("Map: [%d] execute immediate %s", slot_index, press_or_release)
         end
 
         -- Note: Those two cases of executing events immediately during defer mode can
@@ -730,7 +730,7 @@ local function handle_key_event(slot_index, is_press)
 
     -- Execute the event if in normal mode.
     else
-        fw.log("Map: [%d] handle %s\n", slot_index, press_or_release)
+        fw.log("Map: [%d] handle %s", slot_index, press_or_release)
     end
 
     if is_press then

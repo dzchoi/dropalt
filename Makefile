@@ -3,7 +3,7 @@
 # Usage:
 #  - `make riotboot/slot0`: builds .build/board-dropalt/riotboot_files/slot0.$(APP_VER).bin
 #  - `make riotboot/flash-slot0`: builds it and flashes it to slot 0 using dfu-util.
-#  - `make PROGRAMMER=edgb riotboot/flash-slot0`: uses the given programmer to flash.
+#  - `make PROGRAMMER=edbg riotboot/flash-slot0`: uses the given programmer to flash.
 
 
 APPLICATION := dropalt-fw
@@ -47,7 +47,7 @@ FEATURES_REQUIRED += riotboot
 # RIOT modules for the main thread
 USEMODULE += core_thread
 USEMODULE += core_thread_flags
-# USEMODULE += newlib_nano          # selected by default instead of libstdcpp
+# USEMODULE += newlib_nano          # Selected by default instead of libstdcpp.
 
 # Subdirectory modules
 EXTERNAL_MODULE_DIRS += $(CURDIR)
@@ -74,14 +74,15 @@ VERBOSE_ASSERT := 1
 #  - DEVELHELP := 1                    # Enable assert() and SCHED_TEST_STACK.
 #  - CFLAGS += -DDEBUG_ASSERT_VERBOSE  # assert() will print the filename and line #.
 
-# Trigger a watchdog fault on an assert failure, rather than only halting the current
-# thread.
+# Enable breakpoint on assert failure when a debugger is attached.
+CFLAGS += -DDEBUG_ASSERT_BREAKPOINT
+
+# Reboot to bootloader on assert failure instead of halting the current thread.
 CFLAGS += -DDEBUG_ASSERT_NO_PANIC=0
 
 QUIET ?= 1
 
-# LOG_LEVEL = LOG_INFO by default, which filters out LOG_DEBUG.
-# Note also that LOG_ERROR() will save the log messages in NVM, if not filtered out.
+# By default, LOG_LEVEL is set to LOG_INFO, which filters out LOG_DEBUG() messages.
 LOG_LEVEL = LOG_DEBUG
 
 PROGRAMMER = dfu-util

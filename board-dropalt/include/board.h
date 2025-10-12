@@ -13,7 +13,7 @@
 #include "compiler_hints.h"     // for NORETURN, UNREACHABLE()
 #include "cpu_conf.h"
 #include "periph/gpio.h"
-#include "riotboot/magic.h"     // for RIOTBOOT_MAGIC_ADDR, RIOTBOOT_MAGIC_NUMBER
+#include "usb_board_reset.h"    // for usb_board_reset_in_bootloader()
 
 
 
@@ -224,8 +224,9 @@ NORETURN static inline void system_reset(void) { NVIC_SystemReset(); }
  */
 NORETURN static inline void enter_bootloader(void)
 {
-    *(uint32_t*)RIOTBOOT_MAGIC_ADDR = RIOTBOOT_MAGIC_NUMBER;
-    system_reset();
+    // Calling usb_board_reset_in_bootloader() in sys/riotboot/reset.c.
+    usb_board_reset_in_bootloader();
+    UNREACHABLE();
 
     // Alternatively, we could cause a watchdog reset even if WDT is not set up.
     // MCLK->APBAMASK.bit.WDT_ = 1;

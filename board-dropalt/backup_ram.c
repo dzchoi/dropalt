@@ -36,6 +36,25 @@ void backup_ram_init(void)
     buffer[sizeof(buffer) - 1] = 0;
 }
 
+// A variant of vsnprintf() that appends a newline after the formatted output. Returns
+// the number of characters that (would) have been written, including the newline (but
+// not the null terminator), following vsnprintf() semantics.
+// Notes:
+//   - The output is always null-terminated.
+//   - A newline is appended if the formatted string plus '\n' fits within the buffer
+//     size (i.e. result < size). This includes the case where the formatted output is
+//     empty.
+int vsnprintf_nl(char* buffer, size_t size, const char* format, va_list args)
+{
+    int len = vsnprintf(buffer, size, format, args);
+
+    if ( len >= 0 && ++len < (int)size ) {
+        buffer[len - 1] = '\n';
+        buffer[len] = '\0';
+    }
+    return len;
+}
+
 const char* backup_ram_write(const char* format, va_list args)
 {
     va_list args_copy;
@@ -44,7 +63,7 @@ const char* backup_ram_write(const char* format, va_list args)
     // Note: vsnprintf() returns the total number of characters (excluding the
     // terminating null byte) which was written successfully or would have been written
     // if not limited by the buffer size.
-    int n = vsnprintf(
+    int n = vsnprintf_nl(
         buffer + write_offset, sizeof(buffer) - write_offset, format, args);
     assert( n >= 0 && (size_t)n < sizeof(buffer) );  // n excludes the null terminator.
 
@@ -58,7 +77,7 @@ const char* backup_ram_write(const char* format, va_list args)
 
         // Note that this second vsnprintf() should not overflow the buffer, as it was
         // already verified at the first vsnprintf() call.
-        n = vsnprintf(buffer, sizeof(buffer), format, args_copy);
+        n = vsnprintf_nl(buffer, sizeof(buffer), format, args_copy);
         size_limited = write_offset;
         write_offset = n;
     }

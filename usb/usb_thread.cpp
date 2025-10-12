@@ -13,7 +13,7 @@ extern "C" void usb_cdc_acm_stdio_init(usbus_t* usbus);
 
 thread_t* usb_thread::m_pthread = nullptr;
 
-char usb_thread::m_thread_stack[USBUS_STACKSIZE];
+alignas(8) char usb_thread::m_thread_stack[USBUS_STACKSIZE];
 
 usbus_t usb_thread::m_usbus;
 
@@ -55,6 +55,6 @@ void usb_thread::send_remote_wake_up()
     UsbDevice* const device = ((sam0_common_usb_t*)m_usbus.dev)->config->device;
     if ( is_state_suspended() && (device->CTRLB.reg & USB_DEVICE_CTRLB_UPRSM) == 0 ) {
         device->CTRLB.reg |= USB_DEVICE_CTRLB_UPRSM;
-        LOG_INFO("USB_HID: send remote wakeup request\n");
+        LOG_INFO("USB_HID: send remote wakeup request");
     }
 }

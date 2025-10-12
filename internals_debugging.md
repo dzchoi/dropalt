@@ -1,7 +1,11 @@
 #### System reset
+$ dalua -e 'require("fw").system_reset()'
+
 $ openocd -f `f openocd.cfg` -c "reset; exit"
 
 #### Boot into bootloader
+$ dalua -e 'require("fw").enter_bootloader()'
+
 $ `f edbg` -bt samd51 -x 10
 
 #### Dump symbols
@@ -15,9 +19,9 @@ Size of memory that a class instance occupies:
 Search for the variable name in .elf
 
 #### Disassemble
-$ arm-none-eabi-objdump -S cpu.o >cpu.s
+$ arm-none-eabi-objdump -S slot0.elf |less
 
-$ arm-none-eabi-objdump -d `f slot0.elf`|less
+$ arm-none-eabi-objdump -S cpu.o >cpu.s
 
 #### Get compiler options
 Should be compiled with '-g'.
@@ -25,6 +29,8 @@ See [Get the compiler options from a compiled executable?](https://stackoverflow
 $ arm-none-eabi-readelf --debug-dump=info ./*.elf |less
 
 #### View logs in real-time
+$ dalua -d
+
 $ tio -mINLCRNL `ls -t /dev/ttyACM* |head -n1`
 
 $ while true; do cat /dev/ttyACMx 2>/dev/null; done
@@ -33,43 +39,6 @@ $ while true; do cat /dev/ttyACMx 2>/dev/null; done
 $ dfu-util -a0 -U filename
 
 However, `dfu-util -a0 -U >(less)` seems not supported (yet).
-
-#### Handling Hardfault (vector_cortexm.c)
-```
-  cortex_vector_base[2]
-  -> hard_fault_default()
-       # ifdef DEVELHELP:
-       -> hard_fault_handler()
-            -> core_panic()
-
-       # ifndef DEVELHELP:
-       -> core_panic()
-```
-
-#### core_panic(core_panic_t crash_code, const char *message)
-```
-  -> panic_app(crash_code, message)
-  -> panic_arch() in riot/cpu/cortexm_common/panic.c
-      pauses at __asm__("bkpt #0") if a debugger is connected
-  -> pm_reboot() if CONFIG_CORE_REBOOT_ON_PANIC && defined(MODULE_PERIPH_PM)
-  -> OR usb_board_reset_in_bootloader() if defined(MODULE_USB_BOARD_RESET)
-  -> OR pm_off() if defined(MODULE_PERIPH_PM)
-      does while(1) {} on SAMD51
-  -> OR while(1) {}
-```
-
-#### assert()
-```
-  -> Do nothing #ifdef NDEBUG
-  -> OR _assert_failure() #ifdef DEBUG_ASSERT_VERBOSE
-      -> print filename and line number
-  -> OR _assert_panic()
-      -> print the address where the assert has failed
-  -> print a backtrace if MODULE_BACKTRACE is enabled
-  -> trigger a debug breakpoint #ifdef DEBUG_ASSERT_BREAKPOINT
-  -> core_panic()
-```
-The address can be used with tools like `addr2line` (or e.g. `arm-none-eabi-addr2line` for ARM-based code), `objdump`, or `gdb` (with the command `info line *(0x89abcdef)`) to identify the line the assertion failed in.
 
 #### Autonomous conditional break point
 ```
@@ -81,113 +50,97 @@ if ( ++count == 10 )
 #### DEVELHELP
 set `DEVELHELP = 1` in Makefile along with `CFLAGS += -DDEBUG_ASSERT_VERBOSE`.
 
-#### SCHED_TEST_STACK, THREAD_CREATE_STACKTEST, DEBUG_EXTRA_STACKSIZE, DEBUG_BREAKPOINT(), PANIC_STACK_OVERFLOW
-
 #### Debugging switchover using CDC-ACM
 * Connect to the same host with both ports.
 * The same serial (e.g. /dev/ttyACM0) in the host can be used for CDC-ACM.
 
+#### Hard faults and failed ASSERTs
+* When a debugger is attached, any hard fault (Hardfault, BusFault, UsageFault and MemManage fault) will trigger a breakpoint at the entry of the corresponding fault handler. VSCode (and gdb) will then show the point of the fault and the call stack.
+* If no debugger is present, the fault logs are captured in backup RAM and the system proceeds to reboot into the bootloader for post-mortem analysis.
+
+#### Post-mortem analysis example
+```
+// adc.c
+void adc_v_con::isr_signal_report()
+{
+    __builtin_trap();
+    usbhub_thread::isr_process_v_con_report();
+}
+```
+
+```
+Fault [3] occurred in ISR/IRQ 119
+R0    200030B4  R7    2000E004
+R1        0432  R8           0
+R2    200007B0  R9    2000E004
+R3    00012AB1  R10          0
+R4    2000158C  R11          3
+R5    2000DF90  R12   20009CE8
+R6           4  SP    200003F8
+LR        4DF9  PC    00012AB0
+xPSR  610F0087
+CFSR  00010000
+HFSR  40000000
+DFSR         0
+AFSR         0
+EXC_RETURN FFFFFFF1
+*** RIOT kernel panic: HARD FAULT HANDLER
+pid   name              state     pri  lr        pc        stack usage
+  -   isr_stack         -           -  -         -         624/1024
+  1  >main              running     7  00006C1B  0000C698  920/2048
+  2   usbhub_thread     bl anyfl    3  00004E6D  00004E7C  568/1024
+  3   usbus             pending     1  00004E6D  00004E7C  788/1024
+  4   matrix_thread     bl mutex    2  00009A51  00009A70  208/1024
+*** halted.
+Inside ISR/IRQ -13
+```
+
+Note:
+- `Fault [3]`: HardFault = 3, MemManage = 4, BusFault = 5, UsageFault = 6.
+- `ISR/IRQ 119`: The fault occurred while running in the ISR for IRQ 119. If this number is negative (e.g. -13 = 3 - 16 for HardFault), it indicates a nested fault - the fault occurred while already handling another fault.
+- `LR        4DF9  PC    00012AB0`: values captured just before the fault, representing the link register and program counter at the faulting instruction.
+  * The addresses can be resolved using e.g. `arm-none-eabi-addr2line -e slot0.elf 0x12ab0` or `arm-none-eabi-objdump -S slot0.elf`.
+- `>main`: The "main" thread was active when the interrupt occurred, leading to the subsequent HardFault.
+- `0000C698  00006C1B`: PC and LR values in the main thread when it was interrupted. In this case, the interrupt is not related to the main thread.
+  * If PC and LR show "running" (e.g. on assert failure), it means the fault occurred directly in the thread, not while it was interrupted.
+- `bl anyfl`: Indicates the thread is Blocked for Anyflags. See `state_names[]` in core/thread.c for the full list of thread states.
+- `Inside ISR/IRQ -13`: Also indicates the fault type: -13 + 16 = 3 (HardFault).
+
+#### Watchdog fault
+- Watchdog faults aren't faults in the traditional sense - they function more like a timer. Instead of signaling a specific error, the watchdog simply forces a system reset when the "main" thread fails to kick it within a defined period.
+- A typical cause is a high-priority thread monopolizing CPU time without yielding. However, if the offending thread is blocked - such as waiting on a mutex or signal - it won’t trigger a watchdog fault, since it’s not actively consuming CPU.
+- The Early Warning Interrupt (EWI) mechanism used by `wdt_setup_reboot_with_callback()` is limited for typical use cases where the EWI is expected to trigger shortly before the watchdog expires.
+  This is because EWCTRL.EWOFFSET uses the same exponential encoding scheme as CONFIG.PER (e.g. 0 = ~8 ms, 1 = ~16 ms, 2 = ~32 ms, ..., 11 = ~16 seconds), but instead of representing time before expiration, it defines the absolute time interval from the start of the watchdog timeout period to the EWI trigger.
+  As a result, the EWI can only be scheduled at coarse, front-loaded intervals (½, ¼, ⅛, etc. of the timeout), leaving a significant gap between the EWI and the actual expiration in most configurations. In fact, the closest possible EWI timing to the expiration is half the watchdog period.
+- Although not supported due to the noted limitation, invoking `ps()` at the "close" moment of a watchdog fault would aid debugging. It would provide a snapshot of each thread’s state - such as Running, Suspended, Pending on a signal, or Waiting on a mutex - along with the current values of the PC and LR.
+
 #### Stack overflow
-* The MPU (Memory Protection Unit) protects the initial stack — used before any threads are created and also serving as the ISR stack — but it does not protect thread stacks.
+* When MODULE_MPU_STACK_GUARD is enabled, the MPU (Memory Protection Unit) protects both the initial stack — used before any threads are created and also serving as the ISR stack — and each thread's individual stack.
+* A stack overflow in a thread will trigger a MemManage fault. You can inspect the stack usage in the fault dump:
+  ```
+  *** RIOT kernel panic: MEM MANAGE HANDLER
+  pid   name              state     pri  lr        pc        stack usage
+    -   isr_stack         -           -  -         -         584/1024
+    1  >main              running     7  00004671  0000466A  2016/2048  <---
+    2   usbhub_thread     bl anyfl    3  00004E79  00004E88  568/1024
+    3   usbus             pending     1  00004E79  00004E88  944/1024
+    4   matrix_thread     bl mutex    2  00009A4D  00009A6C  204/1024
+  Inside ISR/IRQ -12
+  *** rebooting...
+  ```
 * Use thread_measure_stack_free() for threads created with THREAD_CREATE_STACKTEST.
 * Use thread_stack_print() and thread_print_stack().
 * See test_utils_print_stack_usage() in the module with the same name.
-
-Example. Stack overflowed while executing vsnprintf() in backup_ram::write().
-```
-(gdb) mon reset run
-[at91samd51j18.cpu] halted due to debug-request, current mode: Handler MemManage
-xPSR: 0x81000004 pc: 0x000052c4 msp: 0x200003a8
-(gdb) info threads
-[New Thread 2]
-[New Thread 3]
-  Id   Target Id                                               Frame 
-* 1    Thread 1 "main" (Name: main, Blocked any flag)          panic_arch ()
-    at /home/stem/projects/atsamd51/dropalt/riot/cpu/cortexm_common/panic.c:49
-  2    Thread 2 "usbus" (Name: usbus, Blocked any flag)        0x0000502c in _thread_flags_wait_any (mask=mask@entry=7)
-    at /home/stem/projects/atsamd51/dropalt/riot/core/thread_flags.c:106
-  3    Thread 3 "usbhub_thread" (Name: usbhub_thread, Running) panic_arch ()
-    at /home/stem/projects/atsamd51/dropalt/riot/cpu/cortexm_common/panic.c:49
-(gdb) bt
-#0  panic_arch ()
-    at /home/stem/projects/atsamd51/dropalt/riot/cpu/cortexm_common/panic.c:49
-#1  0x00004d66 in core_panic (crash_code=crash_code@entry=PANIC_MEM_MANAGE, 
-    message=message@entry=0xb1c5 "MEM MANAGE HANDLER")
-    at /home/stem/projects/atsamd51/dropalt/riot/core/lib/panic.c:81
-#2  0x0000542e in mem_manage_default ()
-    at /home/stem/projects/atsamd51/dropalt/riot/cpu/cortexm_common/vectors_cortexm.c:478
-#3  <signal handler called>
-#4  0x20001008 in _thread_stack ()
-Backtrace stopped: previous frame identical to this frame (corrupt stack?)
-(gdb) quit
-```
-
-* `fw.stack_usage()` in Lua shows the current stack usage.
-   - ISR stack: 576 / 1024 bytes
-   - main stack: 1380 / 2048 bytes
-   - usbhub_thread stack: 552 / 1024 bytes
-   - usbus stack: 932 / 1024 bytes
-   - matrix_thread stack: 608 / 1024 bytes
-
-#### Hardfault when jumping to nullptr.
-```
-2023-06-03 20:50:54,761 # Context before hardfault:
-2023-06-03 20:50:54,762 #    r0: 0x00000000
-2023-06-03 20:50:54,763 #    r1: 0x20000e40
-2023-06-03 20:50:54,764 #    r2: 0x00000001
-2023-06-03 20:50:54,765 #    r3: 0x00004c9d
-2023-06-03 20:50:54,766 #   r12: 0x00000022
-2023-06-03 20:50:54,767 #    lr: 0x000071b1
-2023-06-03 20:50:54,768 #    pc: 0x00000000
-2023-06-03 20:50:54,769 #   psr: 0x40000000
-2023-06-03 20:50:54,770 # 
-2023-06-03 20:50:54,770 # FSR/FAR:
-2023-06-03 20:50:54,771 #  CFSR: 0x00020000
-2023-06-03 20:50:54,772 #  HFSR: 0x40000000
-2023-06-03 20:50:54,772 #  DFSR: 0x00000000
-2023-06-03 20:50:54,773 #  AFSR: 0x00000000
-2023-06-03 20:50:54,773 # Misc
-2023-06-03 20:50:54,774 # EXC_RET: 0xfffffffd
-2023-06-03 20:50:54,775 # Active thread: 5 "keymap_thread"
-2023-06-03 20:50:54,776 # Attempting to reconstruct state for debugging...
-2023-06-03 20:50:54,776 # In GDB:
-2023-06-03 20:50:54,776 #   set $pc=0x0
-2023-06-03 20:50:54,777 #   frame 0
-2023-06-03 20:50:54,777 #   bt
-2023-06-03 20:50:54,778 # *** RIOT kernel panic (6): HARD FAULT HANDLER
-2023-06-03 20:50:54,779 # *** halted.
-2023-06-03 20:50:54,779 # Inside isr -13
-```
-
-#### Improve to trace Watchdog reset
-  - See hard_fault_handler() in vectors_cortexm.c
-  - Configure the Watchdog Timer (WDT) to generate an Early Warning interrupt before the reset occurs. This allows you to execute specific actions, such as logging the program counter (PC) or saving system state, before the reset.
-    Ensure the Early Warning interrupt is configured with enough time before the watchdog timeout to allow for state-saving operations.
-    ```
-    WDT->EWCTRL.reg = WDT_EWCTRL_EWOFFSET(0x3); // Set Early Warning offset
-    NVIC_EnableIRQ(WDT_IRQn);                   // Enable WDT interrupt in NVIC
-    ```
-  - In the ISR, capture the current program counter or other relevant state information. This can help you identify where the system was executing when the interrupt occurred.
-    ```
-    void WDT_Handler() {
-        // Log the program counter or other state information
-        uint32_t currentPC = __get_MSP(); // Example: Get Main Stack Pointer
-        // pc = sp[6]
-        save_state_to_memory(currentPC);  // Save state to non-volatile memory
-
-        // Clear the Early Warning interrupt flag
-        WDT->INTFLAG.reg = WDT_INTFLAG_EW;
-    }
-    ```
-  - See wdt_setup_reboot_with_callback().
-  - After the system resets, check the reset cause register to confirm that the reset was triggered by the watchdog. The SAMD51J has a Reset Cause (RCAUSE) register that indicates the source of the reset.
-    ```
-    if (RSTC->RCAUSE.bit.WDT) {
-        // Watchdog reset occurred
-        uint32_t savedPC = read_state_from_memory(); // Retrieve saved state
-        debug_log("Watchdog reset at PC: 0x%08X", savedPC);
-    }
-    ```
+* SCHED_TEST_STACK, THREAD_CREATE_STACKTEST, DEBUG_EXTRA_STACKSIZE, DEBUG_BREAKPOINT(), PANIC_STACK_OVERFLOW
+* `fw.ps()` in Lua shows the current stack usage.
+  ```
+  pid   name              state     pri  lr        pc        stack usage
+    -   isr_stack         -           -  -         -         576/1024
+    1  >main              running     7  running   running   1144/2048
+    2   usbhub_thread     bl anyfl    3  00004E49  00004E58  568/1024
+    3   usbus             pending     1  00004E49  00004E58  948/1024
+    4   matrix_thread     bl mutex    2  00009A59  00009A78  572/1024
+  ```
 
 ##### Debugging USB (Capture USB traffic directly using `usbmon`)
 

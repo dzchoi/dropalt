@@ -62,7 +62,7 @@ bool persistent::_create(const char* name, const void* value, size_t value_size,
     // Populate the name field and value field
     __builtin_memcpy(found.to_name(), name, name_size);
     __builtin_memcpy(found.to_name() + name_size, value, value_size);
-    // LOG_DEBUG("seeprom: _create \"%s\" type=%d\n", name, value_type);
+    // LOG_DEBUG("seeprom: _create \"%s\" type=%d", name, value_type);
     // _commit_later();  // will be performed by get()/set() outside.
     return true;
 }
@@ -84,7 +84,7 @@ bool persistent::_remove(iterator it)
 
     // Make this block free.
     *it = block_header(blk_size2);
-    // LOG_DEBUG("seeprom: _remove \"%s\"\n", it.to_name());
+    // LOG_DEBUG("seeprom: _remove \"%s\"", it.to_name());
     _commit_later();
     return true;
 }
@@ -178,7 +178,7 @@ size_t persistent::size()
     lock_guard nvm_lock;
     size_t count = 0;
     for ( auto it = begin() ; it != end() ; ++it ) {
-        // LOG_DEBUG("seeprom: %p size=%d type=%d free=%d\n",
+        // LOG_DEBUG("seeprom: %p size=%d type=%d free=%d",
         //     it.operator->(), 1 << it->size2, it->value_type, it->free);
         if ( !it->free )
             count++;

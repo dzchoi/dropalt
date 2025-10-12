@@ -39,7 +39,7 @@ void rgb_gcr::isr_process_v_5v_report()
                 // Lock SSD if the updated GCR is 0.
                 if ( m_current_gcr == 0 )
                     is31_set_ssd_lock(true);
-                // LOG_DEBUG("Rgb: v_5v=%d v_con1=%d v_con2=%d gcr=%d\n",
+                // LOG_DEBUG("Rgb: v_5v=%d v_con1=%d v_con2=%d gcr=%d",
                 //     adc::v_5v.read(), adc::v_con1.read(), adc::v_con2.read(),
                 //     m_current_gcr);
             }
@@ -60,7 +60,7 @@ void rgb_gcr::isr_process_v_5v_report()
                 if ( m_current_gcr == 0 )
                     is31_set_ssd_lock(false);
                 is31_set_gcr(++m_current_gcr);
-                // LOG_DEBUG("Rgb: v_5v=%d v_con1=%d v_con2=%d gcr=%d\n",
+                // LOG_DEBUG("Rgb: v_5v=%d v_con1=%d v_con2=%d gcr=%d",
                 //     adc::v_5v.read(), adc::v_con1.read(), adc::v_con2.read(),
                 //     m_current_gcr);
             }

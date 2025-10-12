@@ -46,7 +46,7 @@ usbus_hid_device_ext_t::usbus_hid_device_ext_t(usbus_t* _usbus,
     tx_ready.handler = _hdlr_tx_ready;
     mutex_init(&in_lock);
 
-    LOG_DEBUG("USB_HID: pre-init [%d] %d\n", report_desc[0], report_desc_size);
+    LOG_DEBUG("USB_HID: pre-init [%d] %d", report_desc[0], report_desc_size);
     usbus_register_event_handler(usbus, &handler_ctrl);
 }
 
@@ -67,7 +67,7 @@ void usbus_hid_device_ext_t::_hdlr_tx_ready(event_t* event)
 void usbus_hid_device_ext_t::_tmo_transfer_complete(void* arg)
 {
     usbus_hid_device_ext_t* const hidx = static_cast<usbus_hid_device_ext_t*>(arg);
-    LOG_WARNING("USB_HID: tx_timer expired!\n");
+    LOG_WARNING("USB_HID: tx_timer expired!");
     usbus_event_post(hidx->usbus, &hidx->m_event_transfer_complete);
 }
 
@@ -75,7 +75,7 @@ void usbus_hid_device_ext_t::_init(usbus_t* usbus, usbus_handler_t* handler)
 {
     usbus_hid_device_ext_t* const hidx =
         static_cast<usbus_hid_device_ext_t*>((usbus_hid_device_t*)handler);
-    LOG_DEBUG("USB_HID: initialization [%d]\n", hidx->report_desc[0]);
+    LOG_DEBUG("USB_HID: initialization [%d]", hidx->report_desc[0]);
 
     hidx->hid_descr.next = nullptr;
     hidx->hid_descr.funcs = &_hid_descriptor;
@@ -93,17 +93,17 @@ void usbus_hid_device_ext_t::_event_handler(
     uint32_t now = ztimer_now(ZTIMER_MSEC);
     switch (event) {
         case USBUS_EVENT_USB_RESET:
-            LOG_DEBUG("USB_HID: reset event @%lu\n", now);
+            LOG_DEBUG("USB_HID: reset event @%lu", now);
             hidx->on_reset();
             break;
 
         case USBUS_EVENT_USB_SUSPEND:
-            LOG_DEBUG("USB_HID: suspend event @%lu\n", now);
+            LOG_DEBUG("USB_HID: suspend event @%lu", now);
             hidx->on_suspend();
             break;
 
         case USBUS_EVENT_USB_RESUME:
-            LOG_DEBUG("USB_HID: resume event @%lu\n", now);
+            LOG_DEBUG("USB_HID: resume event @%lu", now);
             hidx->on_resume();
             break;
 
@@ -115,7 +115,7 @@ void usbus_hid_device_ext_t::_event_handler(
 void usbus_hid_device_ext_t::_transfer_handler(
     usbus_t*, usbus_handler_t* handler, usbdev_ep_t* ep, usbus_event_transfer_t)
 {
-    // LOG_DEBUG("USB_HID: transfer_handler\n");
+    // LOG_DEBUG("USB_HID: transfer_handler");
 
     usbus_hid_device_ext_t* const hidx =
         static_cast<usbus_hid_device_ext_t*>((usbus_hid_device_t*)handler);
@@ -132,7 +132,7 @@ void usbus_hid_device_ext_t::_transfer_handler(
             // with ACK. (No need to call _ep_unready(hidx->ep_in->ep) in this case; the
             // usbus driver handles it automatically.)
             ztimer_remove(ZTIMER_MSEC, &hidx->tx_timer);
-            // LOG_DEBUG("USB_HID: --------\n");
+            // LOG_DEBUG("USB_HID: --------");
             hidx->on_transfer_complete(true);
         }
         else {
@@ -152,7 +152,7 @@ int usbus_hid_device_ext_t::_control_handler(
     usbus_hid_device_ext_t* const hidx =
         static_cast<usbus_hid_device_ext_t*>((usbus_hid_device_t*)handler);
 
-    LOG_DEBUG("USB_HID: request: 0x%x type: 0x%x value: %d length: %d state: %d\n",
+    LOG_DEBUG("USB_HID: request: 0x%x type: 0x%x value: %d length: %d state: %d",
           setup->request, setup->type, setup->value >> 8, setup->length, state);
 
     // Requests defined in USB HID 1.11 spec section 7
@@ -206,19 +206,19 @@ int usbus_hid_device_ext_t::_control_handler(
             if ( setup->length == 1 ) {
                 const uint8_t protocol = hidx->get_protocol();
                 usbus_control_slicer_put_char(usbus, protocol);
-                LOG_DEBUG("USB_HID: report protocol=%d\n", protocol);
+                LOG_DEBUG("USB_HID: report protocol=%d", protocol);
             }
             break;
 
         case USB_HID_REQUEST_SET_PROTOCOL: {
             const uint8_t protocol = (uint8_t)setup->value;  // LSB(wValue)
             hidx->set_protocol(protocol);
-            LOG_DEBUG("USB_HID: set protocol=%d\n", protocol);
+            LOG_DEBUG("USB_HID: set protocol=%d", protocol);
             break;
         }
 
         default:
-            LOG_WARNING("USB_HID: unknown request %d\n", setup->request);
+            LOG_WARNING("USB_HID: unknown request %d", setup->request);
             return -1;
     }
 

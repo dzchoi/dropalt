@@ -83,7 +83,7 @@ static constexpr size_t LUA_MEM_SIZE = 105 *1024;
 
 // tlsf_size() returns the size of the metadata and internal structures (= 3320 bytes)
 // for TLSF allocator.
-LOG_DEBUG("Main: max heap size is %d bytes\n", &_eheap - &_sheap - tlsf_size());
+LOG_DEBUG("Main: max heap size is %d bytes", &_eheap - &_sheap - tlsf_size());
 ```
 
 This modification will reduce the binary size by ~500 bytes, while increasing RAM usage by 3320 bytes (=tlsf_size()) to accommodate metadata and internal structures required by the TLSF allocator.

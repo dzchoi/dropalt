@@ -1,5 +1,3 @@
-FEATURES_REQUIRED += periph_wdt
-
 # dropalt_adc_get replaces periph_adc.
 ifneq (,$(filter dropalt_adc_get,$(USEMODULE)))
     FEATURES_BLACKLIST += periph_adc
@@ -26,9 +24,13 @@ ifneq (,$(filter dropalt_matrix,$(USEMODULE)))
 endif
 
 ifndef RIOTBOOT_BUILD
-USEMODULE += log_backup     # Use log_backup() for LOG_*() on riot functions.
+FEATURES_REQUIRED += periph_wdt
+USEMODULE += log_backup             # Use log_backup() for LOG_*() on riot functions.
+USEMODULE += ps                     # Show `ps` on a hard fault and assert failure.
 endif
 
+USEMODULE += riotboot_reset         # Reboot to bootloader on core_panic().
+                                    # Will also include `+= usb_board_reset`.
 USEMODULE += ztimer
 USEMODULE += ztimer_msec
 USEMODULE += ztimer_usec

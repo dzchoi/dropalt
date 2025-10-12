@@ -109,7 +109,7 @@ void _timer_t::_hdlr_timeout(event_t* event)
     }
 
     else
-        LOG_WARNING("Map: spurious timeout\n");
+        LOG_WARNING("Map: spurious timeout");
 }
 
 void _timer_t::_tmo_key_timer(void* arg)

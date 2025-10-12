@@ -7,6 +7,7 @@ USEMODULE += lua-contrib_noparser
 
 USEMODULE += log_backup
 USEMODULE += persistent
+USEMODULE += ps             # for `ps`.
 USEMODULE += riotboot_slot  # for using riotboot_slot_*()
 USEMODULE += usb            # for usb_thread::send_press/release()
 USEMODULE += ztimer

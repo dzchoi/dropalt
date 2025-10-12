@@ -131,7 +131,7 @@ const char* timed_stdin::_reader(lua_State*, void* timeout_ms, size_t* psize)
 {
     if ( m_read_ahead == 0
       && read_timed_out((uint32_t)(uintptr_t)timeout_ms, 0) )
-        LOG_ERROR("Lua: stdin is not available, failing REPL.\n");
+        LOG_ERROR("Lua: stdin is not available, failing REPL.");
 
     *psize = m_read_ahead;
     m_read_ahead = 0;

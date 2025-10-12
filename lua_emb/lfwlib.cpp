@@ -4,7 +4,7 @@
 #include "compiler_hints.h"     // for UNREACHABLE()
 #include "is31fl3733.h"         // for is31_set_color(), IS31_LEDS, ...
 #include "log.h"                // for get/set_log_mask(), vlog_backup()
-#include "thread.h"             // for thread_isr_stack_usage(), ...
+#include "ps.h"                 // for ps()
 #include "usb2422.h"            // for usbhub_host_port()
 
 #include <cstdio>               // for std::vprintf(), va_list
@@ -398,22 +398,10 @@ static int _nvm_pairs(lua_State* L)
     return 3;
 }
 
-static int fw_stack_usage(lua_State* L)
+static int fw_ps(lua_State*)
 {
-    lua_pushfstring(L, "ISR stack: %d / %d bytes",
-        thread_isr_stack_usage(), ISR_STACKSIZE);
-    for ( kernel_pid_t i = KERNEL_PID_FIRST ; i <= KERNEL_PID_LAST ; i++ ) {
-        const thread_t* tcb = (thread_t*)sched_threads[i];
-        if ( tcb != nullptr )
-            // Note: thread_measure_stack_free() will not work if the thread was created
-            // with the flag THREAD_CREATE_NO_STACKTEST.
-            lua_pushfstring(L, "%s stack: %d / %d bytes",
-                tcb->name,
-                tcb->stack_size - thread_measure_stack_free(tcb),
-                tcb->stack_size);
-    }
-
-    return lua_gettop(L);
+    ps();
+    return 0;
 }
 
 static int fw_keycode(lua_State* L)
@@ -582,15 +570,16 @@ int luaopen_fw(lua_State* L)
 // by a release for the same key.
         { "send_key", fw_send_key },
 
-// fw.stack_usage(): (string, ...)
-// Returns a list of strings describing the stack usage of each thread.
+// fw.ps(): void
+// Displays the runtime state of all threads, including their stack usage.
 // E.g.
-//   ISR stack: 664 / 1024 bytes
-//   main stack: 1292 / 2048 bytes
-//   usbhub_thread stack: 552 / 1024 bytes
-//   usbus stack: 932 / 1024 bytes
-//   matrix_thread stack: 556 / 1024 bytes
-        { "stack_usage", fw_stack_usage },
+// pid   name              state     pri  lr        pc        stack usage
+//   -   isr_stack         -           -  -         -         576/1024
+//   1  >main              running     7  running   running   1252/2048
+//   2   usbhub_thread     bl anyfl    3  00004E49  00004E58  568/1024
+//   3   usbus             pending     1  00004E49  00004E58  948/1024
+//   4   matrix_thread     bl mutex    2  00009A59  00009A78  572/1024
+        { "ps", fw_ps },
 
 // fw.system_reset(): void
 // Performs a system reset, rebooting the system.

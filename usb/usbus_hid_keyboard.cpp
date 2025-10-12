@@ -17,7 +17,7 @@
 void key_event_queue_t::push(key_event_t event, bool wait_if_full)
 {
     // Todo: Why isn't this log displayed?
-    // LOG_DEBUG("USB_HID: queue %s (0x%x %s)\n",
+    // LOG_DEBUG("USB_HID: queue %s (0x%x %s)",
     //     press_or_release(event.is_press),
     //     event.keycode, keycode_to_name[event.keycode]);
 
@@ -53,7 +53,7 @@ bool key_event_queue_t::pop()
 
 void key_event_queue_t::clear()
 {
-    LOG_DEBUG("USB_HID: clear key event queue\n");
+    LOG_DEBUG("USB_HID: clear key event queue");
     m_begin = m_end;
     mutex_unlock(&m_not_full);
 }
@@ -146,7 +146,7 @@ void usbus_hid_keyboard_t::_tmo_resume_settle(void* arg)
     usbus_hid_keyboard_t* const hidx = static_cast<usbus_hid_keyboard_t*>(arg);
     ztimer_remove(ZTIMER_MSEC, &hidx->m_timer_clear_queue);
 
-    LOG_DEBUG("USB_HID: USB accessible @%lu\n", ztimer_now(ZTIMER_MSEC));
+    LOG_DEBUG("USB_HID: USB accessible @%lu", ztimer_now(ZTIMER_MSEC));
     hidx->m_is_usb_accessible = true;
 
     if ( hidx->m_key_event_queue.not_empty() ) {
@@ -198,12 +198,12 @@ bool usbus_hid_keyboard_t::try_report_event(uint8_t keycode, bool is_press)
 
     if ( update_report(keycode, is_press) ) {
         if ( m_report_updated++ == 0 ) {
-            LOG_DEBUG("USB_HID: register %s (0x%x %s)\n",
+            LOG_DEBUG("USB_HID: register %s (0x%x %s)",
                 press_or_release(is_press), keycode, keycode_to_name[keycode]);
             submit_report();
         }
         else {
-            LOG_DEBUG("USB_HID: defer %s (0x%x %s)\n",
+            LOG_DEBUG("USB_HID: defer %s (0x%x %s)",
                 press_or_release(is_press), keycode, keycode_to_name[keycode]);
             if ( is_press )
                 m_press_yet_to_submit = keycode;
@@ -222,7 +222,7 @@ void usbus_hid_keyboard_t::report_event(uint8_t keycode, bool is_press)
     // take effect once USB resumes. These events remain in the queue only for
     // USB_SUSPEND_EVENT_TIMEOUT_MS.
     if ( unlikely(!m_is_usb_accessible) ) {
-        LOG_DEBUG("USB_HID: key %s in suspend mode\n", press_or_release(is_press));
+        LOG_DEBUG("USB_HID: key %s in suspend mode", press_or_release(is_press));
         if ( is_press )
             usb_thread::send_remote_wake_up();
         m_key_event_queue.push({keycode, is_press});
@@ -258,7 +258,7 @@ void usbus_hid_keyboard_t::on_transfer_complete(bool was_successful)
         return;
 
     if ( was_successful && m_report_updated > 1 ) {
-        LOG_DEBUG("USB_HID: register deferred events\n");
+        LOG_DEBUG("USB_HID: register deferred events");
         // Calling submit_report() here will post a new event while another event is
         // being handled, which requires Riot's _usbus_thread() to be updated to handle
         // multiple queued events per invocation.
@@ -305,7 +305,7 @@ bool usbus_hid_keyboard_t::help_update_bits(uint8_t& bits, uint8_t keycode, bool
 {
     const uint8_t mask = uint8_t(1) << (keycode & 7);
     if ( ((bits & mask) != 0) == is_press ) {
-        LOG_ERROR("USB_HID: Key (0x%x %s) is already %sed\n",
+        LOG_ERROR("USB_HID: Key (0x%x %s) is already %sed",
             keycode, keycode_to_name[keycode], is_press ? "press" : "releas");
         return false;
     }
@@ -321,7 +321,7 @@ bool usbus_hid_keyboard_t::help_update_skro_report(
     for ( i = 0 ; i < SKRO_KEYS_SIZE && keys[i] != KC_NO ; i++ )
         if ( keys[i] == keycode ) {
             if ( is_press ) {
-                LOG_ERROR("USB_HID: Key (0x%x %s) is already pressed\n",
+                LOG_ERROR("USB_HID: Key (0x%x %s) is already pressed",
                     keycode, keycode_to_name[keycode]);
                 return false;
             }
@@ -334,13 +334,13 @@ bool usbus_hid_keyboard_t::help_update_skro_report(
         }
 
     if ( !is_press ) {
-        LOG_ERROR("USB_HID: Key (0x%x %s) is already released\n",
+        LOG_ERROR("USB_HID: Key (0x%x %s) is already released",
             keycode, keycode_to_name[keycode]);
         return false;
     }
 
     if ( i == SKRO_KEYS_SIZE ) {
-        LOG_WARNING("USB_HID: no room to report key press (0x%x %s)\n",
+        LOG_WARNING("USB_HID: no room to report key press (0x%x %s)",
             keycode, keycode_to_name[keycode]);
         return false;
     }
@@ -353,7 +353,7 @@ bool usbus_hid_keyboard_t::help_update_nkro_report(
     uint8_t bits[], uint8_t keycode, bool is_press)
 {
     if ( (keycode >> 3) >= NKRO_KEYS_SIZE ) {
-        LOG_WARNING("USB_HID: Key (0x%x) is out of NKRO report range\n", keycode);
+        LOG_WARNING("USB_HID: Key (0x%x) is out of NKRO report range", keycode);
         return false;
     }
 
@@ -377,7 +377,7 @@ void usbus_hid_keyboard_t::_hdlr_receive_data(
     } else
         lamp_state = data[0];
 
-    LOG_DEBUG("USB_HID: set led_lamp_state=0x%x @%lu\n",
+    LOG_DEBUG("USB_HID: set led_lamp_state=0x%x @%lu",
         lamp_state, ztimer_now(ZTIMER_MSEC));
 
     main_thread::signal_lamp_state(lamp_state);

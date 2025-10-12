@@ -161,7 +161,7 @@ int adc_configure(Adc* dev, adc_res_t res)
      * falls between 12bit and 10bit.  See datasheet for details */
     if (!((res == ADC_RES_8BIT) || (res == ADC_RES_10BIT) ||
           (res == ADC_RES_12BIT))){
-        LOG_ERROR("adc: invalid resolution\n");
+        LOG_ERROR("adc: invalid resolution");
         return -1;
     }
 
@@ -169,7 +169,7 @@ int adc_configure(Adc* dev, adc_res_t res)
 
     if (dev->CTRLA.reg & ADC_CTRLA_SWRST ||
         dev->CTRLA.reg & ADC_CTRLA_ENABLE ) {
-        LOG_ERROR("adc: not ready\n");
+        LOG_ERROR("adc: not ready");
         return -1;
     }
 
@@ -278,7 +278,7 @@ int adc_configure(Adc* dev, adc_res_t res)
 int adc_init(adc_t line)
 {
     if (line >= ADC_NUMOF) {
-        LOG_ERROR("adc: line arg not applicable\n");
+        LOG_ERROR("adc: line arg not applicable");
         return -1;
     }
 
@@ -324,7 +324,7 @@ static struct {
 int32_t adc_get(adc_t line, void (*callback)(void*, uint16_t), void* arg)
 {
     if ( line >= ADC_NUMOF ) {
-        LOG_ERROR("adc: line arg not applicable\n");
+        LOG_ERROR("adc: line arg not applicable");
         return -1;
     }
 

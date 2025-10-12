@@ -32,7 +32,7 @@ void usbhub_state::help_process_usb_suspend()
 
 void usbhub_state::help_process_usb_resume()
 {
-    LOG_DEBUG("USBHUB: acquired host port %d @%lu\n", v_host->line, ztimer_now(ZTIMER_MSEC));
+    LOG_DEBUG("USBHUB: acquired host port %d @%lu", v_host->line, ztimer_now(ZTIMER_MSEC));
 
     if ( v_extra->sync_measure().is_device_connected() )
         transition_to<state_extra_enabled>();
@@ -58,14 +58,14 @@ void usbhub_state::help_process_usbport_switchover()
         transition_to<state_usb_suspend>().perform_switchover();
     }
     else
-        LOG_WARNING("USBHUB: switchover not allowed to extra device!\n");
+        LOG_WARNING("USBHUB: switchover not allowed to extra device!");
 }
 
 
 
 void state_determine_host::begin()
 {
-    LOG_DEBUG("USBHUB: state_determine_host\n");
+    LOG_DEBUG("USBHUB: state_determine_host");
     if constexpr ( DEBUG_LED_BLINK_PERIOD_MS > 0 )
         LED0_ON;
     ztimer_set_timeout_flag(ZTIMER_MSEC, &retry_timer,
@@ -104,7 +104,7 @@ void state_determine_host::begin()
 
     uint8_t desired_port = USB_PORT_1;  // Default value for `last_host_port`.
     persistent::get("last_host_port", desired_port);
-    LOG_DEBUG("USBHUB: try port %d first @%lu\n", desired_port, ztimer_now(ZTIMER_MSEC));
+    LOG_DEBUG("USBHUB: try port %d first @%lu", desired_port, ztimer_now(ZTIMER_MSEC));
 
     usbhub_select_host_port(desired_port);
     if ( desired_port == USB_PORT_1 ) {
@@ -124,7 +124,7 @@ void state_determine_host::isr_process_v_con_report()
 {
     if ( v_host->is_host_connected() ) {
         v_host->schedule_cancel();
-        LOG_DEBUG("USBHUB: determined host port %d @%lu\n",
+        LOG_DEBUG("USBHUB: determined host port %d @%lu",
             v_host->line, ztimer_now(ZTIMER_MSEC));
     }
 }
@@ -141,7 +141,7 @@ void state_determine_host::process_timeout()
         v_host->schedule_cancel();
 
         const uint8_t desired_port = v_extra->line;  // == usbhub_extra_port();
-        LOG_DEBUG("USBHUB: switchover to port %d @%lu\n",
+        LOG_DEBUG("USBHUB: switchover to port %d @%lu",
             desired_port, ztimer_now(ZTIMER_MSEC));
 
         usbhub_select_host_port(desired_port);
@@ -164,7 +164,7 @@ void state_determine_host::end()
 
     automatic_switchover_enabled = v_host->is_host_connected();
     if ( !automatic_switchover_enabled )
-        LOG_WARNING("USBHUB: automatic switchover disabled\n");
+        LOG_WARNING("USBHUB: automatic switchover disabled");
 
     // From now on, v_extra will be measured periodically.
     v_extra->schedule_periodic();
@@ -178,7 +178,7 @@ void state_determine_host::end()
 
 void state_usb_suspend::begin()
 {
-    LOG_DEBUG("USBHUB: state_usb_suspend\n");
+    LOG_DEBUG("USBHUB: state_usb_suspend");
     if constexpr ( ENABLE_RGB_LED && RGB_DISABLE_DURING_USB_SUSPEND )
         rgb_gcr::disable();
 
@@ -196,7 +196,7 @@ void state_usb_suspend::perform_switchover()
     assert( v_host != nullptr && v_extra != nullptr );
 
     const uint8_t desired_port = v_extra->line;  // == usbhub_extra_port();
-    LOG_DEBUG("USBHUB: switchover to port %d @%lu\n", desired_port, ztimer_now(ZTIMER_MSEC));
+    LOG_DEBUG("USBHUB: switchover to port %d @%lu", desired_port, ztimer_now(ZTIMER_MSEC));
 
     usbhub_select_host_port(desired_port);
     std::swap(v_host, v_extra);
@@ -220,7 +220,7 @@ void state_usb_suspend::end()
 
     automatic_switchover_enabled = v_host->sync_measure().is_host_connected();
     if ( !automatic_switchover_enabled )
-        LOG_WARNING("USBHUB: automatic switchover disabled\n");
+        LOG_WARNING("USBHUB: automatic switchover disabled");
 
     // From now on, v_extra will be measured periodically.
     v_extra->schedule_periodic();
@@ -231,7 +231,7 @@ void state_usb_suspend::end()
 void state_extra_disabled::begin()
 {
     usbhub_enable_extra_port(v_extra->line, false);
-    LOG_DEBUG("USBHUB: state_extra_disabled\n");
+    LOG_DEBUG("USBHUB: state_extra_disabled");
 
     if constexpr ( ENABLE_RGB_LED && RGB_DISABLE_DURING_USB_SUSPEND )
         rgb_gcr::enable();
@@ -243,7 +243,7 @@ void state_extra_disabled::isr_process_v_con_report()
         if ( !m_panic_disabled ) {
             static event_t _event = { nullptr,  // .list_node
                 [](event_t*) {  // .handler
-                    LOG_INFO("USBHUB: extra device is connected to port %d\n",
+                    LOG_INFO("USBHUB: extra device is connected to port %d",
                         v_extra->line);
                     transition_to<state_extra_enabled>();
                 }
@@ -255,7 +255,7 @@ void state_extra_disabled::isr_process_v_con_report()
     else {
         if ( m_panic_disabled ) {
             m_panic_disabled = false;
-            LOG_INFO("USBHUB: extra device is disconnected from port %d\n", v_extra->line);
+            LOG_INFO("USBHUB: extra device is disconnected from port %d", v_extra->line);
         }
     }
 }
@@ -270,7 +270,7 @@ void state_extra_disabled::process_extra_enable_manually()
 void state_extra_enabled::begin()
 {
     usbhub_enable_extra_port(v_extra->line, true);
-    LOG_DEBUG("USBHUB: state_extra_enabled\n");
+    LOG_DEBUG("USBHUB: state_extra_enabled");
 
     if constexpr ( ENABLE_RGB_LED && RGB_DISABLE_DURING_USB_SUSPEND )
         rgb_gcr::enable();
@@ -295,7 +295,7 @@ void state_extra_enabled::isr_process_v_con_report()
         if ( !m_enabled_manually ) {
             static event_t _event = { nullptr,  // .list_node
                 [](event_t*) {  // .handler
-                    LOG_INFO("USBHUB: extra device is disconnected from port %d\n",
+                    LOG_INFO("USBHUB: extra device is disconnected from port %d",
                         v_extra->line);
                     transition_to<state_extra_disabled>();
                 }
@@ -310,7 +310,7 @@ void state_extra_enabled::process_extra_enable_manually()
 {
     if ( !m_enabled_manually ) {
         m_enabled_manually = true;
-        LOG_INFO("USBHUB: extra port is enabled manually\n");
+        LOG_INFO("USBHUB: extra port is enabled manually");
     }
 }
 
@@ -318,7 +318,7 @@ void state_extra_enabled::process_extra_enable_automatically()
 {
     if ( m_enabled_manually ) {
         m_enabled_manually = false;
-        LOG_INFO("USBHUB: extra port is back to automatic\n");
+        LOG_INFO("USBHUB: extra port is back to automatic");
         if ( !v_extra->is_device_connected() )
             transition_to<state_extra_disabled>();
     }
@@ -326,7 +326,7 @@ void state_extra_enabled::process_extra_enable_automatically()
 
 void state_extra_enabled::process_timeout()
 {
-    LOG_WARNING("USBHUB: extra port is panic disabled\n");
+    LOG_WARNING("USBHUB: extra port is panic disabled");
     transition_to<state_extra_disabled>().set_panic_disabled();
 }
 

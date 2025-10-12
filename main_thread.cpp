@@ -27,9 +27,26 @@
 
 
 // This main() function is called from main_trampoline() in the "main" thread context.
-// See kernel_init() for more information.
+// See kernel_init() for the details.
 extern "C" int main()
 {
+    // Now running in thread context, and since we won't return to the boot code (the
+    // main thread was created using THREAD_CREATE_WOUT_YIELD and entered via
+    // cpu_switch_context_exit()), we reset the ISR stack pointer (MSP). From this point
+    // on, MSP will be used exclusively for handling interrupts and faults.
+    __asm__ volatile (
+        "cpsid i\n"
+        "msr msp, %[estack]\n"
+        "cpsie i\n"
+        :
+        : [estack] "r" (&_estack)
+    );
+
+    // Simple tests to trigger a hard fault.
+    // __attribute__((unused)) volatile int p = *(int*)(0);  // MemManage fault
+    // void (*f)() = (void (*)())0x08000000; f();  // HardFault (even address)
+    // __builtin_trap();  // HardFault
+
     main_thread::init();
 }
 
@@ -54,11 +71,13 @@ NORETURN void main_thread::init()
     // for the meaning of each bit. For instance, 0x40 indicates a system reset.
     // Resets other than a system reset or power reset are not expected, as they are
     // caught by the bootloader.
-    LOG_DEBUG("Main: RSTC->RCAUSE.reg=0x%x\n", RSTC->RCAUSE.reg);
+    LOG_DEBUG("Main: RSTC->RCAUSE.reg=0x%x", RSTC->RCAUSE.reg);
 
-    LOG_DEBUG("Main: max heap size is %d bytes\n", &_eheap - &_sheap);
+    LOG_DEBUG("Main: max heap size is %d bytes", &_eheap - &_sheap);
 
     // Instead of creating a new thread, use the already existing "main" thread.
+    // Regarding the thread stack, `char main_stack[THREAD_STACKSIZE_MAIN]` is created
+    // in riot/core/lib/init.c already.
     (void)_thread_entry(nullptr);
 }
 
@@ -114,7 +133,7 @@ void main_thread::signal_event(event_t* event)
 bool main_thread::signal_key_event(unsigned slot_index, bool is_press, uint32_t timeout_us)
 {
     assert( slot_index <= KEY_LED_COUNT );
-    LOG_DEBUG("Matrix: %s [%u] @%lu\n",
+    LOG_DEBUG("Matrix: %s [%u] @%lu",
         press_or_release(is_press), slot_index, ztimer_now(ZTIMER_MSEC));
 
     if ( likely(key_queue::push({{ uint8_t(slot_index), is_press }}, timeout_us)) ) {
@@ -122,7 +141,7 @@ bool main_thread::signal_key_event(unsigned slot_index, bool is_press, uint32_t 
         return true;
     }
 
-    LOG_ERROR("Main: key_queue::push() failed\n");
+    LOG_ERROR("Main: key_queue::push() failed");
 
     // If the key event queue is full with all deferred events, recovery is impossible.
     // Trigger a system reset to restore operability.
@@ -157,9 +176,11 @@ NORETURN void* main_thread::_thread_entry(void*)
     lua::global_lua_state::init();
 
     while ( true ) {
+#ifdef DEVELHELP
         // Kick the watchdog timer to keep the system alive. If we don't come back here
         // within the watchdog timeout, the system will trigger a watchdog reset.
         wdt_kick();
+#endif
 
         // No flags. Time for some housekeeping and a nap.
         if ( (m_pthread->flags & ALL_FLAGS) == 0 ) {
@@ -201,8 +222,10 @@ NORETURN void* main_thread::_thread_entry(void*)
             ztimer_set_timeout_flag(ZTIMER_MSEC, &timer, HEARTBEAT_PERIOD_MS);
         }
 
-        // Note that if flags are already set, thread_flags_wait_one() returns
-        // immediately for each flag, starting from the LSB, without sleeping.
+        // Wait for a signal within HEARTBEAT_PERIOD_MS if no flags are set.
+        // If any flags are already set (as is always the case for ENABLE_LUA_REPL),
+        // thread_flags_wait_one() returns immediately, starting with the LSB, without
+        // sleeping.
         thread_flags_t flag = thread_flags_wait_one(ALL_FLAGS);  // Zzz
 
         switch ( flag ) {
@@ -215,7 +238,7 @@ NORETURN void* main_thread::_thread_entry(void*)
 
             case FLAG_DTE_ENABLED:
                 if constexpr ( ENABLE_CDC_ACM )
-                    LOG_DEBUG("Main: DTE enabled\n");
+                    LOG_DEBUG("Main: DTE enabled");
                 break;
 
             case FLAG_DTE_DISABLED:
@@ -223,11 +246,11 @@ NORETURN void* main_thread::_thread_entry(void*)
                     if ( timed_stdin::is_enabled() ) {
                         lua::repl::stop();
                         timed_stdin::disable();
-                        LOG_INFO("Main: REPL disabled\n");
+                        LOG_INFO("Main: REPL disabled");
                     }
                 }
                 if constexpr ( ENABLE_CDC_ACM )
-                    LOG_DEBUG("Main: DTE disabled\n");
+                    LOG_DEBUG("Main: DTE disabled");
                 break;
 
             case FLAG_DTE_READY:
@@ -235,7 +258,7 @@ NORETURN void* main_thread::_thread_entry(void*)
                     if ( !timed_stdin::is_enabled() ) {
                         timed_stdin::enable();
                         lua::repl::start();
-                        LOG_INFO("Main: REPL ready (0x%x)\n", get_log_mask());
+                        LOG_INFO("Main: REPL ready (0x%x)", get_log_mask());
                     }
                 }
                 // Do not process FLAG_DTE_READY when ENABLE_LUA_REPL is false. The
@@ -254,7 +277,7 @@ NORETURN void* main_thread::_thread_entry(void*)
                 break;
 
             case FLAG_TIMEOUT:
-                // LOG_DEBUG("Main: v_5v=%d v_con1=%d v_con2=%d fsmstatus=0x%x @%lu\n",
+                // LOG_DEBUG("Main: v_5v=%d v_con1=%d v_con2=%d fsmstatus=0x%x @%lu",
                 //     adc::v_5v.read(), adc::v_con1.read(), adc::v_con2.read(),
                 //     usb_thread::fsmstatus(),
                 //     ztimer_now(ZTIMER_MSEC));

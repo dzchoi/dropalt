@@ -11,7 +11,7 @@
 thread_t* usbhub_thread::m_pthread = nullptr;
 
 // THREAD_STACKSIZE_SMALL is incompatible with printf().
-char usbhub_thread::m_thread_stack[THREAD_STACKSIZE_DEFAULT];
+alignas(8) char usbhub_thread::m_thread_stack[THREAD_STACKSIZE_DEFAULT];
 
 event_queue_t usbhub_thread::m_queue;
 

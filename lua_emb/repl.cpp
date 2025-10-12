@@ -68,7 +68,7 @@ void repl::respond(status_t status)
 void repl::execute()
 {
     global_lua_state L;
-    LOG_DEBUG("Lua: repl::execute()\n");
+    LOG_DEBUG("Lua: repl::execute()");
 
     // We use a timed reader function here instead of stdio_read() from stdio_base.h.
     // This ensures that if the host's serial terminal (e.g., dalua) is malfunctioning

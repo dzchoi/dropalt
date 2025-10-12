@@ -14,11 +14,7 @@ extern "C" {
 // Output an error message in printf() fashion, automatically appending a newline
 // at the end. If the format is the only argument, it doesn't need to be a literal
 // string.
-#define l_message(format, ...) \
-    _l_message ## __VA_OPT__(_v) (format __VA_OPT__(,) __VA_ARGS__)
-
-#define _l_message(s)  LOG(LOG_LUA_ERROR, "%s\n", (s))
-#define _l_message_v(format, ...)  LOG(LOG_LUA_ERROR, format "\n", __VA_ARGS__)
+#define l_message(...) LOG(LOG_LUA_ERROR, __VA_ARGS__)
 
 
 
