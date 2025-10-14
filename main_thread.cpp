@@ -13,7 +13,7 @@
 #include "event_ext.hpp"        // for event_post(), event_queue_init(), event_get()
 #include "lua.hpp"              // for lua::global_lua_state::init()
 #include "config.hpp"           // for ENABLE_CDC_ACM, ENABLE_LUA_REPL
-#include "key_queue.hpp"        // for key_queue::push(), key_queue::get(), ...
+#include "main_key_events.hpp"  // for main_key_events::push(), ...
 #include "lexecute.hpp"         // for lua::execute_pending_calls(), ...
 #include "lkeymap.hpp"          // for lua::handle_key_event(), lua::handle_lamp_state()
 #include "main_thread.hpp"
@@ -136,16 +136,17 @@ bool main_thread::signal_key_event(unsigned slot_index, bool is_press, uint32_t 
     LOG_DEBUG("Matrix: %s [%u] @%lu",
         press_or_release(is_press), slot_index, ztimer_now(ZTIMER_MSEC));
 
-    if ( likely(key_queue::push({{ uint8_t(slot_index), is_press }}, timeout_us)) ) {
+    if ( likely(main_key_events::push({{ uint8_t(slot_index), is_press }}, timeout_us)) )
+    {
         set_thread_flags(FLAG_KEY_EVENT);
         return true;
     }
 
-    LOG_ERROR("Main: key_queue::push() failed");
+    LOG_ERROR("Main: main_key_events::push() failed");
 
     // If the key event queue is full with all deferred events, recovery is impossible.
     // Trigger a system reset to restore operability.
-    if ( unlikely(key_queue::terminal_full()) )
+    if ( unlikely(main_key_events::terminal_full()) )
         system_reset();
 
     // Otherwise, discard surplus events. Presses may be lost, but missed releases will
@@ -153,11 +154,11 @@ bool main_thread::signal_key_event(unsigned slot_index, bool is_press, uint32_t 
     return false;
 }
 
-void main_thread::signal_lamp_state(uint_fast8_t lamp_state)
+void main_thread::signal_lamp_state(uint8_t lamp_state)
 {
-    static event_ext_t<uint_fast8_t> _event = { nullptr,
+    static event_ext_t<uint8_t> _event = { nullptr,
         [](event_t* event) {
-            lua::handle_lamp_state(static_cast<event_ext_t<uint_fast8_t>*>(event)->arg);
+            lua::handle_lamp_state(static_cast<event_ext_t<uint8_t>*>(event)->arg);
         },
         0
     };
@@ -266,9 +267,10 @@ NORETURN void* main_thread::_thread_entry(void*)
                 break;
 
             case FLAG_KEY_EVENT:
-                // Key (press/release) events from key_queue are handled one at a time.
-                key_queue::entry_t event;
-                if ( key_queue::get(&event) ) {
+                // Key (press/release) events from main_key_events are handled one at a
+                // time.
+                main_key_events::key_event_t event;
+                if ( main_key_events::get(&event) ) {
                     lua::handle_key_event(event.slot_index, event.is_press);
                     // Any remaining key events will be handled next time without
                     // sleeping.

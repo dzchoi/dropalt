@@ -111,21 +111,6 @@ extern "C" {
 #define CONFIG_USB_MAX_POWER            300  // bMaxPower (300 mA.)
 // #define CONFIG_USB_CONFIGURATION_STR "USB config" // iConfiguration
 #define CONFIG_USB_REM_WAKEUP           1  // bmAttributes
-
-// The stdout buffer is _cdc_tx_buf_mem[CONFIG_USBUS_CDC_ACM_STDOUT_BUF_SIZE], which is
-// associated with cdcacm->tsrb. It is configured to be larger than the USB transmit
-// buffer (cdcacm->in_buf[CONFIG_USBUS_CDC_ACM_BULK_EP_SIZE], 64 bytes) to retain old
-// logs generated while DTE is not connected.
-//
-// Note: Data from the host is first received into the USB buffer
-// (cdcacm->out_buf[CONFIG_USBUS_CDC_ACM_BULK_EP_SIZE]). It then flows into
-// _rx_buf_mem[STDIO_RX_BUFSIZE], which backs stdin_isrpipe.tsrb. Finally,
-// timed_stdin::m_read_buffer[CONFIG_STDIN_RX_BUFSIZE] is used to gradually read Lua
-// bytecode. STDIO_RX_BUFSIZE (set to 4KB in Makefile.include) is configured to be large
-// enough to reliably absorb the incoming stream, even when the Lua REPL processes input
-// more slowly.
-#define CONFIG_USBUS_CDC_ACM_STDOUT_BUF_SIZE (4*1024)
-#define CONFIG_STDIN_RX_BUFSIZE (64)
 /** @} */
 
 
@@ -182,17 +167,6 @@ static const uint8_t DRIVER_ADDR[DRIVER_COUNT] = { 0x50, 0x5F };
 // Watchdog timeout for debugging aid; if matrix scan is not performed for this period
 // long, we jump to the bootloader.
 #define WDT_TIMEOUT_MS                  (2 *1000U)  // 2 seconds
-
-
-// The smaller the value, the higher the priority.
-// Note: Priorities must be in the range [1..7].
-#define THREAD_PRIO_USB                 1
-#define THREAD_PRIO_MATRIX              2
-#define THREAD_PRIO_USBHUB              3
-#if THREAD_PRIORITY_MAIN != 7
-    // See riot/core/lib/include/thread_config.h.
-    #error THREAD_PRIORITY_MAIN != 7
-#endif
 
 
 // Linker script labels from vectors_cortexm.c

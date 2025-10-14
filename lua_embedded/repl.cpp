@@ -1,4 +1,3 @@
-#include "assert.h"
 #include "log.h"                // for get_log_mask()
 #include "stdio_base.h"         // for stdio_write()
 

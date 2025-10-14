@@ -40,9 +40,9 @@ void load_keymap()
     // Verify that the image is a valid Lua bytecode.
     constexpr union {
         char str[5];
-        uint32_t num;
+        uint32_t uint32;
     } signature = { LUA_SIGNATURE };
-    assert( *(uint32_t*)SLOT1_IMAGE_OFFSET == signature.num );
+    assert( *(uint32_t*)SLOT1_IMAGE_OFFSET == signature.uint32 );
 
     // Verify the bytecode size.
     uint32_t slot1_image_size = riotboot_slot_get_hdr(SLOT1)->start_addr;
@@ -102,7 +102,7 @@ void handle_key_event(unsigned slot_index, bool is_press)
     // ( -- )
 }
 
-void handle_lamp_state(uint_fast8_t lamp_state)
+void handle_lamp_state(uint8_t lamp_state)
 {
     global_lua_state L;
 

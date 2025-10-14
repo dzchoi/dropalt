@@ -14,11 +14,7 @@
 
 thread_t* matrix_thread::m_pthread = nullptr;
 
-#ifdef DEVELHELP
-    alignas(8) char matrix_thread::m_thread_stack[THREAD_STACKSIZE_MEDIUM];
-#else
-    alignas(8) char matrix_thread::m_thread_stack[THREAD_STACKSIZE_SMALL];
-#endif
+alignas(8) char matrix_thread::m_thread_stack[MATRIX_STACKSIZE];
 
 // Start matrix_thread by sleeping; will wake up on an interrupt.
 mutex_t matrix_thread::m_sleep_lock = MUTEX_INIT_LOCKED;
@@ -151,7 +147,7 @@ NORETURN void* matrix_thread::_thread_entry(void*)
                 state.pressed = state.pressing;
             }
 
-            any_pressed |= state.value;
+            any_pressed |= state.uint8;
         }
 
         // If any key is pressed or if the minimum scan count hasn't been hit, we

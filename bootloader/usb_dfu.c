@@ -80,8 +80,8 @@ static ztimer_t scheduled_reboot = { .callback=reboot_now, .arg = NULL };
 void usbus_dfu_init(usbus_t* usbus, usbus_dfu_device_t* dfu, unsigned mode)
 {
     DEBUG("DFU: initialization\n");
-    assert( usbus );
-    assert( dfu );
+    // assert( usbus );
+    // assert( dfu );
     static_assert( FLASHPAGE_SIZE > 0 );
     static_assert( (SLOT0_OFFSET % FLASHPAGE_SIZE) == 0,
                    "SLOT0_OFFSET has to be a multiple of FLASHPAGE_SIZE" );

@@ -12,11 +12,6 @@ extern "C" {
 
 namespace lua {
 
-// LUA_MEM_SIZE is set to its maximum, leaving ~1KB for the main heap (calculated as
-// &_eheap - &_sheap). This remaining space must be sufficient to cover ~320 bytes,
-// primarily used by fputs() and stdin_init().
-static constexpr size_t LUA_MEM_SIZE = 108 *1024;
-
 static uint8_t lua_memory[LUA_MEM_SIZE]
     __attribute__((section(".noinit"), aligned(sizeof(uint32_t))));
 
@@ -40,7 +35,7 @@ extern int luaopen_fw(lua_State* L);
 void global_lua_state::init()
 {
     L = lua_riot_newstate(lua_memory, sizeof(lua_memory), _panic);
-    assert( L != nullptr );
+    // assert( L != nullptr );
     global_lua_state L;  // Overrides global_lua_state::L.
 
     // Load some of the standard libraries.

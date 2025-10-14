@@ -21,7 +21,7 @@ private:
     static char m_thread_stack[];
 
     union bounce_state_t {
-        uint8_t value;
+        uint8_t uint8;
         struct {
             uint8_t counter: 6;
             bool pressed: 1;

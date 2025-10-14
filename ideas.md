@@ -1,27 +1,19 @@
 * Fix: "CDCACM: line coding not supported".
 
-[Refactor]
-* Rename .value -> .uint?. Search for "union" across sources.
-* Rename key_queue -> main_key_events, key_event_queue_t -> usb_key_events.
-* `assert( false )` and `assert( status == LUA_OK )` are not the proper way to shutdown. Use abort(), lua_error() or luaL_error() instead.
-  `assert()` for only "non-trivial" logical error.
-* Manage all thread stack sizes in one place.
-
 [Debouncing]
 * DEBOUNCE_PRESS_MS and DEBOUNCE_RELEASE_MS defined in NVM.
 
-[Switchover]
+[Lua]
 * Configure the automatic switchover feature in config.hpp.
 * Switchover event should be given to Effects.
 * Switchover as lamp event.
+* Expose `request_extra_enable_manually/automatically()` in `fw`.
+* Upload the userpage (512 bytes) using `uuencode`.
 
 [RGB]
 * Precise color accuracy isn't necessary — keycaps show everything in a reddish color.
 * RGB is enabled or disabled dynamically from Effects in Lua?
 * Adjustable threshold values (ADC_CON1_NOMINAL) in NVM?
-
-[Lua]
-* Upload the userpage (512 bytes).
 
 [dalua]
 * Do not assume the remote status ("[}0\n") appears on its own line. The preceding line may not end with a newline character.
@@ -29,25 +21,19 @@
 [Tips]
 * Redefine Riot-independent #define constants using "static const" and "static inline".
 * Change m_pthread->flags directly instead calling thread_flags_set(), if we don't need to yield to other threads at this moment, and there is no other threads or interrupt that can change it simultaneously (So irq_disable() is not necessary).
-* `uint_fast8_t` instead of `unsigned` if the full size is not necessary. E.g. slot_index.
 * `typedef struct lua_State lua_State;`
 * CFLAGS from parent Makefile are inherited, but the changes in child Makefiles do not propagate back.
 * Use `likely(x)` (== `__builtin_expect((uintptr_t)(x), 1)`) if appropriate.
 * Allocate variables in ".noinit" section (NOINIT) unless initialization is strictly necessary.
 * Favor stdio_write() over printf() and fputs() if possible to minimize code size.
-* Don't waste assert(). Even a simple `assert( m_pthread );` consumes 56 bytes.
+* Don't waste assert(). Even a simple `assert( m_pthread );` consumes 56 bytes. Use `assert()` for only "non-trivial" logical error.
 * Don't include <cstdbool>, <cstddef> and <cstdint> for each source file, as they would
   have been already included in the header file that provides the functions with those
   types as parameters or as a return value.
 * Binary size is also affected by .data section. Walk through those variables that initialize with non-zero values.
-* `thread_get_active()` returns NULL from interrupt context.
 
-[panic]
-* _panic() should reboot into bootloader instead of idling. What boot reason?
+[Power consumption]
 * Use MODULE_CORE_IDLE_THREAD to enable CPU sleep when idle.
-
-[Log]
-* LOG_DEBUG() and fw.log() append '\n' automatically, if it not there. Otherwise, it disrupts `dalua`.
 
 [Formatted logs]
 * Log messages are segmented and stored in backup RAM, then reconstructed using a host-side utility.
@@ -57,10 +43,24 @@
 * Prior to transmitting log entries, metadata containing all format strings and their respective addresses is sent first.
 
 [No bootloading]
-* A single application that can also work as bootloader. It supports both DFU mode and normal mode operations.
-* The application is headerless.
+* A single application that can also work as bootloader. It supports both DFU mode and normal mode operations. The application is headerless.
 * The application can occupy the full 128KB, which corresponds to one bank of the dual memory.
 * The application can output logs, which can be captured by dfu-util anytime during DFU mode, as long as Lua script is flashed.
+
+* Startup
+  - Starts with the DFU (only) mode first, then enters the normal mode immediately if:
+    = no magic number (for DFU mode),
+    = no error reset, and
+    = Lua script is ready on other memory bank.
+  - Stay in DFU (only) mode until a key is pressed, then enter the normal mode.
+  - Firmware download is started in DFU mode. Disable the keyboard interrupt. Then,
+    = Performs the bank switch and reboot, if firmware download completes.
+    = Jump to the normal mode, if Lua script download completes.
+  - No Lua running and no RGBs durng DFU mode.
+
+* Normal mode
+  - The normal mode provides DFU, CDC and HID stacks simultaneously.
+  - Jump (not reboot) to DFU mode if DFU_DOWNLOAD is received.
 
 * The application is flashed into the alternate bank of dual memory (e.g. A -> B -> A -> ...).
 * When flashed using the legacy `mdloader`, a large combined image is written, which consists of:

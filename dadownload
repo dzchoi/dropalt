@@ -3,7 +3,8 @@ tmpfile=$(mktemp)
 trap 'rm -f "$tmpfile"' EXIT  # Clean up the temporary file.
 
 # Compile the Lua script.
-daluac core.lua effect.lua keymap.lua >"$tmpfile" || exit
+daluac user_logic/core.lua user_logic/effect.lua user_logic/keymap.lua >"$tmpfile" \
+    || exit
 
 # Reboot the keyboard to bootloader if not already.
 if ! dfu-util -l -a1 |grep -q 'RIOT-OS'; then

@@ -10,13 +10,13 @@ struct lua_State;
 
 // Static class managing the key event queue between matrix_thread and main_thread.
 // Note: No initialization is required.
-class key_queue {
+class main_key_events {
 public:
-    union entry_t {
+    union key_event_t {
         struct { uint8_t slot_index; bool is_press; };
-        uint16_t value;
+        uint16_t uint16;
     };
-    static_assert( sizeof(entry_t) == sizeof(uint16_t) );
+    static_assert( sizeof(key_event_t) == sizeof(uint16_t) );
 
     // All methods in this class are thread safe using the mutex m_access_lock.
 
@@ -25,11 +25,11 @@ public:
     // Note: If the queue fills up exclusively with deferred events, push() will fail,
     // potentially causing the matrix_thread to hang. Increasing QUEUE_SIZE may resolve
     // this.
-    static bool push(entry_t event, uint32_t timeout_us =0);
+    static bool push(key_event_t event, uint32_t timeout_us =0);
 
     // Retrieve the next event from the queue and return true if successful. Do dry run
     // if pevent is NULL.
-    static bool get(entry_t* pevent =nullptr) { return m_get(pevent); }
+    static bool get(key_event_t* pevent =nullptr) { return m_get(pevent); }
 
     // Check if the queue is full with all deferred events.
     static bool terminal_full();
@@ -47,12 +47,12 @@ public:
     static int defer_remove_last(lua_State* L);
 
 private:
-    constexpr key_queue() =delete;  // Ensure a static class
+    constexpr main_key_events() =delete;  // Ensure a static class
 
     static mutex_t m_access_lock;  // Locked when accessing the queue.
     static mutex_t m_full_lock;    // Locked when the queue is full.
 
-    static entry_t m_buffer[];
+    static key_event_t m_buffer[];
 
     // Starting indices for queue access operations
     // Events occurring between m_pop and m_peek are considered deferred.
@@ -62,11 +62,11 @@ private:
     static size_t m_pop;
 
     // m_get() will execute try_pop() in normal mode, or try_peek() in defer mode.
-    static bool (*m_get)(entry_t*);
+    static bool (*m_get)(key_event_t*);
 
     // Pop off a key event from the queue if available. Do dry run if pevent is NULL.
-    static bool try_pop(entry_t* pevent);
+    static bool try_pop(key_event_t* pevent);
 
     // Peek next event if available after the last peek. Do dry run if pevent is NULL.
-    static bool try_peek(entry_t* pevent);
+    static bool try_peek(key_event_t* pevent);
 };

@@ -1,4 +1,4 @@
-SRCXX =  key_queue.cpp lexecute.cpp lfwlib.cpp lkeymap.cpp lua.cpp timer.cpp
+SRCXX = lexecute.cpp lfwlib.cpp lkeymap.cpp lua.cpp main_key_events.cpp timer.cpp
 
 ifneq (,$(filter stdio_cdc_acm,$(USEMODULE)))
     SRCXX += timed_stdin.cpp

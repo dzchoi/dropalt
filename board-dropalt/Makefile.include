@@ -37,9 +37,6 @@ CFLAGS += -DBACKUP_RAM_LEN=$(BACKUP_RAM_LEN)  # 8K
 CFLAGS += -DRIOTBOOT_HDR_LEN=$(RIOTBOOT_HDR_LEN)
 CFLAGS += -DSEEPROM_SBLK=$(SEEPROM_SBLK) -DSEEPROM_PSZ=$(SEEPROM_PSZ)
 
-# _rx_buf_mem[STDIO_RX_BUFSIZE] allocated for stdin_isrpipe.tsrb. See board.h.
-CFLAGS += -DSTDIO_RX_BUFSIZE=4096  # 4K
-
 PROGRAMMERS_SUPPORTED += dfu-util
 
 include $(RIOTMAKE)/boards/sam0.inc.mk

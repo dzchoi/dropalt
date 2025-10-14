@@ -38,7 +38,7 @@ public:
     // signaled successfully. If it is zero it waits indefinitely and returns true.
     static bool signal_key_event(unsigned slot_index, bool is_press, uint32_t timeout_us =0);
 
-    static void signal_lamp_state(uint_fast8_t lamp_state);
+    static void signal_lamp_state(uint8_t lamp_state);
 
 private:
     constexpr main_thread() =delete;  // Ensure a static class

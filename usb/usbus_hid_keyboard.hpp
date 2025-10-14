@@ -1,53 +1,11 @@
 #pragma once
 
-#include "mutex.h"              // for mutex_t
-
 #include "config.hpp"           // for KEYBOARD_REPORT_INTERVAL_MS
 #include "event_ext.hpp"        // for event_ext_t<>
 #include "hid_keycodes.hpp"     // for KC_LCTRL, KC_NO
 #include "usb_descriptor.hpp"
+#include "usb_key_events.hpp"   // for usb_key_events
 #include "usbus_hid_device.hpp"
-
-
-
-class key_event_queue_t {
-public:
-    key_event_queue_t(mutex_t& mutex): m_not_full(mutex) {}
-
-    struct key_event_t { uint8_t keycode; bool is_press; };
-    static_assert( sizeof(key_event_t) == 2 );
-
-    // These methods are NOT thread-safe. It is the caller's responsibility to ensure
-    // safe access and synchronization.
-    // - push() is invoked by report_event() from the client thread (main_thread),
-    //   with interrupts disabled.
-    // - The remaining methods are used exclusively by usb_thread, which runs at the
-    //   highest priority and is not preempted.
-
-    void push(key_event_t event, bool wait_if_full =false);
-    bool pop();
-    void clear();
-
-    bool not_empty() const { return m_begin != m_end; }
-    bool not_full() const { return (m_end - m_begin) < QUEUE_SIZE; }
-    bool peek(key_event_t& event) const;
-
-private:
-    // The original usbus_hid_device_t::in_lock is repurposed as m_not_full, used to
-    // prevent queue overflow by locking when full. It no longer guards concurrent
-    // access to usbus_hid_device_t::in_buf, as submit_report() is exclusively called
-    // from usb_thread (not from any lower-priority thread or from interrupts), ensuring
-    // inherent thread safety without additional locking.
-    mutex_t& m_not_full;  // must be initialized already.
-
-    static constexpr size_t QUEUE_SIZE = 32;  // must be a power of two.
-    static_assert( (QUEUE_SIZE > 0) && ((QUEUE_SIZE & (QUEUE_SIZE - 1)) == 0) );
-
-    key_event_t m_events[QUEUE_SIZE];
-
-    size_t m_begin = 0;
-    size_t m_end = 0;
-};
 
 
 
@@ -109,7 +67,7 @@ protected:
 
     // Key event queue used as an inter-thread buffer between the client thread
     // (main_thread) and usb_thread.
-    key_event_queue_t m_key_event_queue { in_lock };
+    usb_key_events m_key_event_queue { in_lock };
 
     // Try to report a key event within the current packet frame, return false if not
     // possible.

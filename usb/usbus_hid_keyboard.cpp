@@ -1,9 +1,7 @@
 // #define LOCAL_LOG_LEVEL LOG_NONE
 
-#include "assert.h"             // for assert()
-#include "irq.h"                // for irq_disable(), irq_enable(), irq_restore()
+#include "irq.h"                // for irq_disable(), irq_restore()
 #include "log.h"
-#include "mutex.h"              // for mutex_lock(), mutex_unlock(), ...
 #include "ztimer.h"             // for ztimer_set(), ztimer_remove()
 
 #include "config.hpp"           // for USB_RESUME_SETTLE_MS, ...
@@ -11,61 +9,6 @@
 #include "usb_thread.hpp"       // for send_remote_wake_up()
 #include "usbhub_thread.hpp"    // for signal_usb_suspend(), signal_usb_resume()
 #include "usbus_hid_keyboard.hpp"
-
-
-
-void key_event_queue_t::push(key_event_t event, bool wait_if_full)
-{
-    // Todo: Why isn't this log displayed?
-    // LOG_DEBUG("USB_HID: queue %s (0x%x %s)",
-    //     press_or_release(event.is_press),
-    //     event.keycode, keycode_to_name[event.keycode]);
-
-    if ( mutex_trylock(&m_not_full) == 0 && wait_if_full ) {
-        // push() is intended to execute in thread context with interrupts disabled,
-        // ensuring thread safety. However, when waiting for a mutex here, interrupts
-        // and other threads must be allowed to run to avoid deadlock. A condition
-        // variable could be used, but enabling interrupts offers a lower-footprint
-        // alternative in this context.
-        unsigned state = irq_enable();
-        mutex_lock(&m_not_full);  // wait until it is unlocked.
-        irq_restore(state);
-    }
-
-    m_events[m_end++ & (QUEUE_SIZE - 1)] = event;
-    if ( not_full() )
-        // If queue is full the mutex remains locked.
-        mutex_unlock(&m_not_full);
-    else
-        // This prevents the queue from holding more events than QUEUE_SIZE.
-        m_begin = m_end - QUEUE_SIZE;
-}
-
-bool key_event_queue_t::pop()
-{
-    if ( not_empty() ) {
-        m_begin++;
-        mutex_unlock(&m_not_full);
-        return true;
-    }
-    return false;
-}
-
-void key_event_queue_t::clear()
-{
-    LOG_DEBUG("USB_HID: clear key event queue");
-    m_begin = m_end;
-    mutex_unlock(&m_not_full);
-}
-
-bool key_event_queue_t::peek(key_event_t& event) const
-{
-    if ( not_empty() ) {
-        event = m_events[m_begin & (QUEUE_SIZE - 1)];
-        return true;
-    }
-    return false;
-}
 
 
 
@@ -274,7 +217,7 @@ void usbus_hid_keyboard_t::on_transfer_complete(bool was_successful)
     // Process remaining events from the key event queue, pushing as many as fit into
     // the packet frame. If an event cannot be pushed, exit early and resume processing
     // at the next frame.
-    key_event_queue_t::key_event_t event;
+    usb_key_events::key_event_t event;
     while ( m_key_event_queue.peek(event)
       && try_report_event(event.keycode, event.is_press) )
         m_key_event_queue.pop();
@@ -366,11 +309,11 @@ void usbus_hid_keyboard_t::_hdlr_receive_data(
     usbus_hid_device_t* hid, uint8_t* data, size_t len)
 {
     usbus_hid_keyboard_t* const hidx = static_cast<usbus_hid_keyboard_t*>(hid);
-    uint_fast8_t lamp_state;
+    uint8_t lamp_state;
 
     if ( len == 2 ) {
         // used only for Shared EP but retained as a reference.
-        const uint_fast8_t report_id = data[0];
+        const uint8_t report_id = data[0];
         if ( !(report_id == REPORT_ID_KEYBOARD || report_id == REPORT_ID_NKRO) )
             return;
         lamp_state = data[1];

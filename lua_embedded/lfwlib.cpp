@@ -10,7 +10,7 @@
 #include <cstdio>               // for std::vprintf(), va_list
 #include "hid_keycodes.hpp"     // for keycode_to_name[]
 #include "hsv.hpp"              // for fast_hsv2rgb_32bit(), CIE1931_CURVE[]
-#include "key_queue.hpp"        // for key_queue::start_defer(), ...
+#include "main_key_events.hpp"  // for main_key_events::start_defer(), ...
 #include "lexecute.hpp"         // for execute_later()
 #include "lua.hpp"
 #include "persistent.hpp"       // for persistent::_get/_set(), ...
@@ -195,7 +195,7 @@ static int fw_log_mask(lua_State* L)
     }
 
     int mask = luaL_checkinteger(L, 1);
-    set_log_mask(static_cast<uint_fast8_t>(mask));
+    set_log_mask(static_cast<uint8_t>(mask));
     return 0;
 }
 
@@ -450,19 +450,19 @@ int luaopen_fw(lua_State* L)
 // Starts defer mode.
 // The `fw.defer_*()` functions support the Defer class implementation. See comments in
 // core.lua for more details on defer mode operations.
-        { "defer_start", key_queue::defer_start },
+        { "defer_start", main_key_events::defer_start },
 
 // fw.defer_stop(): void
 // Stops defer mode.
-        { "defer_stop", key_queue::defer_stop },
+        { "defer_stop", main_key_events::defer_stop },
 
 // fw.defer_is_pending(slot_index: int, is_press: bool): bool
 // Checks if a key press/release event is deferred on the given slot.
-        { "defer_is_pending", key_queue::defer_is_pending },
+        { "defer_is_pending", main_key_events::defer_is_pending },
 
 // fw.defer_remove_last(): void
 // Discards the most recent deferred event (if any).
-        { "defer_remove_last", key_queue::defer_remove_last },
+        { "defer_remove_last", main_key_events::defer_remove_last },
 
 // fw.enter_bootloader(): void
 // Reboots the system into the bootloader.

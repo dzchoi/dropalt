@@ -1,4 +1,3 @@
-#include "assert.h"
 #include "log.h"
 #include "usbus_ext.h"          // for usbus_t, usbus_init(), usbus_create(), ...
 #include "thread.h"             // for thread_get_unchecked()
@@ -40,7 +39,7 @@ void usb_thread::init()
     usbus_create(
         m_thread_stack, sizeof(m_thread_stack), THREAD_PRIO_USB, USBUS_TNAME, &m_usbus);
     m_pthread = thread_get_unchecked(m_usbus.pid);
-    assert( m_pthread != nullptr );
+    // assert( m_pthread != nullptr );
 }
 
 void usb_thread::send_remote_wake_up()

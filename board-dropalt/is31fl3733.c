@@ -47,29 +47,25 @@ static_assert( sizeof(g_pwm_registers_need_update) % sizeof(uint32_t) == 0 );
 // If transfer fails function returns false.
 static void _is31_read_register(uint8_t addr, uint8_t reg, uint8_t* pdata)
 {
-    if ( i2c_write_bytes(I2C, addr, &reg, 1, 0) != 0
-      || i2c_read_bytes(I2C, addr, pdata, 1, 0) != 0 )
-    {
-        assert( false );
-    }
+    bool success = (i2c_write_bytes(I2C, addr, &reg, 1, 0) == 0)
+                && (i2c_read_bytes(I2C, addr, pdata, 1, 0) == 0);
+    assert( success );
 }
 
 static void _is31_write_register(uint8_t addr, uint8_t reg, uint8_t data)
 {
     uint8_t twi_transfer_buffer[] = { reg, data };
-    if ( i2c_write_bytes(I2C, addr, twi_transfer_buffer, 2, 0) != 0 )
-        assert( false );
+    bool success = (i2c_write_bytes(I2C, addr, twi_transfer_buffer, 2, 0) == 0);
+    assert( success );
 }
 
 // Write into consecutive registers.
 static void _is31_write_registers(
     uint8_t addr, uint8_t reg, const uint8_t pdata[], size_t n)
 {
-    if ( i2c_write_bytes(I2C, addr, &reg, 1, I2C_NOSTOP) != 0
-      || i2c_write_bytes(I2C, addr, pdata, n, I2C_NOSTART) != 0 )
-    {
-        assert( false );
-    }
+    bool success = (i2c_write_bytes(I2C, addr, &reg, 1, I2C_NOSTOP) == 0)
+                && (i2c_write_bytes(I2C, addr, pdata, n, I2C_NOSTART) == 0);
+    assert( success );
 }
 
 static void _is31_set_command_register(unsigned driver, uint8_t page)

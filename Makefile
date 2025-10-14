@@ -52,22 +52,12 @@ USEMODULE += core_thread_flags
 # Subdirectory modules
 EXTERNAL_MODULE_DIRS += $(CURDIR)
 USEMODULE += log_backup
-USEMODULE += lua_emb
+USEMODULE += lua_embedded
 USEMODULE += matrix
 USEMODULE += usbhub
 USEMODULE += usb
 
-# Size of the initial stack — used before any threads are created and also serving as
-# the ISR stack. The default ISR_STACKSIZE (=512 bytes) may not be enough for
-# LOG_ERROR() in hard_fault_handler().
-CFLAGS += -DISR_STACKSIZE=1024
-
-# As to the stack, each C API function called from Lua operates on the main thread's
-# stack. While these functions are assigned their own virtual stack, it is only used
-# for passing arguments to and returning results from them. The good news is, as these
-# functions execute "flat" (without nesting) within the Lua VM, we only need to
-# consider the most resource-intensive call, typically the printf() function.
-CFLAGS += -DTHREAD_STACKSIZE_MAIN=2048
+include Makefile.memory
 
 VERBOSE_ASSERT := 1
 # Enabling VERBOSE_ASSERT will set:

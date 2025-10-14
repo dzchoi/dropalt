@@ -4,28 +4,28 @@
 #include "periph_conf.h"        // for NUM_MATRIX_SLOTS
 #include "ztimer.h"             // for ztimer_mutex_lock_timeout()
 
-#include "key_queue.hpp"
+#include "main_key_events.hpp"
 #include "lua.hpp"
 #include "main_thread.hpp"      // for main_thread::is_active()
 
 
 
-mutex_t key_queue::m_access_lock = MUTEX_INIT;
-mutex_t key_queue::m_full_lock = MUTEX_INIT;
+mutex_t main_key_events::m_access_lock = MUTEX_INIT;
+mutex_t main_key_events::m_full_lock = MUTEX_INIT;
 
 static constexpr size_t QUEUE_SIZE = 16;  // must be a power of two.
 static_assert( (QUEUE_SIZE > 0) && ((QUEUE_SIZE & (QUEUE_SIZE - 1)) == 0) );
-key_queue::entry_t key_queue::m_buffer[QUEUE_SIZE];
+main_key_events::key_event_t main_key_events::m_buffer[QUEUE_SIZE];
 
-size_t key_queue::m_push = 0;
-size_t key_queue::m_peek = 0;
-size_t key_queue::m_pop = 0;
+size_t main_key_events::m_push = 0;
+size_t main_key_events::m_peek = 0;
+size_t main_key_events::m_pop = 0;
 
-bool (*key_queue::m_get)(entry_t*) = &key_queue::try_pop;
+bool (*main_key_events::m_get)(key_event_t*) = &main_key_events::try_pop;
 
 
 
-bool key_queue::push(entry_t event, uint32_t timeout_us)
+bool main_key_events::push(key_event_t event, uint32_t timeout_us)
 {
     // Wait until the queue is not full.
     if ( timeout_us == 0 )
@@ -45,7 +45,7 @@ bool key_queue::push(entry_t event, uint32_t timeout_us)
     return true;
 }
 
-bool key_queue::try_pop(entry_t* pevent)
+bool main_key_events::try_pop(key_event_t* pevent)
 {
     mutex_lock(&m_access_lock);
 
@@ -65,7 +65,7 @@ bool key_queue::try_pop(entry_t* pevent)
     return true;
 }
 
-bool key_queue::try_peek(entry_t* pevent)
+bool main_key_events::try_peek(key_event_t* pevent)
 {
     mutex_lock(&m_access_lock);
 
@@ -81,7 +81,7 @@ bool key_queue::try_peek(entry_t* pevent)
     return true;
 }
 
-bool key_queue::terminal_full()
+bool main_key_events::terminal_full()
 {
     mutex_lock(&m_access_lock);
     bool result = ((m_push - m_peek) == QUEUE_SIZE);
@@ -89,30 +89,30 @@ bool key_queue::terminal_full()
     return result;
 }
 
-int key_queue::defer_start(lua_State*)
+int main_key_events::defer_start(lua_State*)
 {
     // assert( main_thread::is_active() );
-    m_get = &key_queue::try_peek;
+    m_get = &main_key_events::try_peek;
     return 0;
 }
 
-int key_queue::defer_stop(lua_State*)
+int main_key_events::defer_stop(lua_State*)
 {
     // assert( main_thread::is_active() );
-    m_get = &key_queue::try_pop;
+    m_get = &main_key_events::try_pop;
     return 0;
 }
 
-int key_queue::defer_is_pending(lua_State* L)
+int main_key_events::defer_is_pending(lua_State* L)
 {
     int slot_index = luaL_checkinteger(L, 1);
     bool is_press = lua_toboolean(L, 2);
-    const entry_t event = {{ uint8_t(slot_index), is_press }};
+    const key_event_t event = {{ uint8_t(slot_index), is_press }};
 
     mutex_lock(&m_access_lock);
     bool found = false;
     for ( size_t i = m_pop ; i != m_peek ; i++ )
-        if ( m_buffer[i & (QUEUE_SIZE - 1)].value == event.value ) {
+        if ( m_buffer[i & (QUEUE_SIZE - 1)].uint16 == event.uint16 ) {
             found = true;
             break;
         }
@@ -122,7 +122,7 @@ int key_queue::defer_is_pending(lua_State* L)
     return 1;
 }
 
-int key_queue::defer_remove_last(lua_State*)
+int main_key_events::defer_remove_last(lua_State*)
 {
     mutex_lock(&m_access_lock);
 

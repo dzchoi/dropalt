@@ -48,7 +48,7 @@
 * Excluding parsing modules:  
   The Lua core is adjusted to exclude the parsing modules (lcode.c, llex.c, lparser.c). Since we do not compile Lua source code at run-time on the keyboard, these modules are not necessary. The keyboard will either store a pre-compiled Lua chunk in flash memory or receive one from the host PC, which has been compiled using `luac` or `daluac`.
 
-  Refer to lua_emb/Makefile.dep to see how `USEMODULE += lua-contrib_noparser` excludes these modules.
+  Refer to lua_embedded/Makefile.dep to see how `USEMODULE += lua-contrib_noparser` excludes these modules.
 
   This limits `lua_load()` to accept only pre-compiled chunks and load them onto the stack using lundump. It will cause an error if a string chunk is given.
 
@@ -176,11 +176,11 @@ bool timed_stdin::is_lua_bytecode()
 
     constexpr union {
         char str[5];
-        uint32_t num;
+        uint32_t uint32;
     } signature = { LUA_SIGNATURE };
 
     bool res = (m_read_ahead >= sizeof(uint32_t))
-        && (*(uint32_t*)(void*)m_read_buffer == signature.num);
+        && (*(uint32_t*)(void*)m_read_buffer == signature.uint32);
     if ( !res ) {
         l_message("Lua: not bytecode \"%.*s\"", m_read_ahead, m_read_buffer);
         m_read_ahead = 0;

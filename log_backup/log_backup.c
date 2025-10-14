@@ -73,12 +73,12 @@ void vlog_backup(unsigned level, const char* format, va_list args)
     irq_restore(state);
 }
 
-uint_fast8_t get_log_mask(void)
+uint8_t get_log_mask(void)
 {
     return log_mask;
 }
 
-void set_log_mask(uint_fast8_t mask)
+void set_log_mask(uint8_t mask)
 {
     unsigned state = irq_disable();
     log_mask = mask;

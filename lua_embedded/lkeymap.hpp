@@ -16,6 +16,6 @@ void handle_key_event(unsigned slot_index, bool is_press);
 
 // C++ wrapper for the Lua-based lamp driver. Updates keyboard indicator lamps based on
 // user-defined logic in Lua.
-void handle_lamp_state(uint_fast8_t lamp_state);
+void handle_lamp_state(uint8_t lamp_state);
 
 }

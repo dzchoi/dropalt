@@ -17,7 +17,7 @@ void seeprom_init(void)
 {
     // Check if SEEPROM space is allocated as configured.
     assert( NVMCTRL->SEESTAT.bit.SBLK == SEEPROM_SBLK
-        && NVMCTRL->SEESTAT.bit.PSZ == SEEPROM_PSZ);
+        && NVMCTRL->SEESTAT.bit.PSZ == SEEPROM_PSZ );
 
     if ( NVMCTRL->SEESTAT.bit.RLOCK )
         NVMCTRL_CMD(NVMCTRL_CTRLB_CMD_USEER);  // Unlock E2P data write access.

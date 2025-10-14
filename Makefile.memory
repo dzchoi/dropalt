@@ -1,0 +1,47 @@
+# Size of the initial stack — used before any threads are created and also serving as
+# the ISR stack. The default ISR_STACKSIZE (=512 bytes) may not be enough for
+# LOG_ERROR() in hard_fault_handler().
+CFLAGS += -DISR_STACKSIZE=1024
+
+# Lower numbers indicate higher priority.
+# Note: Valid priority values range from 1 (highest) to 7 (lowest).
+
+CFLAGS += -DUSBUS_STACKSIZE=1024  # See also riot/sys/include/usb/usbus.h
+CFLAGS += -DTHREAD_PRIO_USB=1
+
+CFLAGS += -DMATRIX_STACKSIZE=1024
+CFLAGS += -DTHREAD_PRIO_MATRIX=2
+
+CFLAGS += -DUSBHUB_STACKSIZE=1024
+CFLAGS += -DTHREAD_PRIO_USBHUB=3
+
+# Note that Lua C API functions called from the Lua environment use the native thread
+# stack. While Lua maintains its own virtual stack for passing arguments and return
+# values, the native stack is used when executing C functions. These functions execute
+# "flat" (without nesting) on the native stack in the Lua VM, so we only need to
+# allocate enough stack space for the most demanding call, typically printf() function.
+CFLAGS += -DTHREAD_STACKSIZE_MAIN=2048
+CFLAGS += -DTHREAD_PRIORITY_MAIN=7  # See also riot/core/lib/include/thread_config.h
+
+# LUA_MEM_SIZE is set to its maximum, leaving ~1KB for the main heap (calculated as
+# &_eheap - &_sheap). This remaining space must be sufficient to cover ~320 bytes,
+# primarily used by fputs() and stdin_init().
+CFLAGS += -DLUA_MEM_SIZE=110592  # 108K
+
+# The stdout buffer is _cdc_tx_buf_mem[CONFIG_USBUS_CDC_ACM_STDOUT_BUF_SIZE], which is
+# associated with cdcacm->tsrb. It is configured to be larger than the USB transmit
+# buffer (cdcacm->in_buf[CONFIG_USBUS_CDC_ACM_BULK_EP_SIZE], 64 bytes) to retain old
+# logs generated while DTE is not connected.
+#
+# Note: Data from the host is first received into the USB buffer
+# (cdcacm->out_buf[CONFIG_USBUS_CDC_ACM_BULK_EP_SIZE]). It then flows into
+# _rx_buf_mem[STDIO_RX_BUFSIZE], which backs stdin_isrpipe.tsrb. Finally,
+# timed_stdin::m_read_buffer[CONFIG_STDIN_RX_BUFSIZE] is used to gradually read Lua
+# bytecode. STDIO_RX_BUFSIZE (set to 4KB in Makefile.include) is configured to be large
+# enough to reliably absorb the incoming stream, even when the Lua REPL processes input
+# more slowly.
+CFLAGS += -DCONFIG_USBUS_CDC_ACM_STDOUT_BUF_SIZE=4096  # 4K
+CFLAGS += -DCONFIG_STDIN_RX_BUFSIZE=64
+
+# _rx_buf_mem[STDIO_RX_BUFSIZE] allocated for stdin_isrpipe.tsrb.
+CFLAGS += -DSTDIO_RX_BUFSIZE=4096  # 4K

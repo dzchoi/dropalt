@@ -57,7 +57,7 @@ At runtime, the firmware invokes the keymap module through a single entry pointâ
 
 All scripts are compiled together using the `daluac` tool and merged into a single Lua bytecode file for performance and compactness. This bytecode is deployed to **slot 1** using `dfu-util`.
 
-For guidance on writing keymap scripts, compiling with daluac, and flashing via dfu-util, refer to `lua_emb/keymap.lua`.
+For guidance on writing keymap scripts, compiling with daluac, and flashing via `dfu-util`, refer to `lua_embedded/keymap.lua`.
 
 Note: This feature is integrated independently of CDC ACM.
 
