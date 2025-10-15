@@ -38,7 +38,9 @@ $ while true; do cat /dev/ttyACMx 2>/dev/null; done
 #### Retrieve logs in DFU mode
 $ dfu-util -a0 -U filename
 
-However, `dfu-util -a0 -U >(less)` seems not supported (yet).
+Note:
+  - `dfu-util -a0 -U - | less` is supported starting from v0.10.
+  - `dfu-util -a0 -U >(less)` is not (or will not be) supported.
 
 #### Autonomous conditional break point
 ```

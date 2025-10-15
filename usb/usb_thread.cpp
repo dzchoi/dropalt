@@ -3,6 +3,7 @@
 #include "thread.h"             // for thread_get_unchecked()
 
 #include "config.hpp"           // for ENABLE_NKRO, ENABLE_CDC_ACM
+#include "usb_dfu.h"            // for usbus_dfu_init()
 #include "usb_thread.hpp"
 #include "usbus_hid_keyboard.hpp" // for usbus_hid_keyboard_tl<>
 
@@ -29,8 +30,13 @@ void usb_thread::init()
     // Initialize CDC ACM first. Otherwise, CDC ACM may not work properly on Windows; if
     // the HID stack is initialized first and allocates endpoints, it may reserve the
     // endpoints needed by CDC ACM, potentially preventing it from working properly.
+    // See riot/tests/sys/usbus_board_reset/main.c for the initialization order.
     if constexpr ( ENABLE_CDC_ACM )
         usb_cdc_acm_stdio_init(&m_usbus);
+
+    // DFU Runtime mode
+    static usbus_dfu_device_t _dfu;
+    usbus_dfu_init(&m_usbus, &_dfu, USB_DFU_PROTOCOL_RUNTIME_MODE);
 
     static usbus_hid_keyboard_tl<ENABLE_NKRO> _hid_keyboard(&m_usbus);
     m_hid_keyboard = &_hid_keyboard;

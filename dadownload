@@ -6,13 +6,4 @@ trap 'rm -f "$tmpfile"' EXIT  # Clean up the temporary file.
 daluac user_logic/core.lua user_logic/effect.lua user_logic/keymap.lua >"$tmpfile" \
     || exit
 
-# Reboot the keyboard to bootloader if not already.
-if ! dfu-util -l -a1 |grep -q 'RIOT-OS'; then
-    # Verify that dalua is not running.
-    dalua -e nil >/dev/null || exit
-
-    # This command is expected to fail with "no response from serial port".
-    dalua -e 'require("fw").enter_bootloader()'; sleep 3
-fi
-
-dfu-util -a1 -D "$tmpfile"
+dfu-util -t 1024 -a1 -D "$tmpfile" -R

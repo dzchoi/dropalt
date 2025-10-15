@@ -2,13 +2,4 @@
 # Build the firmware
 make riotboot/slot0 || exit
 
-# Reboot the keyboard to bootloader if not already.
-if ! dfu-util -l -a0 |grep -q 'RIOT-OS'; then
-    # Verify that dalua is not running.
-    dalua -e nil >/dev/null || exit
-
-    # This command is expected to fail with "no response from serial port".
-    dalua -e 'require("fw").enter_bootloader()'; sleep 3
-fi
-
-dfu-util -a0 -D .build/board-dropalt/riotboot_files/slot0.*.bin
+dfu-util -t 1024 -a0 -D .build/board-dropalt/riotboot_files/slot0.*.bin -R

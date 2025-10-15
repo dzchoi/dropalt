@@ -92,7 +92,7 @@
 
 [Bootloader Updater]
 * Headerless application
-* pkg->index(?) indicates the slot number.
+* pkg->index indicates the interface number (i.e. slot number).
 * Upload the existing bootloader. [slot 0]
   Assuming it is the first(?) application placed immediately after the bootloader, it uploads the bootloader image of any size, excluding the trailing 0xFFs.
 * Two types of images are generated: slot0.bin and slot0.xxx.bin
@@ -105,7 +105,6 @@
 * Debug led pattern during execution?
 
 [Bootloader]
-* Do not reboot after downloading (flashing); `dfu-util` provides `-e` and `-R` as a separate option. No USB_DFU_WILL_DETACH?
 * Flash and start both headered and headerless images.
   `dfu->skip_signature = true` only if the firmware image includes "RIOT" at the slot header.
 * Save the debug print for boot reason (e.g. watchdog fault) using `backup_ram_write(format, args)` when entering bootloader.
