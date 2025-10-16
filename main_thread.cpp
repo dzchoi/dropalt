@@ -144,13 +144,13 @@ bool main_thread::signal_key_event(unsigned slot_index, bool is_press, uint32_t 
 
     LOG_ERROR("Main: main_key_events::push() failed");
 
-    // If the key event queue is full with all deferred events, recovery is impossible.
-    // Trigger a system reset to restore operability.
+    // If the key event queue is full with all deferred events, it means a deadlock.
+    // Trigger a system reset then.
     if ( unlikely(main_key_events::terminal_full()) )
         system_reset();
 
-    // Otherwise, discard surplus events. Presses may be lost, but missed releases will
-    // be reissued by the debouncer.
+    // Otherwise, discard the unaffordable event. The matrix_thread will report it again
+    // later, as long as the key remains pressed.
     return false;
 }
 

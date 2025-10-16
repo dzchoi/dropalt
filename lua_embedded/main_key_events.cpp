@@ -84,7 +84,7 @@ bool main_key_events::try_peek(key_event_t* pevent)
 bool main_key_events::terminal_full()
 {
     mutex_lock(&m_access_lock);
-    bool result = ((m_push - m_peek) == QUEUE_SIZE);
+    bool result = ((m_peek - m_pop) == QUEUE_SIZE);
     mutex_unlock(&m_access_lock);
     return result;
 }
