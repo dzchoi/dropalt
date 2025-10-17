@@ -17,6 +17,7 @@
 
 [dalua]
 * Do not assume the remote status ("[}0\n") appears on its own line. The preceding line may not end with a newline character.
+* Support `-d`, `-p` and `-S` options like dfu-util does.
 
 [Tips]
 * Redefine Riot-independent #define constants using "static const" and "static inline".

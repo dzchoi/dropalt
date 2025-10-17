@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Build the firmware
-make riotboot/slot0 || exit
 
-dfu-util -t 1024 -a0 -D .build/board-dropalt/riotboot_files/slot0.*.bin -R
+# Build and flash the firmware.
+make riotboot/slot0 && \
+dfu-util -t 1024 -a0 -D .build/board-dropalt/riotboot_files/slot0.*.bin -R "$@"

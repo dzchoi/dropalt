@@ -259,16 +259,16 @@ static int dfu_class_control_req(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_se
             dfu->dfu_state = USB_DFU_STATE_DFU_IDLE;
             break;
 #else
-        case DFU_DETACH: {
-            const usbopt_enable_t disable = USBOPT_DISABLE;
-            // Detach USB bus
-            usbdev_set(usbus->dev, USBOPT_ATTACH, &disable, sizeof(usbopt_enable_t));
+        case DFU_DETACH:
+            // This is not necessary as there will be no further DFU_GET_STATUS after
+            // DFU_DETACH.
+            // dfu->dfu_state = USB_DFU_STATE_APP_DETACH;
+
             // Restart and jump into the bootloader
-            // Minor issue: It's better to reboot only after sending the ACK for this
+            // Minor issue: It's desirable to reboot only after sending the ACK for this
             // request. Otherwise, dfu-util may warn "dfu-util: error detaching".
             enter_bootloader();
             break;
-        }
 
         case DFU_GET_STATUS: {
             dfu_get_status_pkt_t buf = {
