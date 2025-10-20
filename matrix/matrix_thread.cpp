@@ -1,9 +1,8 @@
 #include "board.h"              // for THREAD_PRIO_MATRIX
-#include "log.h"
+#include "irq.h"                // for irq_disable(), irq_restore()
 #include "matrix.h"             // for matrix_init(), matrix_scan(), ...
-#include "mutex.h"              // for mutex_lock(), mutex_unlock()
 #include "periph_conf.h"        // for NUM_MATRIX_SLOTS
-#include "thread.h"             // for thread_create(), ...
+#include "thread.h"             // for thread_create(), sched_set_status(), ...
 #include "ztimer.h"             // for ztimer_now(), ztimer_periodic_wakeup(), ...
 
 #include "config.hpp"           // for MATRIX_SCAN_PERIOD_US, DEBOUNCE_*, ...
@@ -14,34 +13,33 @@
 
 thread_t* matrix_thread::m_pthread = nullptr;
 
+bool matrix_thread::m_enabled = false;
+
 alignas(8) char matrix_thread::m_thread_stack[MATRIX_STACKSIZE];
 
-// Start matrix_thread by sleeping; will wake up on an interrupt.
-mutex_t matrix_thread::m_sleep_lock = MUTEX_INIT_LOCKED;
-
-matrix_thread::bounce_state_t matrix_thread::m_states[NUM_MATRIX_SLOTS];
+matrix_thread::bounce_state_t matrix_thread::m_key_states[NUM_MATRIX_SLOTS];
 
 uint32_t matrix_thread::m_wakeup_us = 0;
 
 int matrix_thread::m_min_scan_count = 0;
-
-bool matrix_thread::m_is_polling = false;
 
 void matrix_thread::init()
 {
     m_pthread = thread_get_unchecked( thread_create(
         m_thread_stack, sizeof(m_thread_stack),
         THREAD_PRIO_MATRIX,
-        THREAD_CREATE_STACKTEST,
+        THREAD_CREATE_SLEEPING | THREAD_CREATE_STACKTEST,
         _thread_entry, nullptr, "matrix_thread") );
 
+    m_enabled = true;
+
     // Initialize the matrix GPIO pins and start ISR for detecting GPIO_RISING.
-    matrix_init(&_debouncer, &_isr_any_key_down, &m_sleep_lock);
+    matrix_init(&_debouncer, &_isr_any_key_down, nullptr);
 }
 
 void matrix_thread::_debouncer(unsigned mat_index, bool pressing)
 {
-    bounce_state_t& state = m_states[mat_index];
+    bounce_state_t& state = m_key_states[mat_index];
 
     if ( pressing ) {
         if ( state.pressing ) {
@@ -124,16 +122,16 @@ static inline unsigned map_index(unsigned mat_index)
 
 NORETURN void* matrix_thread::_thread_entry(void*)
 {
+    // Note that this thread is created with THREAD_CREATE_SLEEPING and remains sleeping
+    // until an interrupt occurs.
     while ( true ) {
-        mutex_lock(&m_sleep_lock);  // Zzz
-
         matrix_scan();
 
         uint8_t any_pressed = 0;
 
         // Notify main_thread of every key state change.
         for ( unsigned mat_index = 0 ; mat_index < NUM_MATRIX_SLOTS ; mat_index++ ) {
-            bounce_state_t& state = m_states[mat_index];
+            bounce_state_t& state = m_key_states[mat_index];
             if ( state.pressing != state.pressed ) {
                 if ( !main_thread::signal_key_event(
                   map_index(mat_index), state.pressing, MATRIX_SCAN_PERIOD_US) ) {
@@ -157,7 +155,6 @@ NORETURN void* matrix_thread::_thread_entry(void*)
             // ensure precise sleep duration.
             ztimer_periodic_wakeup(  // Zzz
                 ZTIMER_USEC, &m_wakeup_us, MATRIX_SCAN_PERIOD_US);
-            mutex_unlock(&m_sleep_lock);
         }
 
         // Otherwise, we return to sleep and rely on the interrupt to detect the next
@@ -167,28 +164,33 @@ NORETURN void* matrix_thread::_thread_entry(void*)
         // possible. However, additional detection within the interrupt handler is
         // required before reading the matrix.
         else {
-            m_is_polling = false;
             main_thread::signal_thread_idle();
             // LOG_DEBUG("Matrix: ---------> @%lu", ztimer_now(ZTIMER_MSEC));
             ztimer_release(ZTIMER_USEC);
+
+            // This code is the same as thread_sleep(), only matrix_enable_interrupt()
+            // is added inside a critical section.
+            unsigned state = irq_disable();
             matrix_enable_interrupt();
-            // The thread will sleep until the interrupt releases m_sleep_lock.
+            sched_set_status(m_pthread, STATUS_SLEEPING);
+            irq_restore(state);
+            thread_yield_higher();  // Zzz
         }
     }
 }
 
-void matrix_thread::_isr_any_key_down(void* arg)
+void matrix_thread::_isr_any_key_down(void*)
 {
-    // Suppress further triggers in case the interrupt is refired while being disabled.
-    if ( m_min_scan_count > 0 )
+    // Checking `m_min_scan_count > 0` prevents retriggering if the interrupt fires
+    // again during this ISR.
+    if ( !m_enabled || m_min_scan_count > 0 )
         return;
 
     // Prepare to wake up for the active scan.
+    m_min_scan_count = DEBOUNCE_PRESS_MS;  // > 0
     matrix_disable_interrupt();
-    m_min_scan_count = DEBOUNCE_PRESS_MS;
     ztimer_acquire(ZTIMER_USEC);
     m_wakeup_us = ztimer_now(ZTIMER_USEC);
-    m_is_polling = true;
     // LOG_DEBUG("Matrix: <--------- @%lu", ztimer_now(ZTIMER_MSEC));
-    mutex_unlock(static_cast<mutex_t*>(arg));
+    thread_wakeup(thread_getpid_of(m_pthread));
 }

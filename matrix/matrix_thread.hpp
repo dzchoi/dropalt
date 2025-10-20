@@ -1,6 +1,5 @@
 #pragma once
 
-#include "mutex.h"              // for mutex_t
 #include "thread.h"             // for thread_t
 
 #include "config.hpp"           // for DEBOUNCE_PRESS_MS, DEBOUNCE_RELEASE_MS
@@ -11,12 +10,20 @@ class matrix_thread {
 public:
     static void init();
 
-    static bool is_idle() { return !m_is_polling; }
+    static bool is_idle() { return thread_get_status(m_pthread) == STATUS_SLEEPING; }
+
+    // Put the thread in STATUS_SLEEPING. It will be effective after transitioning to
+    // interrupt-based scanning.
+    static void disable() { m_enabled = false; }
+
+    static void enable() { m_enabled = true; }
 
 private:
     constexpr matrix_thread() =delete;  // Ensure a static class.
 
     static thread_t* m_pthread;
+
+    static bool m_enabled;
 
     static char m_thread_stack[];
 
@@ -32,15 +39,11 @@ private:
     static_assert( DEBOUNCE_PRESS_MS < (1u << 6) );
     static_assert( DEBOUNCE_RELEASE_MS < (1u << 6) );
 
-    static bounce_state_t m_states[];
-
-    static mutex_t m_sleep_lock;
+    static bounce_state_t m_key_states[];
 
     static uint32_t m_wakeup_us;
 
     static int m_min_scan_count;
-
-    static bool m_is_polling;
 
     // thread body
     static void* _thread_entry(void* arg);
