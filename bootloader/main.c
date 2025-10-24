@@ -168,8 +168,8 @@ NORETURN void kernel_init(void)
     cpu_switch_context_exit();
 }
 
-static const gpio_t col = col_pins[13];  // Matrix column that contains ENTER key.
-static const gpio_t row = row_pins[2];   // Matrix row that contains ENTER key.
+static const gpio_t col = col_pins[0];  // Matrix column that contains the ESC key.
+static const gpio_t row = row_pins[0];  // Matrix row that contains the ESC key.
 // For testing:
 // static const gpio_t col = col_pins[14];  // RIGHT key.
 // static const gpio_t row = row_pins[4];   // RIGHT key.

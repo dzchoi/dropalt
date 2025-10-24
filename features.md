@@ -26,7 +26,7 @@ You can enter the bootloader (DFU mode) using either of the following methods:
 - Execute `fw.enter_bootloader()` from the Lua REPL or trigger it via a keymap.
 Note: If a critical error occurs (e.g. a runtime error when executing Lua bytecode), the system automatically enters DFU mode as a failsafe.
 
-To boot into the firmware from the bootloader, simply press Enter.
+To boot into the firmware from the bootloader, simply press ESC (or `).
 
 DFU Commands
 - Flash firmware:
