@@ -41,7 +41,7 @@ void vlog_backup(unsigned level, const char* format, va_list args)
 
     // LOG_LUA_ERROR is always displayed, regardless of the current thread.
     if ( level == LOG_LUA_ERROR
-      // All LOG_* messages are displayed during boot code (kernel_init() and main()).
+      // All LOG_* messages are displayed during boot code (kernel_init()).
       || unlikely(thread_get_active() == NULL)
       // Otherwise, LOG_* messages are filtered based on log_mask and thread priority.
       || (log_mask & (1 << thread_get_priority(thread_get_active()))) ) {

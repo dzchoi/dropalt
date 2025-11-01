@@ -1,11 +1,12 @@
 #include "assert.h"
+#include "auto_init.h"          // for auto_init()
 #include "board.h"              // for _sheap, _eheap, system_reset()
 #include "cpu.h"                // for RSTC
 #include "irq.h"                // for irq_disable(), irq_restore()
 #include "led_conf.h"           // for KEY_LED_COUNT
 #include "log.h"                // for set_log_mask()
 #include "periph/wdt.h"         // for wdt_kick()
-#include "thread.h"             // for thread_get_active()
+#include "thread.h"             // for thread_get_active(), cpu_switch_context_exit()
 #include "thread_flags.h"       // for thread_flags_set(), thread_flags_wait_one()
 #include "ztimer.h"             // for ztimer_set_timeout_flag()
 
@@ -26,59 +27,38 @@
 
 
 
-// This main() function is called from main_trampoline() in the "main" thread context.
-// See kernel_init() for the details.
-extern "C" int main()
+// This kernel_init() function is called from reset_handler_default() in
+// riot/cpu/cortexm_common/vectors_cortexm.c.
+extern "C" NORETURN void kernel_init()
 {
-    // Now running in thread context, and since we won't return to the boot code (the
-    // main thread was created using THREAD_CREATE_WOUT_YIELD and entered via
-    // cpu_switch_context_exit()), we reset the ISR stack pointer (MSP). From this point
-    // on, MSP will be used exclusively for handling interrupts and faults.
-    __asm__ volatile (
-        "cpsid i\n"
-        "msr msp, %[estack]\n"
-        "cpsie i\n"
-        :
-        : [estack] "r" (&_estack)
-    );
+    irq_disable();
 
-    // Simple tests to trigger a hard fault.
-    // __attribute__((unused)) volatile int p = *(int*)(0);  // MemManage fault
-    // void (*f)() = (void (*)())0x08000000; f();  // HardFault (even address)
-    // __builtin_trap();  // HardFault
-
+    // Set up the first thread, main_thread.
     main_thread::init();
+
+    // Switch from the boot code context to main_thread.
+    cpu_switch_context_exit();
 }
 
 
 
 thread_t* main_thread::m_pthread;
 
+alignas(8) char main_thread::m_thread_stack[THREAD_STACKSIZE_MAIN];
+
 event_queue_t main_thread::m_event_queue;
 
-NORETURN void main_thread::init()
+ztimer_t main_thread::m_heartbeat_timer;
+
+void main_thread::init()
 {
-    m_pthread = thread_get_active();
+    LOG_INFO("Main: This is RIOT! (Version: " RIOT_VERSION ")");
 
-    // Initialize subsystems in the order of dependency.
-    adc::init();         // Invokes v_5v.wait_for_stable_5v().
-    persistent::init();  // Initialize NVM. (See `last_host_port` for a usage example.)
-    usbhub_thread::init();
-    usb_thread::init();  // printf() will work from this point, displaying on the host.
-    matrix_thread::init();  // Produces signals to main_thread.
-
-    // Refer to riot/cpu/sam0_common/include/vendor/samd51/include/component/rstc.h
-    // for the meaning of each bit. For instance, 0x40 indicates a system reset.
-    // Resets other than a system reset or power reset are not expected, as they are
-    // caught by the bootloader.
-    LOG_DEBUG("Main: RSTC->RCAUSE.reg=0x%x", RSTC->RCAUSE.reg);
-
-    LOG_DEBUG("Main: max heap size is %d bytes", &_eheap - &_sheap);
-
-    // Instead of creating a new thread, use the already existing "main" thread.
-    // Regarding the thread stack, `char main_stack[THREAD_STACKSIZE_MAIN]` is created
-    // in riot/core/lib/init.c already.
-    (void)_thread_entry(nullptr);
+    m_pthread = thread_get_unchecked( thread_create(
+        m_thread_stack, sizeof(m_thread_stack),
+        THREAD_PRIORITY_MAIN,
+        THREAD_CREATE_WOUT_YIELD,
+        _thread_entry, nullptr, "main_thread") );
 }
 
 // Wake up from wait_for_input() without setting any flags, allowing subsequent checks
@@ -169,8 +149,37 @@ void main_thread::signal_lamp_state(uint8_t lamp_state)
 
 NORETURN void* main_thread::_thread_entry(void*)
 {
+    // Now running in thread context, and since we won't return to the boot code (
+    // main_thread was created using THREAD_CREATE_WOUT_YIELD and entered via
+    // cpu_switch_context_exit()), we reset the ISR stack pointer (MSP). From this point
+    // on, MSP will be used exclusively for handling interrupts and faults.
+    __asm__ volatile (
+        "cpsid i\n"
+        "msr msp, %[estack]\n"
+        "cpsie i\n"
+        :
+        : [estack] "r" (&_estack)
+    );
+
+    // Simple tests to trigger a hard fault.
+    // __attribute__((unused)) volatile int p = *(int*)(0);  // MemManage fault
+    // void (*f)() = (void (*)())0x08000000; f();  // HardFault (even address)
+    // __builtin_trap();  // HardFault
+
+    if ( IS_USED(MODULE_AUTO_INIT) )
+        auto_init();     // ztimer_init(), ...
+
+    // Initialize subsystems in the order of dependency.
+    adc::init();         // Invokes v_5v.wait_for_stable_5v().
+    persistent::init();  // Initialize NVM. (See `last_host_port` for a usage example.)
+    usbhub_thread::init();
+    usb_thread::init();  // printf() will work from this point, displaying on the host.
+    matrix_thread::init();  // Produces signals to main_thread.
+
     // The event_queue_init() should be called from the queue-owning thread.
     event_queue_init(&m_event_queue);
+
+    LOG_DEBUG("Main: max heap size is %d bytes", &_eheap - &_sheap);
 
     // Set up the global Lua state and load the keymap module, initializing all keymaps
     // and LED effects.
@@ -219,8 +228,8 @@ NORETURN void* main_thread::_thread_entry(void*)
             // If input is available (not processed though), wait_for_input() is not
             // called again. Instead, we set a wake-up timer and enter sleep via
             // thread_flags_wait_one() below.
-            static ztimer_t timer;
-            ztimer_set_timeout_flag(ZTIMER_MSEC, &timer, HEARTBEAT_PERIOD_MS);
+            ztimer_set_timeout_flag(
+                ZTIMER_MSEC, &m_heartbeat_timer, HEARTBEAT_PERIOD_MS);
         }
 
         // Wait for a signal within HEARTBEAT_PERIOD_MS if no flags are set.

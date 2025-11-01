@@ -139,7 +139,7 @@ void pre_startup(void)
 
     // If we are rebooting due to a system reset or power reset, jump to the application
     // in slot 0 if it is valid.
-    if ( (RSTC->RCAUSE.bit.SYST != 0) || (RSTC->RCAUSE.bit.POR != 0) ) {
+    if ( (RSTC->RCAUSE.reg & (RSTC_RCAUSE_SYST | RSTC_RCAUSE_POR)) != 0 ) {
         // The functions called here are only memory operations on NVM region, hence
         // allowed at this early stage of booting. They do not execute log_write() since
         // LOG_LEVEL = LOG_NONE, and assert() is disabled as NDEBUG = 1.

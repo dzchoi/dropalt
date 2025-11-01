@@ -102,14 +102,14 @@ Note:
 - `ISR/IRQ 119`: The fault occurred while running in the ISR for IRQ 119. If this number is negative (e.g. -13 = 3 - 16 for HardFault), it indicates a nested fault - the fault occurred while already handling another fault.
 - `LR        4DF9  PC    00012AB0`: values captured just before the fault, representing the link register and program counter at the faulting instruction.
   * The addresses can be resolved using e.g. `arm-none-eabi-addr2line -e slot0.elf 0x12ab0` or `arm-none-eabi-objdump -S slot0.elf`.
-- `>main`: The "main" thread was active when the interrupt occurred, leading to the subsequent HardFault.
-- `0000C698  00006C1B`: PC and LR values in the main thread when it was interrupted. In this case, the interrupt is not related to the main thread.
+- `>main`: The main_thread was active when the interrupt occurred, leading to the subsequent HardFault.
+- `0000C698  00006C1B`: PC and LR values in main_thread when it was interrupted. In this case, the interrupt is not related to main_thread.
   * If PC and LR show "running" (e.g. on assert failure), it means the fault occurred directly in the thread, not while it was interrupted.
 - `bl anyfl`: Indicates the thread is Blocked for Anyflags. See `state_names[]` in core/thread.c for the full list of thread states.
 - `Inside ISR/IRQ -13`: Also indicates the fault type: -13 + 16 = 3 (HardFault).
 
 #### Watchdog fault
-- Watchdog faults aren't faults in the traditional sense - they function more like a timer. Instead of signaling a specific error, the watchdog simply forces a system reset when the "main" thread fails to kick it within a defined period.
+- Watchdog faults aren't faults in the traditional sense - they function more like a timer. Instead of signaling a specific error, the watchdog simply forces a system reset when the main_thread fails to kick it within a defined period.
 - A typical cause is a high-priority thread monopolizing CPU time without yielding. However, if the offending thread is blocked - such as waiting on a mutex or signal - it won’t trigger a watchdog fault, since it’s not actively consuming CPU.
 - The Early Warning Interrupt (EWI) mechanism used by `wdt_setup_reboot_with_callback()` is limited for typical use cases where the EWI is expected to trigger shortly before the watchdog expires.
   This is because EWCTRL.EWOFFSET uses the same exponential encoding scheme as CONFIG.PER (e.g. 0 = ~8 ms, 1 = ~16 ms, 2 = ~32 ms, ..., 11 = ~16 seconds), but instead of representing time before expiration, it defines the absolute time interval from the start of the watchdog timeout period to the EWI trigger.

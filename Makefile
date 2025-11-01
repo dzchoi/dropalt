@@ -44,10 +44,13 @@ LTO = 1
 FEATURES_REQUIRED += cpp
 FEATURES_REQUIRED += riotboot
 
-# RIOT modules for the main thread
+# RIOT modules for main_thread
 USEMODULE += core_thread
 USEMODULE += core_thread_flags
 # USEMODULE += newlib_nano          # Selected by default instead of libstdcpp.
+
+# Disable unused modules
+DISABLE_MODULE += core_init core_msg
 
 # Subdirectory modules
 EXTERNAL_MODULE_DIRS += $(CURDIR)

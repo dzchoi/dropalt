@@ -25,6 +25,7 @@
 * `typedef struct lua_State lua_State;`
 * CFLAGS from parent Makefile are inherited, but the changes in child Makefiles do not propagate back.
 * Use `likely(x)` (== `__builtin_expect((uintptr_t)(x), 1)`) if appropriate.
+* C++ 11 has the `[[noreturn]]` attribute.
 * Allocate variables in ".noinit" section (NOINIT) unless initialization is strictly necessary.
 * Favor stdio_write() over printf() and fputs() if possible to minimize code size.
 * Don't waste assert(). Even a simple `assert( m_pthread );` consumes 56 bytes. Use `assert()` for only "non-trivial" logical error.

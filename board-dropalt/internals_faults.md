@@ -225,7 +225,7 @@ The assert_panic addresses can be resolved with tools like `arm-none-eabi-addr2l
 
 * [Deprecated] HARDFAULT_HANDLER_REQUIRED_STACK_SPACE
   - `hard_fault_handle()` utilizes `LOG_*()` macros to report fault details, which requires a minimum amount of free stack space on the ISR stack to operate correctly. If this required space is unavailable, the function clears the entire ISR stack, potentially discarding previous context from the faulting ISR or any nested fault handlers.
-  - This required ISR stack space (HARDFAULT_HANDLER_REQUIRED_STACK_SPACE) can be empirically determined by triggering a deliberate fault at the beginning of the main thread.
+  - This required ISR stack space (HARDFAULT_HANDLER_REQUIRED_STACK_SPACE) can be empirically determined by triggering a deliberate fault at the beginning of main_thread.
     ```
     __asm__ volatile (
         "cpsid i\n"
@@ -255,7 +255,7 @@ The assert_panic addresses can be resolved with tools like `arm-none-eabi-addr2l
       AFSR = 0x00000000
       MMFAR = 0x00000000
     EXC_RETURN: 0xfffffffd
-    Active thread: 1 "main" (SP: 124 / 2048 bytes)
+    Active thread: 1 "main_thread" (SP: 124 / 2048 bytes)
     Attempting to reconstruct state for debugging...
     In GDB:
       set $pc=0x4952

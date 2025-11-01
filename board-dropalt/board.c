@@ -1,5 +1,6 @@
 #include "backup_ram.h"         // for backup_ram_init()
 #include "board.h"
+#include "log.h"
 #include "mpu.h"                // for mpu_configure(), mpu_enable(), ...
 #include "periph/gpio.h"
 #include "periph/wdt.h"
@@ -103,7 +104,7 @@ void post_startup(void)
 }
 #endif
 
-// Initialization flow:
+// Initialization flow when using core_init:
 // reset_handler_default()
 //     --> cpu_init() --> periph_init()
 //     --> board_init()
@@ -159,6 +160,12 @@ void board_init(void)
     wdt_start();
 #   endif
 #endif
+
+    // Refer to riot/cpu/sam0_common/include/vendor/samd51/include/component/rstc.h
+    // for the meaning of each bit. For instance, 0x40 indicates a system reset.
+    // Resets other than a system reset or power reset are not expected, as they are
+    // caught by the bootloader.
+    LOG_DEBUG("*** board_init(): RSTC->RCAUSE=0x%x", RSTC->RCAUSE.reg);
 
     // Initialize Shift Register.
     sr_exp_init();
