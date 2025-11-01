@@ -6,13 +6,13 @@ CFLAGS += -DISR_STACKSIZE=1024
 # Lower numbers indicate higher priority.
 # Note: Valid priority values range from 1 (highest) to 7 (lowest).
 
-CFLAGS += -DUSBUS_STACKSIZE=1024  # See also riot/sys/include/usb/usbus.h
+CFLAGS += -DUSBUS_STACKSIZE=1280  # See also riot/sys/include/usb/usbus.h
 CFLAGS += -DTHREAD_PRIO_USB=1
 
-CFLAGS += -DMATRIX_STACKSIZE=1024
+CFLAGS += -DMATRIX_STACKSIZE=768
 CFLAGS += -DTHREAD_PRIO_MATRIX=2
 
-CFLAGS += -DUSBHUB_STACKSIZE=1024
+CFLAGS += -DUSBHUB_STACKSIZE=768
 CFLAGS += -DTHREAD_PRIO_USBHUB=3
 
 # Note that Lua C API functions called from the Lua environment use the native thread
@@ -24,7 +24,7 @@ CFLAGS += -DTHREAD_STACKSIZE_MAIN=2048
 CFLAGS += -DTHREAD_PRIORITY_MAIN=7  # See also riot/core/lib/include/thread_config.h
 
 # LUA_MEM_SIZE is set to its maximum, leaving ~1KB for the main heap (calculated as
-# &_eheap - &_sheap). This remaining space must be sufficient to cover ~320 bytes,
+# &_eheap - &_sheap). This remaining space must be sufficient to cover ~700 bytes,
 # primarily used by fputs() and stdin_init().
 CFLAGS += -DLUA_MEM_SIZE=110592  # 108K
 
