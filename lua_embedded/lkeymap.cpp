@@ -10,50 +10,42 @@
 
 namespace lua {
 
-static constexpr unsigned SLOT1 = 1;
-
-// Note that SLOT1_LEN, SLOT1_OFFSET and RIOTBOOT_HDR_LEN are given from Makefiles.
-// See riot/sys/riotboot/Makefile.include and board-dropalt/Makefile.include.
-static constexpr uintptr_t SLOT1_IMAGE_OFFSET =
-    (uintptr_t)SLOT1_OFFSET + RIOTBOOT_HDR_LEN;
-static constexpr size_t SLOT1_IMAGE_SIZE = SLOT1_LEN - RIOTBOOT_HDR_LEN;
-
-
 static const char* _reader(lua_State*, void* arg, size_t* psize)
 {
-    uint32_t& slot1_image_size = *(uint32_t*)arg;
-    if ( unlikely(slot1_image_size == 0) )
+    bool& done = *(bool*)arg;
+    if ( unlikely(done) )
         return nullptr;
 
-    *psize = slot1_image_size;
-    slot1_image_size = 0;
-    return (const char*)SLOT1_IMAGE_OFFSET;
+    // We return the data all at once.
+    done = true;
+
+    // Note that SLOT*_LEN, SLOT*_OFFSET and RIOTBOOT_HDR_LEN are given from Makefiles.
+    // See riot/sys/riotboot/Makefile.include and board-dropalt/Makefile.include.
+    constexpr unsigned SLOT1 = 1;
+
+    // Verify that the slot 1 contains a header and it contains a valid Lua bytecode.
+    constexpr uintptr_t addr = SLOT1_OFFSET + RIOTBOOT_HDR_LEN;
+    assert( riotboot_slot_validate(SLOT1) == 0
+        && global_lua_state::validate_bytecode(addr) );
+
+    // We interpret header->start_addr as the bytecode size.
+    *psize = riotboot_slot_get_hdr(SLOT1)->start_addr;
+    // Or we could return the entire contents in slot 1 for reading. Lua will extract
+    // only the compiled code portion.
+    // *psize = SLOT1_LEN - RIOTBOOT_HDR_LEN;
+    assert( *psize > 0 && *psize <= SLOT1_LEN - RIOTBOOT_HDR_LEN );
+
+    return (const char*)addr;
 }
 
 void load_keymap()
 {
     global_lua_state L;
 
-    // Verify the validity of the slot header in slot 1.
-    assert( riotboot_slot_validate(SLOT1) == 0 );
-
-    // Verify that the image is a valid Lua bytecode.
-    constexpr union {
-        char str[5];
-        uint32_t uint32;
-    } signature = { LUA_SIGNATURE };
-    assert( *(uint32_t*)SLOT1_IMAGE_OFFSET == signature.uint32 );
-
-    // Verify the bytecode size.
-    uint32_t slot1_image_size = riotboot_slot_get_hdr(SLOT1)->start_addr;
-    assert( slot1_image_size > 0 && slot1_image_size <= SLOT1_IMAGE_SIZE );
-    // Or we could return the entire contents in slot 1 for reading. Lua will read only
-    // the compiled code within it.
-    // uint32_t slot1_image_size = SLOT1_IMAGE_SIZE;
-
+    bool done = false;
     // We pass a null chunkname argument to lua_load(). In this case, Lua will assign
     // the default value "=(load)" to the chunkname.
-    status_t status = lua_load(L, _reader, &slot1_image_size, nullptr, "b");
+    status_t status = lua_load(L, _reader, &done, nullptr, "b");
     if ( status != LUA_OK )
         lua_error(L);  // Trigger _panic(L) with the error message.
     // ( -- chunk )

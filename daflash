@@ -1,5 +1,8 @@
 #!/usr/bin/env sh
+# Usage example:
+#   $ ./daflash
+#   $ ./daflash -p3-4.2
 
 # Build and flash the firmware.
-make riotboot/slot0 && \
+make -j8 riotboot/slot0 && \
 dfu-util -a0 -D .build/board-dropalt/riotboot_files/slot0.*.bin -R "$@"

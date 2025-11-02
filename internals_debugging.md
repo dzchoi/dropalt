@@ -352,3 +352,8 @@ USB URB
 ```
 for i in $(seq 1 50000); do echo -n "$i "; if ! dalua -e nil >/dev/null; then break; fi; done
 ```
+
+#### Boot in DFU mode
+```
+-exec mon write_memory 0x2001FFFC 32 {0x544f4952}
+```

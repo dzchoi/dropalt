@@ -47,6 +47,8 @@ public:
 
     static void init();
 
+    static bool validate_bytecode(uintptr_t addr);
+
     operator lua_State*() { return L; }
 
 private:

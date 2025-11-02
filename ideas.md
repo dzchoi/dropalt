@@ -1,9 +1,17 @@
 * Fix: "CDCACM: line coding not supported".
 
+[Version]
+* Should indicate the current version.
+
 [Debouncing]
 * DEBOUNCE_PRESS_MS and DEBOUNCE_RELEASE_MS defined in NVM.
 
 [Lua]
+* Handle NORETURN functions
+  ```
+  $ dalua -e 'require("fw").system_reset()'
+  dalua: no response from serial port
+  ```
 * Configure the automatic switchover feature in config.hpp.
 * Switchover event should be given to Effects.
 * Switchover as lamp event.

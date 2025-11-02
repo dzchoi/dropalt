@@ -1,7 +1,11 @@
 #!/usr/bin/env sh
+# Usage example:
+#   $ ./dadownload
+#   $ ./dadownload -p3-4.2
+
 tmpfile=$(mktemp)
 trap 'rm -f "$tmpfile"' EXIT  # Clean up the temporary file.
 
-# Compile the Lua script and download it
+# Compile and download the Lua user scripts.
 daluac user_logic/core.lua user_logic/effect.lua user_logic/keymap.lua >"$tmpfile" && \
 dfu-util -a1 -D "$tmpfile" -R "$@"

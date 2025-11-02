@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+# Usage example:
+#   $ ./dalog
+#   $ ./dalog -p3-4.2
+
+tmpfile=$(mktemp -u)
+trap 'rm -f "$tmpfile"' EXIT  # Clean up the temporary file.
+
+# Upload logs stored in backup RAM.
+dfu-util -a0 -U "$tmpfile" "$@" 1>&2 && cat "$tmpfile"

@@ -59,4 +59,15 @@ void global_lua_state::init()
     load_keymap();
 }
 
+bool global_lua_state::validate_bytecode(uintptr_t addr)
+{
+    // Verify that the image is a valid Lua bytecode.
+    constexpr union {
+        char str[5];
+        uint32_t uint32;
+    } signature = { LUA_SIGNATURE };
+
+    return *(uint32_t*)addr == signature.uint32;
+}
+
 }

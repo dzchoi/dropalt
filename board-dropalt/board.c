@@ -100,6 +100,20 @@ static void _dfll_usbcrm_init(void)
 // This function is called before cpu_init(), board_init() and kernel_init().
 void post_startup(void)
 {
+    // If a debugger is attached these faults will halt the processor immediately at the
+    // entry of the corresponding fault handler. VSCode + Gdb can show the call stack
+    // and the registers prior to the fault.
+#   ifdef CoreDebug_DHCSR_C_DEBUGEN_Msk
+#   define CoreDebug_DEMCR_VC_MEMERR_Msk (1UL << 4)
+#   define CoreDebug_DEMCR_VC_USAGEERR_Msk (1UL << 9)
+    if ( CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk ) {
+        CoreDebug->DEMCR |= CoreDebug_DEMCR_VC_HARDERR_Msk  // Halt on HardFault
+                         |  CoreDebug_DEMCR_VC_BUSERR_Msk   // Halt on BusFault
+                         |  CoreDebug_DEMCR_VC_USAGEERR_Msk // Halt on UsageFault
+                         |  CoreDebug_DEMCR_VC_MEMERR_Msk;  // Halt on MemManage fault
+    }
+#   endif
+
     backup_ram_init();
 }
 #endif
@@ -139,20 +153,6 @@ void board_init(void)
         MPU_ATTR(1, AP_NO_NO, 0, 1, 0, 1, MPU_SIZE_32B)  // No exec/read/write
     );
     mpu_enable();
-
-    // If a debugger is attached these faults will halt the processor immediately at the
-    // entry of the corresponding fault handler. VSCode + Gdb can show the call stack
-    // and the registers prior to the fault.
-#   ifdef CoreDebug_DHCSR_C_DEBUGEN_Msk
-#   define CoreDebug_DEMCR_VC_MEMERR_Msk (1UL << 4)
-#   define CoreDebug_DEMCR_VC_USAGEERR_Msk (1UL << 9)
-    if ( CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk ) {
-        CoreDebug->DEMCR |= CoreDebug_DEMCR_VC_HARDERR_Msk  // Halt on HardFault
-                         |  CoreDebug_DEMCR_VC_BUSERR_Msk   // Halt on BusFault
-                         |  CoreDebug_DEMCR_VC_USAGEERR_Msk // Halt on UsageFault
-                         |  CoreDebug_DEMCR_VC_MEMERR_Msk;  // Halt on MemManage fault
-    }
-#   endif
 
     // Bootloader does not use WDT.
 #   ifdef DEVELHELP
