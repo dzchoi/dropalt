@@ -36,7 +36,7 @@ void usb_thread::init()
 
     // DFU Runtime mode
     static usbus_dfu_device_t _dfu;
-    usbus_dfu_init(&m_usbus, &_dfu, USB_DFU_PROTOCOL_RUNTIME_MODE);
+    usbus_dfu_init(&m_usbus, &_dfu);
 
     static usbus_hid_keyboard_tl<ENABLE_NKRO> _hid_keyboard(&m_usbus);
     m_hid_keyboard = &_hid_keyboard;

@@ -4,4 +4,4 @@ trap 'rm -f "$tmpfile"' EXIT  # Clean up the temporary file.
 
 # Compile the Lua script and download it
 daluac user_logic/core.lua user_logic/effect.lua user_logic/keymap.lua >"$tmpfile" && \
-dfu-util -t 1024 -a1 -D "$tmpfile" -R "$@"
+dfu-util -a1 -D "$tmpfile" -R "$@"

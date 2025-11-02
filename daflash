@@ -2,4 +2,4 @@
 
 # Build and flash the firmware.
 make riotboot/slot0 && \
-dfu-util -t 1024 -a0 -D .build/board-dropalt/riotboot_files/slot0.*.bin -R "$@"
+dfu-util -a0 -D .build/board-dropalt/riotboot_files/slot0.*.bin -R "$@"

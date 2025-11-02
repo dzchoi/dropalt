@@ -11,7 +11,7 @@
 APPLICATION := dropalt-boot
 
 # Version numbers encoded in USB device descriptor
-DEVICE_VER := 0x0092            # bcdDevice =  0.92 for bootloader
+DEVICE_VER := 0x0093            # bcdDevice =  0.93 for bootloader
 HUB_DEVICE_VER := 0x2410        # bcdDevice = 24.10 for Hub
 CFLAGS += -DDEVICE_VER=$(DEVICE_VER) -DHUB_DEVICE_VER=$(HUB_DEVICE_VER)
 

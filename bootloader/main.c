@@ -27,7 +27,7 @@ static void riotboot_usb_init(void)
     static char _usbus_stack[USBUS_STACKSIZE] __attribute__((aligned(8)));
 
     usbus_init(&usbus, usbdev_get_ctx(0));
-    usbus_dfu_init(&usbus, &dfu, USB_DFU_PROTOCOL_DFU_MODE);
+    usbus_dfu_init(&usbus, &dfu);
     usbus_create(_usbus_stack, USBUS_STACKSIZE, USBUS_PRIO, USBUS_TNAME, &usbus);
 }
 
