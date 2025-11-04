@@ -603,7 +603,7 @@ int luaopen_fw(lua_State* L)
 // Returns the elapsed time since the epoch if the timer is active, or nothing otherwise.
         { "timer_now", _timer_t::now },
 
-// fw.timer_start(timer: userdata, timeout_ms: int, callback [, repeated: bool]): int
+// fw.timer_start(timer: userdata, callback, timeout_ms: int [, repeated: bool]): int
 // Starts or restarts the timer, setting its epoch to the current time. Returns 0 as the
 // initial elapsed time since the epoch. `callback` is called when the timer expires
 // later.

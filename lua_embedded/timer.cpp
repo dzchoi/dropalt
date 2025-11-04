@@ -18,25 +18,36 @@ int _timer_t::create(lua_State* L)
 
 int _timer_t::start(lua_State* L)
 {
-    // ( -- userdata timeout_ms callback [repeated] )
+    // ( -- userdata callback timeout_ms [repeated] )
     _timer_t* const that = static_cast<_timer_t*>(lua_touserdata(L, 1));
     assert( that != nullptr );
 
-    const int timeout_ms = luaL_checkinteger(L, 2);
+    const int timeout_ms = luaL_checkinteger(L, 3);
     assert( timeout_ms > 0 );
 
     // Note that lua_toboolean(L, 4) returns false if the argument is absent or nil.
     that->m_timeout_ms = lua_toboolean(L, 4) ? timeout_ms : 0;
-    lua_settop(L, 3);
-    // ( -- userdata timeout_ms callback )
+    lua_settop(L, 2);
+    // ( -- userdata callback )
 
-    luaL_checktype(L, 3, LUA_TFUNCTION);
+    luaL_checktype(L, 2, LUA_TFUNCTION);
     if ( that->m_rcallback != LUA_NOREF ) {
         // This case can happen when restarting the timer.
         luaL_unref(L, LUA_REGISTRYINDEX, that->m_rcallback);
     }
     that->m_rcallback = luaL_ref(L, LUA_REGISTRYINDEX);
-    // ( -- userdata timeout_ms )
+    // ( -- userdata )
+
+    // Set up __gc() for the new userdata to ensure that if it is garbage-collected
+    // without calling _timer_t::stop() (e.g. during lua_close()), m_rcallback is
+    // unreferenced and the associated timer is properly stopped.
+    luaL_newmetatable(L, "ctimer");
+    // ( -- userdata metatable )
+    lua_pushcfunction(L, _timer_t::stop);
+    lua_setfield(L, -2, "__gc");
+    // ( -- userdata metatable )
+    lua_setmetatable(L, -2);
+    // ( -- userdata )
 
     // Set the epoch to the current time.
     that->m_epoch = ztimer_set(ZTIMER_MSEC, that, timeout_ms);
@@ -50,9 +61,12 @@ int _timer_t::stop(lua_State* L)
 {
     _timer_t* const that = static_cast<_timer_t*>(lua_touserdata(L, 1));
     assert( that != nullptr );
-    const bool result = ztimer_remove(ZTIMER_MSEC, that);
-    luaL_unref(L, LUA_REGISTRYINDEX, that->m_rcallback);
-    that->m_rcallback = LUA_NOREF;  // Also indicates that timeout is not expected.
+    bool result = false;
+    if ( that->m_rcallback != LUA_NOREF ) {
+        result = ztimer_remove(ZTIMER_MSEC, that);
+        luaL_unref(L, LUA_REGISTRYINDEX, that->m_rcallback);
+        that->m_rcallback = LUA_NOREF;  // Also indicates that timeout is not expected.
+    }
     lua_pushboolean(L, result);
     // ( -- userdata result )
     return 1;

@@ -391,10 +391,6 @@ function Timer:init()
     self.m_ctimer = fw.timer_create()
     -- Closure used as the timer callback; captures `self` for invoking on_timeout().
     self.m_callback = function(time_now) return self:on_timeout(time_now) end
-
-    -- Note: No __gc() needed for this class; the callback is only referenced between
-    -- fw.timer_start() and fw.timer_stop(), so the Timer instance won't be collected
-    -- while the timer is active.
 end
 
 -- Callback that is invoked on timer expiration.
@@ -410,7 +406,7 @@ function Timer:on_timeout() end
 -- initial elapsed time since the epoch.
 function Timer:start_timer(timeout_ms, repeated)
     assert( timeout_ms % 1 == 0 and timeout_ms > 0, "timeout_ms not a positive integer" )
-    return fw.timer_start(self.m_ctimer, timeout_ms, self.m_callback, repeated)
+    return fw.timer_start(self.m_ctimer, self.m_callback, timeout_ms, repeated)
 end
 
 -- Stop the timer; returns true if the timer is active, or false if the timer was

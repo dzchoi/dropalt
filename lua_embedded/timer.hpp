@@ -18,7 +18,7 @@ public:
     // `destroy()` method. The callback reference (`m_rcallback`) is managed exclusively
     // through the `start()` and `stop()` methods invoked from Lua.
 
-    // fw.timer_start(timer: userdata, timeout_ms: int, callback [, repeated: bool]): int
+    // fw.timer_start(timer: userdata, callback, timeout_ms: int [, repeated: bool]): int
     static int start(lua_State* L);
 
     // fw.timer_stop(timer: userdata): bool
