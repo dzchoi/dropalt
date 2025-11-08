@@ -183,6 +183,9 @@ static int dfu_detach_handler(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_setup
 }
 
 #ifdef RIOTBOOT
+void matrix_enable(void);
+void matrix_disable(void);
+
 static int dfu_dnload_handler(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_setup_t* pkt)
 {
     // If the host indicates the end of the download, we finalize the flash and
@@ -204,6 +207,8 @@ static int dfu_dnload_handler(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_setup
 
         case USB_DFU_STATE_DFU_IDLE:
             DEBUG("DFU: DFU_DNLOAD start");
+            // Disable matrix interrupt during firmware flashing.
+            matrix_disable();
             dfu->skip_signature = -1;
             // Intentional fall-through
 
@@ -331,6 +336,7 @@ static int dfu_abort_handler(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_setup_
     (void)usbus;
     (void)pkt;
 
+    matrix_enable();
     dfu->dfu_state = USB_DFU_STATE_DFU_IDLE;
     return 1;
 }
@@ -351,6 +357,7 @@ static int dfu_getstatus_handler(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_se
         case USB_DFU_STATE_DFU_MANIFEST_SYNC:
             // Download is finished. As a manifestation tolerant device, we do not
             // reboot, but stay in DFU mode.
+            matrix_enable();
             dfu->dfu_state = USB_DFU_STATE_DFU_IDLE;
             break;
 

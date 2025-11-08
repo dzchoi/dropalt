@@ -1,13 +1,12 @@
 // A variant of riotboot_dfu that boots from slot 0 and supports USB device firmware
 // upgrade (DFU) through the USB2422 hub.
 
-#include "board.h"              // for LED0_ON
+#include "board.h"              // for LED0_ON, has_bootmagic_number(), ...
 #include "compiler_hints.h"     // for UNREACHABLE()
 #include "cpu.h"                // for RSTC
 #include "panic.h"              // for core_panic_t
 #include "periph/gpio.h"        // for gpio_init(), gpio_init_int(), ...
 // #include "riotboot/bootloader_selection.h"  // for BTN_BOOTLOADER_PIN
-#include "riotboot/magic.h"     // for RIOTBOOT_MAGIC_ADDR, RIOTBOOT_MAGIC_NUMBER
 #include "riotboot/slot.h"      // for riotboot_slot_jump(), ...
 #include "seeprom.h"            // for seeprom_init(), seeprom_sync(), ...
 #include "thread.h"             // for thread_create(), sched_task_exit(), ...
@@ -106,16 +105,13 @@ NORETURN static void* _main(void* arg)
 void pre_startup(void)
 {
     static const unsigned SLOT0 = 0;
-    static uint32_t* const MAGIC_ADDR = (uint32_t*)RIOTBOOT_MAGIC_ADDR;
 
-    // If *MAGIC_ADDR equals RIOTBOOT_MAGIC_NUMBER, stay in DFU mode.
-    if ( *MAGIC_ADDR == RIOTBOOT_MAGIC_NUMBER ) {
-        *MAGIC_ADDR = 0u;
+    // If booted via enter_bootloader(), stay in the bootloader.
+    if ( has_bootmagic_number() )
         return;
-    }
 
-    // If we are rebooting due to a system reset or power reset, jump to the application
-    // in slot 0 if it is valid.
+    // If booted from a system reset or power-on reset, jump to the application in slot 0
+    // if it is valid.
     if ( (RSTC->RCAUSE.reg & (RSTC_RCAUSE_SYST | RSTC_RCAUSE_POR)) != 0 ) {
         // The functions called here are only memory operations on NVM region, hence
         // allowed at this early stage of booting. They do not execute log_write() since
@@ -126,8 +122,8 @@ void pre_startup(void)
         }
     }
 
-    // Any other resets, such as an external reset or watchdog reset, will stay in DFU
-    // mode.
+    // Any other resets, such as an external reset or watchdog reset, will stay in the
+    // bootloader.
 }
 
 NORETURN void kernel_init(void)
@@ -145,6 +141,7 @@ NORETURN void kernel_init(void)
     cpu_switch_context_exit();
 }
 
+// Define the key used to exit the bootloader.
 static const gpio_t col = col_pins[0];  // Matrix column that contains the ESC key.
 static const gpio_t row = row_pins[0];  // Matrix row that contains the ESC key.
 // For testing:
@@ -160,6 +157,8 @@ NORETURN static void _isr_jump_to_application(void* arg)
 {
     (void)arg;
     matrix_disable();
+    // Delay to ensure the key release is not affected by debounce.
+    ztimer_spin(ZTIMER_MSEC, 250);
     system_reset();
 }
 
@@ -167,7 +166,12 @@ void matrix_enable(void)
 {
     gpio_init(col, GPIO_OUT);
     gpio_set(col);
-    gpio_init_int(row, GPIO_IN_PD, GPIO_RISING, _isr_jump_to_application, NULL);
+    // Detect release of the bootloader exit key.
+    // Note: If the CPU was previously halted by a debugger, an external reset (e.g.
+    // after flashing via EDBG) may cause a GPIO_FALLING interrupt to trigger immediately
+    // during boot. This can result in bypassing the bootloader and jumping directly to
+    // the application.
+    gpio_init_int(row, GPIO_IN_PD, GPIO_FALLING, _isr_jump_to_application, NULL);
     gpio_irq_enable(row);
 }
 

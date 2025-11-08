@@ -10,10 +10,10 @@
 
 #pragma once
 
+#include <stdbool.h>            // for bool
 #include "compiler_hints.h"     // for NORETURN, UNREACHABLE()
 #include "cpu_conf.h"
 #include "periph/gpio.h"
-#include "usb_board_reset.h"    // for usb_board_reset_in_bootloader()
 
 
 
@@ -196,17 +196,9 @@ NORETURN static inline void system_reset(void) { NVIC_SystemReset(); }
 /**
  * @brief   Reboot to the bootloader.
  */
-NORETURN static inline void enter_bootloader(void)
-{
-    // Calling usb_board_reset_in_bootloader() in sys/riotboot/reset.c.
-    usb_board_reset_in_bootloader();
-    UNREACHABLE();
+NORETURN void enter_bootloader(void);
 
-    // Alternatively, we could cause a watchdog reset even if WDT is not set up.
-    // MCLK->APBAMASK.bit.WDT_ = 1;
-    // WDT->CLEAR.reg = 0;
-    // UNREACHABLE();
-}
+bool has_bootmagic_number(void);
 
 
 /**

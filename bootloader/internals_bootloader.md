@@ -4,7 +4,7 @@ We use `riotboot_dfu`, which supports USB Device Firmware Update (DFU) in additi
 It offers two slots (using `bAltenateSetting` in the USB Interface Descriptor) and implements the DFU protocol to allow flashing binaries into either slot with `dfu-util`.
 
 #### Booting sequence
-A power reset or system reset will immediately boot from slot 0. Any other reset, such as an external reset or watchdog reset, will enter the bootloader (DFU mode). However, a reset with the RIOTBOOT_MAGIC_NUMBER set at the end of RAM will enter the bootloader.
+A power-on reset or system reset will immediately boot from slot 0. Any other reset, such as an external reset or watchdog reset, will enter the bootloader (DFU mode). However, a reset with the RIOTBOOT_MAGIC_NUMBER set at the end of RAM will enter the bootloader.
 
 Executing reboot_to_bootloader() from firmware will jump to the bootloader.
 

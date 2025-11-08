@@ -29,8 +29,6 @@ USEMODULE += log_backup             # Use log_backup() for LOG_*() on riot funct
 USEMODULE += ps                     # Show `ps` on a hard fault and assert failure.
 endif
 
-USEMODULE += riotboot_reset         # Reboot to bootloader on core_panic().
-                                    # Will also include `+= usb_board_reset`.
 USEMODULE += ztimer
 USEMODULE += ztimer_msec
 USEMODULE += ztimer_usec

@@ -4,6 +4,7 @@
 #include "mpu.h"                // for mpu_configure(), mpu_enable(), ...
 #include "periph/gpio.h"
 #include "periph/wdt.h"
+#include "riotboot/hdr.h"       // for RIOTBOOT_MAGIC
 #include "sr_exp.h"             // for sr_exp_init()
 
 
@@ -94,8 +95,6 @@ static void _dfll_usbcrm_init(void)
 }
 
 
-// RIOTBOOT is defined only when building the bootloader.
-#ifndef RIOTBOOT
 // Override the weak post_startup() function in riot/cpu/cortexm_common/vectors_cortexm.c.
 // This function is called before cpu_init(), board_init() and kernel_init().
 void post_startup(void)
@@ -103,20 +102,45 @@ void post_startup(void)
     // If a debugger is attached these faults will halt the processor immediately at the
     // entry of the corresponding fault handler. VSCode + Gdb can show the call stack
     // and the registers prior to the fault.
-#   ifdef CoreDebug_DHCSR_C_DEBUGEN_Msk
-#   define CoreDebug_DEMCR_VC_MEMERR_Msk (1UL << 4)
-#   define CoreDebug_DEMCR_VC_USAGEERR_Msk (1UL << 9)
+#ifdef CoreDebug_DHCSR_C_DEBUGEN_Msk
+#define CoreDebug_DEMCR_VC_MEMERR_Msk (1UL << 4)
+#define CoreDebug_DEMCR_VC_USAGEERR_Msk (1UL << 9)
     if ( CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk ) {
         CoreDebug->DEMCR |= CoreDebug_DEMCR_VC_HARDERR_Msk  // Halt on HardFault
                          |  CoreDebug_DEMCR_VC_BUSERR_Msk   // Halt on BusFault
                          |  CoreDebug_DEMCR_VC_USAGEERR_Msk // Halt on UsageFault
                          |  CoreDebug_DEMCR_VC_MEMERR_Msk;  // Halt on MemManage fault
     }
-#   endif
-
-    backup_ram_init();
-}
 #endif
+
+// RIOTBOOT is defined only when building the bootloader.
+#ifndef RIOTBOOT
+    backup_ram_init();
+#endif
+}
+
+#define BOOTMAGIC_ADDR    (CPU_RAM_BASE + CPU_RAM_SIZE - 4)  // default magic address
+#define BOOTMAGIC_NUMBER  RIOTBOOT_MAGIC  // "RIOT"
+
+NORETURN void enter_bootloader(void)
+{
+    *(uint32_t*)BOOTMAGIC_ADDR = BOOTMAGIC_NUMBER;
+    system_reset();
+
+    // Alternatively, we could cause a watchdog reset even if WDT is not set up.
+    // MCLK->APBAMASK.bit.WDT_ = 1;
+    // WDT->CLEAR.reg = 0;
+    // UNREACHABLE();
+}
+
+bool has_bootmagic_number(void)
+{
+    if ( *(uint32_t*)BOOTMAGIC_ADDR == BOOTMAGIC_NUMBER ) {
+        *(uint32_t*)BOOTMAGIC_ADDR = 0;
+        return true;
+    }
+    return false;
+}
 
 // Initialization flow when using core_init:
 // reset_handler_default()
@@ -163,7 +187,7 @@ void board_init(void)
 
     // Refer to riot/cpu/sam0_common/include/vendor/samd51/include/component/rstc.h
     // for the meaning of each bit. For instance, 0x40 indicates a system reset.
-    // Resets other than a system reset or power reset are not expected, as they are
+    // Resets other than a system reset or power-on reset are not expected, as they are
     // caught by the bootloader.
     LOG_DEBUG("*** board_init(): RSTC->RCAUSE=0x%x", RSTC->RCAUSE.reg);
 

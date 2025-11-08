@@ -39,7 +39,7 @@
             // See https://github.com/microsoft/vscode-docs/pull/6969
             "postRemoteConnectCommands": [
                 { "text": "mon mww 0x2001FFFC 0x544f4952",
-                  // i.e. *(uint32_t*)RIOTBOOT_MAGIC_ADDR = RIOTBOOT_MAGIC_NUMBER
+                  // i.e. *(uint32_t*)RIOTBOOT_MAGIC_ADDR = BOOTMAGIC_NUMBER
                   "description": "Boot into the bootloader" },
             ],
 

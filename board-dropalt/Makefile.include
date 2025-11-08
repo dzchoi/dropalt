@@ -3,6 +3,7 @@ PSEUDOMODULES += dropalt_adc_get        # dropalt_adc_get replaces periph_adc.
 PSEUDOMODULES += dropalt_backup_ram	    # Backup RAM
 PSEUDOMODULES += dropalt_is31fl3733     # is31fl3733 rgb led driver
 PSEUDOMODULES += dropalt_matrix         # keyboard matrix
+PSEUDOMODULES += dropalt_panic          # Replaces core/lib/panic.c
 PSEUDOMODULES += dropalt_seeprom        # SmartEEPROM
 PSEUDOMODULES += dropalt_sr_595         # SR-595 shift register
 PSEUDOMODULES += dropalt_usb2422        # USB2422 Hub

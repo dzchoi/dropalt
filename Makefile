@@ -50,10 +50,11 @@ USEMODULE += core_thread_flags
 # USEMODULE += newlib_nano          # Selected by default instead of libstdcpp.
 
 # Disable unused modules
-DISABLE_MODULE += core_init core_msg
+DISABLE_MODULE += core_init core_msg core_panic
 
 # Subdirectory modules
 EXTERNAL_MODULE_DIRS += $(CURDIR)
+USEMODULE += dropalt_panic          # Replaces core/lib/panic.c
 USEMODULE += log_backup
 USEMODULE += lua_embedded
 USEMODULE += matrix
