@@ -153,8 +153,6 @@ void state_determine_host::process_timeout()
 
 void state_determine_host::end()
 {
-    if constexpr ( DEBUG_LED_BLINK_PERIOD_MS > 0 )
-        LED0_OFF;
     ztimer_remove(ZTIMER_MSEC, &retry_timer);
 
     v_host->schedule_cancel();
@@ -169,9 +167,17 @@ void state_determine_host::end()
     // From now on, v_extra will be measured periodically.
     v_extra->schedule_periodic();
 
-    // Enable GCR at boot if RGB_DISABLE_DURING_USB_SUSPEND is false.
-    if constexpr ( ENABLE_RGB_LED && !RGB_DISABLE_DURING_USB_SUSPEND )
-        rgb_gcr::enable();
+    if ( main_thread::is_dfu_mode() ) {
+        if constexpr ( DEBUG_LED_BLINK_PERIOD_MS > 0 )
+            LED0_ON;
+    }
+    else {
+        if constexpr ( DEBUG_LED_BLINK_PERIOD_MS > 0 )
+            LED0_OFF;
+        // Enable GCR at boot if RGB_DISABLE_DURING_USB_SUSPEND is false.
+        if constexpr ( ENABLE_RGB_LED && !RGB_DISABLE_DURING_USB_SUSPEND )
+            rgb_gcr::enable();
+    }
 }
 
 
@@ -179,13 +185,15 @@ void state_determine_host::end()
 void state_usb_suspend::begin()
 {
     LOG_DEBUG("USBHUB: state_usb_suspend");
-    if constexpr ( ENABLE_RGB_LED && RGB_DISABLE_DURING_USB_SUSPEND )
-        rgb_gcr::disable();
-
-    if constexpr ( DEBUG_LED_BLINK_PERIOD_MS > 0 ) {
-        LED0_ON;
-        ztimer_set_timeout_flag(ZTIMER_MSEC, &blink_timer, DEBUG_LED_BLINK_PERIOD_MS);
+    if ( !main_thread::is_dfu_mode() ) {
+        if constexpr ( ENABLE_RGB_LED && RGB_DISABLE_DURING_USB_SUSPEND )
+            rgb_gcr::disable();
+        if constexpr ( DEBUG_LED_BLINK_PERIOD_MS > 0 )
+            LED0_ON;
     }
+
+    if constexpr ( DEBUG_LED_BLINK_PERIOD_MS > 0 )
+        ztimer_set_timeout_flag(ZTIMER_MSEC, &blink_timer, DEBUG_LED_BLINK_PERIOD_MS);
 
     // v_extra (and v_host as well) is not measured in state_usb_suspend.
     v_extra->schedule_cancel();
@@ -214,7 +222,10 @@ void state_usb_suspend::process_timeout()
 void state_usb_suspend::end()
 {
     if constexpr ( DEBUG_LED_BLINK_PERIOD_MS > 0 ) {
-        LED0_OFF;
+        if ( main_thread::is_dfu_mode() )
+            LED0_ON;
+        else
+            LED0_OFF;
         ztimer_remove(ZTIMER_MSEC, &blink_timer);
     }
 
@@ -234,7 +245,8 @@ void state_extra_disabled::begin()
     LOG_DEBUG("USBHUB: state_extra_disabled");
 
     if constexpr ( ENABLE_RGB_LED && RGB_DISABLE_DURING_USB_SUSPEND )
-        rgb_gcr::enable();
+        if ( !main_thread::is_dfu_mode() )
+            rgb_gcr::enable();
 }
 
 void state_extra_disabled::isr_process_v_con_report()
@@ -273,7 +285,8 @@ void state_extra_enabled::begin()
     LOG_DEBUG("USBHUB: state_extra_enabled");
 
     if constexpr ( ENABLE_RGB_LED && RGB_DISABLE_DURING_USB_SUSPEND )
-        rgb_gcr::enable();
+        if ( !main_thread::is_dfu_mode() )
+            rgb_gcr::enable();
 }
 
 void state_extra_enabled::isr_process_v_5v_report()

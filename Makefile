@@ -51,6 +51,8 @@ USEMODULE += core_thread_flags
 
 # Disable unused modules
 DISABLE_MODULE += core_init core_msg core_panic
+# DISABLE_MODULE += auto_init auto_init_%
+# DISABLE_MODULE += pm_layered
 
 # Subdirectory modules
 EXTERNAL_MODULE_DIRS += $(CURDIR)
@@ -60,6 +62,15 @@ USEMODULE += lua_embedded
 USEMODULE += matrix
 USEMODULE += usbhub
 USEMODULE += usb
+
+# Indicates we're building a bootloader. Monolithic firmware is a big bootloader from
+# the build system's perspective.
+# See how riot/bootloaders/riotboot_common.mk builds a bootloader, not an application,
+# using `FEATURES_REQUIRED += riotboot` and `RIOTBOOT_BUILD = 1`. Avoid placing an
+# inline comment after `RIOTBOOT_BUILD = 1`, as it may prevent correct parsing.
+RIOTBOOT_BUILD = 1
+# RIOTBOOT is a C-macro constant that indicates buiding a bootloader.
+CFLAGS += -DRIOTBOOT
 
 include Makefile.memory
 
@@ -71,7 +82,7 @@ VERBOSE_ASSERT := 1
 # Enable breakpoint on assert failure when a debugger is attached.
 CFLAGS += -DDEBUG_ASSERT_BREAKPOINT
 
-# Reboot to bootloader on assert failure instead of halting the current thread.
+# Reboot on assert failure instead of halting the thread.
 CFLAGS += -DDEBUG_ASSERT_NO_PANIC=0
 
 QUIET ?= 1

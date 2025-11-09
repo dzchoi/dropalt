@@ -15,7 +15,6 @@ static void NVMCTRL_CMD(uint16_t cmd)
 
 void seeprom_init(void)
 {
-#ifdef RIOTBOOT
     // Set up SEEPROM if not set up yet. Changes will take effect after reset.
     if ( NVMCTRL->SEESTAT.bit.SBLK != SEEPROM_SBLK
       || NVMCTRL->SEESTAT.bit.PSZ != SEEPROM_PSZ ) {
@@ -35,20 +34,15 @@ void seeprom_init(void)
             __builtin_free(s);
         }
 
-        enter_bootloader();
+        system_reset();
         UNREACHABLE();
     }
-#else
-    // Check if SEEPROM space is allocated as configured.
-    assert( NVMCTRL->SEESTAT.bit.SBLK == SEEPROM_SBLK
-        && NVMCTRL->SEESTAT.bit.PSZ == SEEPROM_PSZ );
 
     if ( NVMCTRL->SEESTAT.bit.RLOCK )
         NVMCTRL_CMD(NVMCTRL_CTRLB_CMD_USEER);  // Unlock E2P data write access.
 
     LOG_DEBUG("seeprom: PARAM=0x%lx SEECFG=0x%x SEESTAT=0x%lx",
         NVMCTRL->PARAM.reg, NVMCTRL->SEECFG.reg, NVMCTRL->SEESTAT.reg);
-#endif
 }
 
 void seeprom_flush(void)
@@ -57,4 +51,18 @@ void seeprom_flush(void)
         LOG_DEBUG("seeprom: NVMCTRL_CTRLB_CMD_SEEFLUSH");
         NVMCTRL_CMD(NVMCTRL_CTRLB_CMD_SEEFLUSH);
     }
+}
+
+void seeprom_bkswrst(void)
+{
+    __disable_irq();  // Also disables context-switching.
+
+    // Remove write lock to NVMCTRL that might have been set from _write_page() or
+    // _erase_page().
+    PAC->WRCTRL.reg = (PAC_WRCTRL_KEY_CLR | ID_NVMCTRL);
+
+    // The BKSWRST command is atomic meaning that no fetch in the NVM can occur while
+    // executing the command.
+    NVMCTRL_CMD(NVMCTRL_CTRLB_CMD_BKSWRST);
+    __builtin_unreachable();
 }

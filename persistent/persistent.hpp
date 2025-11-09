@@ -76,6 +76,7 @@ private:
 
     // Assert SEEPROM_SIZE is a power of 2.
     static_assert( SEEPROM_SIZE > 0 && ((SEEPROM_SIZE & (SEEPROM_SIZE - 1)) == 0) );
+    // SEEPROM_SIZE2 = log2(SEEPROM_SIZE)
     static constexpr uint8_t SEEPROM_SIZE2 = __builtin_ctz(SEEPROM_SIZE);
 
     static uint8_t (&nvm)[SEEPROM_SIZE];  // will map to the SEEPROM.

@@ -94,10 +94,9 @@ static void _dfll_usbcrm_init(void)
     while ( OSCCTRL->DFLLSYNC.bit.ENABLE || !OSCCTRL->STATUS.bit.DFLLRDY ) {}
 }
 
-
-// Override the weak post_startup() function in riot/cpu/cortexm_common/vectors_cortexm.c.
+// Override the weak pre_startup() function in riot/cpu/cortexm_common/vectors_cortexm.c.
 // This function is called before cpu_init(), board_init() and kernel_init().
-void post_startup(void)
+void pre_startup(void)
 {
     // If a debugger is attached these faults will halt the processor immediately at the
     // entry of the corresponding fault handler. VSCode + Gdb can show the call stack
@@ -105,24 +104,23 @@ void post_startup(void)
 #ifdef CoreDebug_DHCSR_C_DEBUGEN_Msk
 #define CoreDebug_DEMCR_VC_MEMERR_Msk (1UL << 4)
 #define CoreDebug_DEMCR_VC_USAGEERR_Msk (1UL << 9)
-    if ( CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk ) {
+    if ( CoreDebug->DHCSR & CoreDebug_DHCSR_C_DEBUGEN_Msk )
         CoreDebug->DEMCR |= CoreDebug_DEMCR_VC_HARDERR_Msk  // Halt on HardFault
                          |  CoreDebug_DEMCR_VC_BUSERR_Msk   // Halt on BusFault
                          |  CoreDebug_DEMCR_VC_USAGEERR_Msk // Halt on UsageFault
                          |  CoreDebug_DEMCR_VC_MEMERR_Msk;  // Halt on MemManage fault
-    }
 #endif
 
-// RIOTBOOT is defined only when building the bootloader.
-#ifndef RIOTBOOT
-    backup_ram_init();
-#endif
+    // Initialize backup RAM and clear the logs.
+    // Note that backup RAM persists across resets, except for a power-on reset.
+    if ( (RSTC->RCAUSE.reg & (RSTC_RCAUSE_NVM | RSTC_RCAUSE_POR)) != 0 )
+        backup_ram_init();
 }
 
 #define BOOTMAGIC_ADDR    (CPU_RAM_BASE + CPU_RAM_SIZE - 4)  // default magic address
 #define BOOTMAGIC_NUMBER  RIOTBOOT_MAGIC  // "RIOT"
 
-NORETURN void enter_bootloader(void)
+NORETURN void enter_dfu_mode(void)
 {
     *(uint32_t*)BOOTMAGIC_ADDR = BOOTMAGIC_NUMBER;
     system_reset();
@@ -165,7 +163,6 @@ void board_init(void)
     gpio_init(BTN0_PIN, BTN0_MODE);
 #endif
 
-#ifndef RIOTBOOT
     // Nullptr access protection
     // Once the firmware boots, we relocate the vector table and protect the first 32
     // bytes at 0x00000000 to catch null and near-null pointer dereferences (e.g.
@@ -178,18 +175,15 @@ void board_init(void)
     );
     mpu_enable();
 
-    // Bootloader does not use WDT.
-#   ifdef DEVELHELP
+#ifdef DEVELHELP
     wdt_setup_reboot(0u, WDT_TIMEOUT_MS);
     wdt_start();
-#   endif
 #endif
 
     // Refer to riot/cpu/sam0_common/include/vendor/samd51/include/component/rstc.h
-    // for the meaning of each bit. For instance, 0x40 indicates a system reset.
-    // Resets other than a system reset or power-on reset are not expected, as they are
-    // caught by the bootloader.
-    LOG_DEBUG("*** board_init(): RSTC->RCAUSE=0x%x", RSTC->RCAUSE.reg);
+    // for the meaning of each RCAUSE bit. For instance, 0x40 indicates a system reset.
+    LOG_DEBUG("*** board_init(): RSTC->RCAUSE=0x%x %s",
+        RSTC->RCAUSE.reg, NVMCTRL->STATUS.bit.AFIRST ? "BANKA" : "BANKB");
 
     // Initialize Shift Register.
     sr_exp_init();

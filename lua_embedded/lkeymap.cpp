@@ -21,19 +21,19 @@ static const char* _reader(lua_State*, void* arg, size_t* psize)
 
     // Note that SLOT*_LEN, SLOT*_OFFSET and RIOTBOOT_HDR_LEN are given from Makefiles.
     // See riot/sys/riotboot/Makefile.include and board-dropalt/Makefile.include.
-    constexpr unsigned SLOT1 = 1;
+    constexpr unsigned SLOT0 = 0;
 
-    // Verify that the slot 1 contains a header and it contains a valid Lua bytecode.
-    constexpr uintptr_t addr = SLOT1_OFFSET + RIOTBOOT_HDR_LEN;
-    assert( riotboot_slot_validate(SLOT1) == 0
+    // Verify that the slot 0 contains a header and it contains a valid Lua bytecode.
+    constexpr uintptr_t addr = SLOT0_OFFSET + RIOTBOOT_HDR_LEN;
+    assert( riotboot_slot_validate(SLOT0) == 0
         && global_lua_state::validate_bytecode(addr) );
 
     // We interpret header->start_addr as the bytecode size.
-    *psize = riotboot_slot_get_hdr(SLOT1)->start_addr;
-    // Or we could return the entire contents in slot 1 for reading. Lua will extract
+    *psize = riotboot_slot_get_hdr(SLOT0)->start_addr;
+    // Or we could return the entire contents in slot 0 for reading. Lua will extract
     // only the compiled code portion.
-    // *psize = SLOT1_LEN - RIOTBOOT_HDR_LEN;
-    assert( *psize > 0 && *psize <= SLOT1_LEN - RIOTBOOT_HDR_LEN );
+    // *psize = SLOT0_LEN - RIOTBOOT_HDR_LEN;
+    assert( *psize > 0 && *psize <= SLOT0_LEN - RIOTBOOT_HDR_LEN );
 
     return (const char*)addr;
 }

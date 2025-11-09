@@ -29,10 +29,16 @@ SLOT_AUX_LEN    = 0x00004000  # 16K = 2 * SBLK * 8K
 # Setting SBLK=1 and PSZ=3 configures the SEEPROM virtual size to 4K. Refer to Table 25-6
 # in the SAM D5x datasheet.
 
+# Override RIOTBOOT_LEN in riot/cpu/cortexm_common/Makefile.include
+RIOTBOOT_LEN    = 0x20000
+
+# Limit the binary image size: 0x1c000 = $(RIOTBOOT_LEN) - $(SLOT_AUX_LEN)
+FW_ROM_LEN      = 0x1C000
+
 # Each slot length should be a multiple of 8K (block size for EB command).
-NUM_SLOTS       = 2
-SLOT0_LEN       = 0x0001C000  # 112K = 256K/2 - 16K (bootloader)
-SLOT1_LEN       = 0x0001C000  # 112K = 256K/2 - SLOT_AUX_LEN
+NUM_SLOTS       = 1
+# SLOT0_OFFSET    = 0x20000     # 128K = RIOTBOOT_LEN
+# SLOT0_LEN       = 0x0001C000  # 112K = 256K/2 - SLOT_AUX_LEN
 
 # Expose some Makefile constants to the source code.
 CFLAGS += -DBACKUP_RAM_LEN=$(BACKUP_RAM_LEN)  # 8K

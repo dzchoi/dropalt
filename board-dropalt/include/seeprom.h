@@ -50,6 +50,9 @@ void seeprom_init(void);
 // data that are not written yet.
 void seeprom_flush(void);
 
+// Bank swap and system reset, also reallocating its SEEPROM data into the opposite BANK.
+void seeprom_bkswrst(void) __attribute__((noreturn));
+
 #ifdef __cplusplus
 }
 #endif

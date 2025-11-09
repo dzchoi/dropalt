@@ -75,21 +75,11 @@ extern "C" {
     #error HUB_DEVICE_VER not defined
 #endif
 
-#ifdef RIOTBOOT
-    // DFU-slot descriptor parameters
-    // #define VENDOR_ID           0x1209
-    // #define PRODUCT_ID          0x7D02
-    #define VENDOR_ID           0x04D8
-    #define PRODUCT_ID          0xEED3
-    #define MANUFACTURER        "Massdrop"
-    #define PRODUCT             "Drop ALT (bootloader)"
-#else
-    // USB keyboard descriptor parameters
-    #define VENDOR_ID           0x04D8
-    #define PRODUCT_ID          0xEED3
-    #define MANUFACTURER        "Massdrop"
-    #define PRODUCT             "Drop ALT"
-#endif
+// USB keyboard descriptor parameters
+#define VENDOR_ID           0x04D8
+#define PRODUCT_ID          0xEED3
+#define MANUFACTURER        "Massdrop"
+#define PRODUCT             "Drop ALT"
 
 // USB HUB descriptor parameters
 #define HUB_VENDOR_ID       0x04D8
@@ -194,9 +184,9 @@ NORETURN static inline void system_reset(void) { NVIC_SystemReset(); }
 
 
 /**
- * @brief   Reboot to the bootloader.
+ * @brief   Reboot into DFU mode.
  */
-NORETURN void enter_bootloader(void);
+NORETURN void enter_dfu_mode(void);
 
 bool has_bootmagic_number(void);
 

@@ -1,4 +1,5 @@
 #include "assert.h"
+// #include "tlsf.h"               // for tlsf_destroy()
 
 extern "C" {
 #include "lua_run.h"            // for lua_riot_newstate()
@@ -57,6 +58,16 @@ void global_lua_state::init()
 
     // Load the "keymap" module into the registry.
     load_keymap();
+}
+
+void global_lua_state::destroy()
+{
+    lua_close(L);
+    // Note that it is desirable to destory the TLSF allocator instance associated with
+    // lua_memory using tlsf_destroy(tlsf). But it is known that tlsf_create_with_pool()
+    // initializes the allocator metadata directly in the provided memory region, and it
+    // does not track global state, so calling it again on the same memory is equivalent
+    // to resetting the allocator.
 }
 
 bool global_lua_state::validate_bytecode(uintptr_t addr)

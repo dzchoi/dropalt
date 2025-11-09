@@ -3,8 +3,8 @@ $ dalua -e 'require("fw").system_reset()'
 
 $ openocd -f `f openocd.cfg` -c "reset; exit"
 
-#### Boot into bootloader
-$ dalua -e 'require("fw").enter_bootloader()'
+#### Boot into DFU mode
+$ dalua -e 'require("fw").dfu_mode()'
 
 $ `f edbg` -bt samd51 -x 10
 

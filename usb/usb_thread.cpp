@@ -3,7 +3,7 @@
 #include "thread.h"             // for thread_get_unchecked()
 
 #include "config.hpp"           // for ENABLE_NKRO, ENABLE_CDC_ACM
-#include "usb_dfu.h"            // for usbus_dfu_init()
+#include "usb_dfu.hpp"          // for usbus_dfu_init()
 #include "usb_thread.hpp"
 #include "usbus_hid_keyboard.hpp" // for usbus_hid_keyboard_tl<>
 
@@ -34,7 +34,7 @@ void usb_thread::init()
     if constexpr ( ENABLE_CDC_ACM )
         usb_cdc_acm_stdio_init(&m_usbus);
 
-    // DFU Runtime mode
+    // DFU mode stack
     static usbus_dfu_device_t _dfu;
     usbus_dfu_init(&m_usbus, &_dfu);
 

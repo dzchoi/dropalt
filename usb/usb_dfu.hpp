@@ -30,14 +30,14 @@ void usbus_dfu_init(usbus_t* usbus, usbus_dfu_device_t* handler);
 
 // Minimum time, in milliseconds, that the host should wait before sending a subsequent
 // DFU_GETSTATUS request.
-static const uint32_t bwPollTimeout = 10;
+constexpr uint32_t bwPollTimeout = 10;
 
 // For Control Transfers with no Data stage (like DFU_DETACH), the Status stage must
 // complete within 50 ms of the Setup stage. To ensure the host receives the ACK after
 // DFU_DETACH, the reset must be delayed by at least 50 ms.
 // Note that this is different from wDetachTimeOut (i.e. USB_DFU_DETACH_TIMEOUT_MS),
 // which is used when USB_DFU_WILL_DETACH is NOT advertised.
-static const uint32_t DFU_RESET_DELAY_MS = 50;
+constexpr uint32_t DFU_RESET_DELAY_MS = 50;
 
 #ifdef __cplusplus
 }

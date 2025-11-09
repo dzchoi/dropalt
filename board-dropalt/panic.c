@@ -1,6 +1,6 @@
 // Custom panic.c that replaces riot/core/lib/panic.c
 
-#include "board.h"              // for enter_bootloader()
+#include "board.h"              // for enter_dfu_mode()
 #include "irq.h"
 #include "log.h"
 #include "panic.h"
@@ -33,5 +33,5 @@ NORETURN void core_panic(core_panic_t crash_code, const char* message)
     panic_arch();
 
     LOG_ERROR("*** rebooting...");
-    enter_bootloader();
+    enter_dfu_mode();
 }

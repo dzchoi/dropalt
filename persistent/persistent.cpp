@@ -15,9 +15,10 @@ void persistent::init()
     seeprom_init();
     seeprom_unbuffered();  // Enable unbuffered mode.
 
-    if ( begin()->uint8 == 0xff ) {  // If not initialized,
-        begin()->size2 = SEEPROM_SIZE2;  // == log2(SEEPROM_SIZE)
-        // Note: Bootloader requires `last_host_port` to be the first entry in NVM.
+    // If NVM doesn't begin with `last_host_port` as its first entry, initialize the
+    // entire NVM.
+    if ( *(uint32_t*)(void*)&nvm[0] != 0x73616c15u ) {  // 's', 'a', 'l', 0x15
+        nvm[0] = block_header(SEEPROM_SIZE2).uint8;
         persistent::set("last_host_port", USB_PORT_1);
     }
 }

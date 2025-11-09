@@ -12,7 +12,7 @@
 
 #include "adc.hpp"              // for adc::init()
 #include "event_ext.hpp"        // for event_post(), event_queue_init(), event_get()
-#include "lua.hpp"              // for lua::global_lua_state::init()
+#include "lua.hpp"              // for lua::global_lua_state::init(), ...
 #include "config.hpp"           // for ENABLE_CDC_ACM, ENABLE_LUA_REPL
 #include "main_key_events.hpp"  // for main_key_events::push(), ...
 #include "lexecute.hpp"         // for lua::execute_pending_calls(), ...
@@ -21,6 +21,7 @@
 #include "matrix_thread.hpp"    // for matrix_thread::init(), matrix_thread::is_idle()
 #include "persistent.hpp"       // for persistent::init()
 #include "repl.hpp"             // for lua::repl::init(), ...
+#include "rgb_gcr.hpp"          // for rgb_gcr::enable(), rgb_gcr::disable()
 #include "timed_stdin.hpp"      // for timed_stdin::wait_for_input(), ...
 #include "usb_thread.hpp"       // for usb_thread::init(), usb_thread::is_idle()
 #include "usbhub_thread.hpp"    // for usbhub_thread::init()
@@ -49,6 +50,8 @@ alignas(8) char main_thread::m_thread_stack[THREAD_STACKSIZE_MAIN];
 event_queue_t main_thread::m_event_queue;
 
 ztimer_t main_thread::m_heartbeat_timer;
+
+void* (*main_thread::m_active_mode)(void*);
 
 void main_thread::init()
 {
@@ -161,10 +164,19 @@ NORETURN void* main_thread::_thread_entry(void*)
         : [estack] "r" (&_estack)
     );
 
-    // Simple tests to trigger a hard fault.
-    // __attribute__((unused)) volatile int p = *(int*)(0);  // MemManage fault
-    // void (*f)() = (void (*)())0x08000000; f();  // HardFault (even address)
-    // __builtin_trap();  // HardFault
+    bool forced_dfu = has_bootmagic_number();
+
+    // Determine m_active_mode before calling usb_thread::init().
+    m_active_mode =
+        // Stay in DFU mode if bootmagic number is set.
+        !forced_dfu &&
+        // Stay in DFU mode if the reset cause is not system or power-on; in case of
+        // RSTC_RCAUSE_NVM, we stay in DFU mode because the opposite bank does not have
+        // a valid Lua bytecode yet.
+        (RSTC->RCAUSE.reg & (RSTC_RCAUSE_SYST | RSTC_RCAUSE_POR)) != 0 &&
+        // Also stay in DFU mode if no valid Lua bytecode is found.
+        lua::global_lua_state::validate_bytecode(SLOT0_OFFSET + RIOTBOOT_HDR_LEN)
+        ? &normal_mode : &dfu_mode;
 
     if ( IS_USED(MODULE_AUTO_INIT) )
         auto_init();     // ztimer_init(), ...
@@ -179,16 +191,87 @@ NORETURN void* main_thread::_thread_entry(void*)
     // The event_queue_init() should be called from the queue-owning thread.
     event_queue_init(&m_event_queue);
 
+    if ( forced_dfu )
+        LOG_DEBUG("Main: Forced DFU mode");
+
     LOG_DEBUG("Main: max heap size is %d bytes", &_eheap - &_sheap);
+
+    while ( true )
+        m_active_mode = (void* (*)(void*))m_active_mode(nullptr);
+}
+
+// 🚨 Note: This function acts as the bootloader. Modify DFU mode code with caution, as
+// DFU mode serves as a failsafe for handling hard faults and flashing both firmware and
+// Lua bytecode.
+void* main_thread::dfu_mode(void*)
+{
+    LOG_INFO("Main: Welcome to DFU mode");
+
+    bool exit = false;
+    while ( !exit ) {
+#ifdef DEVELHELP
+        // Refresh the watchdog timer to keep the system alive. If we don't come back
+        // here within the watchdog timeout, the system will trigger a watchdog reset.
+        wdt_kick();
+#endif
+
+        ztimer_set_timeout_flag(ZTIMER_MSEC, &m_heartbeat_timer, HEARTBEAT_PERIOD_MS);
+        thread_flags_t flag = thread_flags_wait_one(
+            FLAG_KEY_EVENT | FLAG_MODE_TOGGLE | FLAG_TIMEOUT);  // Zzz
+
+        switch ( flag ) {
+            // Note that FLAG_DTE_* signals are generally unexpected in DFU mode but
+            // passed to normal mode if present. If FLAG_DTE_ENABLED occurs, it is
+            // typically followed by FLAG_DTE_READY and then FLAG_DTE_DISABLED (~500 ms).
+            // In that case, normal mode will ultimately treat the sequence as
+            // FLAG_DTE_DISABLED, ignoring FLAG_DTE_READY.
+
+            case FLAG_KEY_EVENT:
+                main_key_events::key_event_t event;
+                // If the ESC key is released, trigger system_reset(). All other keys are
+                // ignored.
+                // Note that seeprom_bkswrst() might be more appropriate if DFU mode was
+                // entered after DFU_DNLOAD completes (without `dfu-util -R`). In this
+                // case, `exit = true` would cause an assert failure in normal mode,
+                // since Lua bytecode isn't available on the opposite bank.
+                // If DFU mode was entered during power-up, `exit = true` would be good,
+                // but system_reset() works in both scenarios.
+                // if ( main_key_events::get(&event) && event.slot_index == 67 )
+                if ( main_key_events::get(&event) && event.slot_index == 1  // ESC
+                  && !event.is_press )
+                    system_reset();
+                break;
+
+            case FLAG_MODE_TOGGLE:
+                exit = true;
+                break;
+        }
+    }
+
+    LED0_OFF;
+    if constexpr ( ENABLE_RGB_LED )
+        rgb_gcr::enable();
+
+    return (void*)&normal_mode;
+}
+
+void* main_thread::normal_mode(void*)
+{
+    LOG_INFO("Main: Welcome to Normal mode");
+
+    // Simple tests to trigger a hard fault. Will reboot to DFU mode.
+    // __attribute__((unused)) volatile int p = *(int*)(0);  // MemManage fault
+    // void (*f)() = (void (*)())0x08000000; f();  // HardFault (executing even address)
+    // __builtin_trap();  // HardFault
+    // assert( false );
 
     // Set up the global Lua state and load the keymap module, initializing all keymaps
     // and LED effects.
     lua::global_lua_state::init();
 
-    while ( true ) {
+    bool exit = false;
+    while ( !exit ) {
 #ifdef DEVELHELP
-        // Kick the watchdog timer to keep the system alive. If we don't come back here
-        // within the watchdog timeout, the system will trigger a watchdog reset.
         wdt_kick();
 #endif
 
@@ -261,6 +344,11 @@ NORETURN void* main_thread::_thread_entry(void*)
                 }
                 if constexpr ( ENABLE_CDC_ACM )
                     LOG_DEBUG("Main: DTE disabled");
+
+                // If FLAG_DTE_DISABLED comes along with FLAG_DTE_READY, FLAG_DTE_READY
+                // is treated as stale and ignored. See the related comment in
+                // dfu_mode().
+                thread_flags_clear(FLAG_DTE_READY);
                 break;
 
             case FLAG_DTE_READY:
@@ -287,6 +375,13 @@ NORETURN void* main_thread::_thread_entry(void*)
                 }
                 break;
 
+            case FLAG_MODE_TOGGLE:
+                if ( matrix_thread::is_idle() )
+                    exit = true;
+                else
+                    set_my_flags(flag);
+                break;
+
             case FLAG_TIMEOUT:
                 // LOG_DEBUG("Main: v_5v=%d v_con1=%d v_con2=%d fsmstatus=0x%x @%lu",
                 //     adc::v_5v.read(), adc::v_con1.read(), adc::v_con2.read(),
@@ -295,4 +390,12 @@ NORETURN void* main_thread::_thread_entry(void*)
                 break;
         }
     }
+
+    lua::global_lua_state::destroy();
+
+    if constexpr ( ENABLE_RGB_LED )
+        rgb_gcr::disable();
+    LED0_ON;
+
+    return (void*)&dfu_mode;
 }

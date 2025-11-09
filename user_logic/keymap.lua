@@ -118,9 +118,9 @@ local mLBRAC = ModIf(FN, key("PAUSE"), key("["))
 -- FN + BKSP -> DEL
 local mBKSP = ModIf(FN, key("DEL"), key("BKSP"))
 
--- FN + DEL -> POWER, FN + LALT + DEL -> fw.enter_bootloader()
+-- FN + DEL -> POWER, FN + LALT + DEL -> fw.dfu_mode()
 local mDEL = ModIf(FN,
-    ModIf(key("LALT"), Function(fw.enter_bootloader), key("POWER")),
+    ModIf(key("LALT"), Function(fw.dfu_mode), key("POWER")),
     key("DEL"))
 
 -- FN + DOWN -> SCRLOCK

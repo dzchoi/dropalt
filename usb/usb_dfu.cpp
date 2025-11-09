@@ -3,18 +3,21 @@
 #define USB_H_USER_IS_RIOT_INTERNAL
 
 #include "backup_ram.h"         // for backup_ram_read()
-#include "board.h"              // for system_reset(), enter_bootloader()
+#include "board.h"              // for system_reset()
+#include "log.h"
+#include "seeprom.h"            // for seeprom_bkswrst()
+#include "usbus_ext.h"
 #include "usb/dfu.h"
 #include "usb/descriptor.h"
 #include "usb/usbus.h"
 #include "usb/usbus/control.h"
-#include "usb_dfu.h"
 #include "riotboot/slot.h"
 #include "riotboot/usb_dfu.h"
 #include "ztimer.h"
 
-#define ENABLE_DEBUG    0
-#include "debug.h"
+#include "main_thread.hpp"      // for main_thread::signal_mode_toggle(), ...
+#include "matrix_thread.hpp"    // for matrix_thread::enable/disable()
+#include "usb_dfu.hpp"
 
 
 
@@ -34,10 +37,6 @@ static void _init(usbus_t* usbus, usbus_handler_t* handler);
 
 
 
-// The active DFU mode is determined by the build context:
-//   - Bootloader: DFU mode (used for firmware updates)
-//   - Firmware: DFU Runtime mode (used during normal operation)
-
 static size_t _gen_dfu_descriptor(usbus_t* usbus, void* arg)
 {
     (void)arg;
@@ -46,13 +45,9 @@ static size_t _gen_dfu_descriptor(usbus_t* usbus, void* arg)
     // functional dfu descriptor
     if_desc.length = sizeof(usb_desc_if_dfu_t);
     if_desc.type = USB_IF_DESCRIPTOR_DFU;
-#ifdef RIOTBOOT
     // Configures as manifestation tolerant device to not reboot after manifesting.
     if_desc.attribute = USB_DFU_WILL_DETACH | USB_DFU_MANIFEST_TOLERANT
                       | USB_DFU_CAN_DOWNLOAD | USB_DFU_CAN_UPLOAD;
-#else
-    if_desc.attribute = USB_DFU_WILL_DETACH;
-#endif
     if_desc.detach_timeout = USB_DFU_DETACH_TIMEOUT_MS;
     if_desc.xfer_size = DEFAULT_XFER_SIZE;
     if_desc.bcd_dfu = USB_DFU_VERSION_BCD;
@@ -78,9 +73,10 @@ static const usbus_descr_gen_funcs_t _dfu_descriptor = {
     .len_type = USBUS_DESCR_LEN_FIXED,
 };
 
+// Note: Only USB_DFU_PROTOCOL_DFU_MODE is supported.
 void usbus_dfu_init(usbus_t* usbus, usbus_dfu_device_t* dfu)
 {
-    DEBUG("DFU: initialization");
+    // LOG_DEBUG("DFU: initialization");
     static_assert( FLASHPAGE_SIZE > 0 );
     static_assert( (SLOT0_OFFSET % FLASHPAGE_SIZE) == 0,
                    "SLOT0_OFFSET has to be a multiple of FLASHPAGE_SIZE" );
@@ -88,13 +84,8 @@ void usbus_dfu_init(usbus_t* usbus, usbus_dfu_device_t* dfu)
     __builtin_memset(dfu, 0, sizeof(usbus_dfu_device_t));
     dfu->usbus = usbus;
     dfu->handler_ctrl.driver = &dfu_driver;
-#ifdef RIOTBOOT
     dfu->mode = USB_DFU_PROTOCOL_DFU_MODE;
     dfu->dfu_state = USB_DFU_STATE_DFU_IDLE;
-#else
-    dfu->mode = USB_DFU_PROTOCOL_RUNTIME_MODE;
-    dfu->dfu_state = USB_DFU_STATE_APP_IDLE;
-#endif
     dfu->selected_slot = -1;   // undetermined
     dfu->skip_signature = -1;  // undetermined
 
@@ -110,7 +101,7 @@ static void _init(usbus_t* usbus, usbus_handler_t* handler)
     dfu->dfu_descr.arg = dfu;
 
     // Configure Interface 0 as control interface
-    dfu->iface.class = USB_DFU_INTERFACE;
+    dfu->iface._class = USB_DFU_INTERFACE;
     dfu->iface.subclass = USB_DFU_SUBCLASS_DFU;
 
     dfu->iface.protocol = dfu->mode;
@@ -119,16 +110,12 @@ static void _init(usbus_t* usbus, usbus_handler_t* handler)
     dfu->iface.handler = handler;
 
     // Create needed string descriptor for the interface and its alternate settings
-#ifdef RIOTBOOT
     usbus_add_string_descriptor(usbus, &dfu->slot0_str, USB_DFU_MODE_SLOT0_NAME);
-#else
-    usbus_add_string_descriptor(usbus, &dfu->slot0_str, USB_APP_MODE_SLOT_NAME);
-#endif
 
     // Add string descriptor to the interface
     dfu->iface.descr = &dfu->slot0_str;
 
-#if defined(RIOTBOOT) && NUM_SLOTS == 2
+#if NUM_SLOTS == 2
     // DFU Runtime mode does not allow multiple slots.
     // Create needed string descriptor for the alternate settings
     usbus_add_string_descriptor(usbus, &dfu->slot1_str, USB_DFU_MODE_SLOT1_NAME);
@@ -148,43 +135,33 @@ static void _init(usbus_t* usbus, usbus_handler_t* handler)
     // usbus_handler_set_flag(handler, USBUS_HANDLER_FLAG_RESET);
 }
 
-static void _tmo_detach(void* arg)
-{
-    (void)arg;
-#ifdef RIOTBOOT
-    // Always trigger a system reset from the bootloader. If Lua bytecode is unavailable,
-    // an assert failure will fall back to the bootloader.
-    // Note: using DFU_DETACH in DFU mode is not compliant with the DFU 1.1 standard, but
-    // `dfu-util -R` does send it anyway. See
-    // https://github.com/Stefan-Schmidt/dfu-util/blob/master/src/main.c#L1159.
-    system_reset();
-#else
-    enter_bootloader();
-#endif
-}
-
 // According to _recv_setup() in riot/sys/usb/usbus/usbus_control.c, _control_handler()
 // should return 1 on success or -1 on error. Each request sub-handler should also follow
 // the same convention.
 
-static int dfu_detach_handler(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_setup_t* pkt)
+static int dfu_detach_handler(usbus_t*, usbus_dfu_device_t* dfu, usb_setup_t*)
 {
-    (void)usbus;
-    (void)dfu;
-    (void)pkt;
+    LOG_DEBUG("DFU: Detach event");
+    // Trigger a system reset for `dfu-util -R`.
+    // Note: using DFU_DETACH in DFU mode is not compliant with the DFU 1.1 standard, but
+    // `dfu-util -R` does send it anyway. See
+    // https://github.com/Stefan-Schmidt/dfu-util/blob/master/src/main.c#L1159.
 
-#ifndef RIOTBOOT
-    dfu->dfu_state = USB_DFU_STATE_APP_DETACH;
-#endif
+    static ztimer_t timer = {
+        .callback = [](void* arg) {
+            usbus_dfu_device_t* dfu = (usbus_dfu_device_t*)arg;
+            if ( dfu->skip_signature )  // skip_signature == 1 or -1.
+                system_reset();
+            else  // skip_signature == 0.
+                seeprom_bkswrst();
+        },
+        .arg = nullptr
+    };
 
-    static ztimer_t timer = { .callback = &_tmo_detach, .arg = NULL };
+    timer.arg = dfu;
     ztimer_set(ZTIMER_MSEC, &timer, DFU_RESET_DELAY_MS);
     return 1;
 }
-
-#ifdef RIOTBOOT
-void matrix_enable(void);
-void matrix_disable(void);
 
 static int dfu_dnload_handler(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_setup_t* pkt)
 {
@@ -193,24 +170,31 @@ static int dfu_dnload_handler(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_setup
     if ( pkt->length == 0 ) {
         riotboot_flashwrite_flush(&dfu->writer);
         // skip_signature should be either 0 or 1 here.
-        if ( dfu->skip_signature )
+        if ( dfu->skip_signature ) {
             riotboot_flashwrite_finish(&dfu->writer);
+            // Let main_thread enter the normal mode, if the downloaded image
+            // has a slot header (i.e. a Lua bytecode image).
+            main_thread::signal_mode_toggle();
+        }
 
-        DEBUG("DFU: DFU_DNLOAD end (%d bytes)", dfu->writer.offset);
+        LOG_DEBUG("DFU: DFU_DNLOAD end (%d bytes)", dfu->writer.offset);
         dfu->dfu_state = USB_DFU_STATE_DFU_MANIFEST_SYNC;
         return 1;
     }
 
     switch ( dfu->dfu_state ) {
     // When receiving the request at Setup stage we transition the state from DFU_IDLE/
-    // DFU_DL_IDLE to DFU_DL_SYNC. No data packet has been received yet.
+    // DFU_DL_IDLE to DFU_DL_BUSY/DFU_DL_SYNC. No data packet has been received yet.
 
         case USB_DFU_STATE_DFU_IDLE:
-            DEBUG("DFU: DFU_DNLOAD start");
-            // Disable matrix interrupt during firmware flashing.
-            matrix_disable();
+            LOG_DEBUG("DFU: DFU_DNLOAD start");
+            // Disable matrix_thread to prevent key events.
+            matrix_thread::disable();
+            if ( !main_thread::is_dfu_mode() )
+                main_thread::signal_mode_toggle();
             dfu->skip_signature = -1;
-            // Intentional fall-through
+            dfu->dfu_state = USB_DFU_STATE_DFU_DL_BUSY;
+            break;
 
         case USB_DFU_STATE_DFU_DL_IDLE:
             dfu->dfu_state = USB_DFU_STATE_DFU_DL_SYNC;
@@ -219,7 +203,8 @@ static int dfu_dnload_handler(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_setup
     // During the Data stage, we process each 64-byte packet of DFU download data from
     // the host.
 
-        case USB_DFU_STATE_DFU_DL_SYNC: {
+        case USB_DFU_STATE_DFU_DL_SYNC:
+        case USB_DFU_STATE_DFU_DL_BUSY: {
             size_t data_size = 0;
             const uint8_t* data = usbus_control_get_out_data(usbus, &data_size);
 
@@ -278,7 +263,7 @@ static int dfu_upload_handler(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_setup
 
     // Initialization when transitioning from DFU_IDLE to DFU_UP_IDLE.
     if ( dfu->dfu_state == USB_DFU_STATE_DFU_IDLE ) {
-        DEBUG("DFU: DFU_UPLOAD start");
+        LOG_DEBUG("DFU: DFU_UPLOAD start");
         dfu->dfu_state = USB_DFU_STATE_DFU_UP_IDLE;
         logs = backup_ram_read();
         read_offset = 0;
@@ -311,43 +296,41 @@ static int dfu_upload_handler(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_setup
 
     // A short packet (smaller than the EP size) completes the transfer.
     if ( packet_size < ((usbus_control_handler_t *)usbus->control)->in->len ) {
-        DEBUG("DFU: DFU_UPLOAD end (%d bytes)", read_offset);
+        LOG_DEBUG("DFU: DFU_UPLOAD end (%d bytes)", read_offset);
         dfu->dfu_state = USB_DFU_STATE_DFU_IDLE;
     }
 
     return 1;
 }
 
-static int dfu_clrstatus_handler(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_setup_t* pkt)
+static int dfu_clrstatus_handler(usbus_t*, usbus_dfu_device_t* dfu, usb_setup_t*)
 {
-    (void)usbus;
-    (void)pkt;
-
     if ( dfu->dfu_state == USB_DFU_STATE_DFU_ERROR )
         dfu->dfu_state = USB_DFU_STATE_DFU_IDLE;
-    else
-        DEBUG("CLRSTATUS: unhandled case");
+    // else
+    //     LOG_ERROR("CLRSTATUS: unhandled case");
 
     return 1;
 }
 
-static int dfu_abort_handler(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_setup_t* pkt)
+static int dfu_abort_handler(usbus_t*, usbus_dfu_device_t* dfu, usb_setup_t*)
 {
-    (void)usbus;
-    (void)pkt;
-
-    matrix_enable();
+    matrix_thread::enable();
     dfu->dfu_state = USB_DFU_STATE_DFU_IDLE;
     return 1;
 }
-#endif
 
-static int dfu_getstatus_handler(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_setup_t* pkt)
+static int dfu_getstatus_handler(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_setup_t*)
 {
-    (void)pkt;
-
-#ifdef RIOTBOOT
     switch ( dfu->dfu_state ) {
+        case USB_DFU_STATE_DFU_DL_BUSY:
+            // Keep the host waiting until main_thread enters DFU mode.
+            if ( !main_thread::is_dfu_mode() ) {
+                LOG_DEBUG("DFU: Waiting for entering DFU mode");
+                break;
+            }
+            // Intentional fall-through
+
         case USB_DFU_STATE_DFU_DL_SYNC:
             // Flashing of a block is complete, since packets are written as they are
             // received.
@@ -357,14 +340,13 @@ static int dfu_getstatus_handler(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_se
         case USB_DFU_STATE_DFU_MANIFEST_SYNC:
             // Download is finished. As a manifestation tolerant device, we do not
             // reboot, but stay in DFU mode.
-            matrix_enable();
+            matrix_thread::enable();
             dfu->dfu_state = USB_DFU_STATE_DFU_IDLE;
             break;
 
         default:
             break;
     }
-#endif
 
     // Send the response back to the host.
     dfu_get_status_pkt_t buf = {
@@ -374,7 +356,7 @@ static int dfu_getstatus_handler(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_se
         .string = 0
     };
     usbus_control_slicer_put_bytes(usbus, (uint8_t*)&buf, sizeof(buf));
-    DEBUG("DFU: respond to DFU_GETSTATUS (state=%d)", dfu->dfu_state);
+    // LOG_DEBUG("DFU: respond to DFU_GETSTATUS (state=%d)", dfu->dfu_state);
 
     return 1;
 }
@@ -383,10 +365,9 @@ static int _control_handler(usbus_t* usbus, usbus_handler_t* handler,
     usbus_control_request_state_t state, usb_setup_t* setup)
 {
     (void)state;
-
     usbus_dfu_device_t* dfu = container_of(handler, usbus_dfu_device_t, handler_ctrl);
-    DEBUG("DFU: Control request: req_state=0x%x block=%d request=0x%x",
-        state, setup->value, setup->request);
+    // LOG_DEBUG("DFU: Control request: req_state=0x%x block=%d request=0x%x",
+    //     state, setup->value, setup->request);
 
     // Process DFU Class requests.
     if ( setup->type & USB_SETUP_REQUEST_TYPE_CLASS ) {
@@ -394,7 +375,6 @@ static int _control_handler(usbus_t* usbus, usbus_handler_t* handler,
             case DFU_DETACH:
                 return dfu_detach_handler(usbus, dfu, setup);
 
-#ifdef RIOTBOOT
             case DFU_DOWNLOAD:
                 return dfu_dnload_handler(usbus, dfu, setup);
 
@@ -406,13 +386,12 @@ static int _control_handler(usbus_t* usbus, usbus_handler_t* handler,
 
             case DFU_ABORT:
                 return dfu_abort_handler(usbus, dfu, setup);
-#endif
 
             case DFU_GET_STATUS:
                 return dfu_getstatus_handler(usbus, dfu, setup);
 
             default:
-                DEBUG("Unhandled DFU control request:%d", setup->request);
+                LOG_ERROR("Unhandled DFU control request:%d", setup->request);
                 // return -1;
         }
     }
@@ -420,7 +399,7 @@ static int _control_handler(usbus_t* usbus, usbus_handler_t* handler,
     // Process Standard requests.
     else {
         if ( setup->request == USB_SETUP_REQ_SET_INTERFACE ) {
-            DEBUG("DFU: Select alt interface %d", setup->value);
+            LOG_DEBUG("DFU: Select alt interface %d", setup->value);
             dfu->selected_slot = setup->value;
             return 1;
         }

@@ -19,6 +19,8 @@ public:
     // Check if we are in the main_thread context.
     static bool is_active() { return thread_get_active() == m_pthread; }
 
+    static bool is_dfu_mode() { return m_active_mode == &dfu_mode; }
+
     // Signal to main_thread that another thread (matrix_ or usb_thread) is now idle.
     static void signal_thread_idle();
 
@@ -31,6 +33,8 @@ public:
     static void signal_dte_state(bool dte_enabled);
 
     static void signal_dte_ready(uint8_t log_mask);
+
+    static void signal_mode_toggle() { set_thread_flags(FLAG_MODE_TOGGLE); }
 
     // Signal a generic event to main_thread.
     static void signal_event(event_t* event);
@@ -53,9 +57,10 @@ private:
         FLAG_DTE_DISABLED   = 0x0020,
         FLAG_DTE_READY      = 0x0040,
         FLAG_KEY_EVENT      = 0x0080,
+        FLAG_MODE_TOGGLE    = 0x0100,
         FLAG_TIMEOUT        = THREAD_FLAG_TIMEOUT,  // (1u << 14)
 
-        ALL_FLAGS           = ((FLAG_KEY_EVENT << 1) - 1) | FLAG_TIMEOUT
+        ALL_FLAGS           = ((FLAG_MODE_TOGGLE << 1) - 1) | FLAG_TIMEOUT
     };
 
     static void set_thread_flags(thread_flags_t flags);
@@ -70,6 +75,13 @@ private:
     static event_queue_t m_event_queue;
 
     static void* _thread_entry(void* arg);
+
+    static void* dfu_mode(void* arg);
+    static void* normal_mode(void* arg);
+
+    // m_active_mode points to the current mode handler, either dfu_mode() or
+    // normal_mode().
+    static void* (*m_active_mode)(void*);
 
     // Watchdog refresh timer
     static constexpr uint32_t HEARTBEAT_PERIOD_MS = 1000;

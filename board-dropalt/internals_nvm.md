@@ -9,13 +9,15 @@
   - SmartEEPROM library: https://github.com/deezums/SmartEEPROM
 
 #### Memory space
+* Page (NVMCTRL_PAGE_SIZE): 512 bytes
+* Block (NVMCTRL_BLOCK_SIZE): Each bank is organized into blocks, where each block contains 16 pages (=8KB).
+
 * Memory space is divided in two:
   - NVM main address space (0x0, 256KB, Read-Write) where 2 physical NVM banks (BANKA and BANKB) are mapped.
     - Size: PARAM.NVMP pages (1 page is 512 bytes.)
-    - Region: The main address space is divided into 32 equally sized regions.
-
+    - Region: The main address space is divided into 32 equally sized regions (8K each).
+      (So, A region corresponds to a block in 256KB flash memory.)
       Each region can be protected against write or erase operation. The 32-bit RUNLOCK register reflects the protection of each region. This register is automatically updated during power-up with information from User Page (NVM LOCKS field).
-    - Block: Each bank is organized into blocks, where each block contains 16 pages (=8KB). (So, A region corresponds to a block in 256KB flash memory.)
 
   - Auxiliary space which contains:
     - The Calibration Page (CB) (0x00800000, 1 page, Read-only)
@@ -166,3 +168,7 @@ From vectors_cortexm.c,
 #define CPU_BACKUP_RAM_NOT_RETAINED 0
 #endif
 ```
+
+#### Reference
+- https://github.com/Microchip-MPLAB-Harmony/ethercat/blob/master/apps/ethercat_counter_foe_app/firmware/src/app.c
+- https://github.com/Microchip-MPLAB-Harmony/ethercat/blob/master/apps/ethercat_counter_foe_app/firmware/src/config/samd51_lan9253_evb/peripheral/nvmctrl/plib_nvmctrl.c

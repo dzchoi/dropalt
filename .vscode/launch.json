@@ -2,11 +2,11 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Bootloader",
+            "name": "Monolithic Firmware",
             "type": "cppdbg",
             "request": "launch",
 
-            "program": "${workspaceRoot}/bootloader/.build/board-dropalt/dropalt-boot.elf",
+            "program": "${workspaceRoot}/.build/board-dropalt/dropalt-fw.elf",
             "args": [],
             "stopAtEntry": true,
             "targetArchitecture": "arm",
@@ -22,66 +22,14 @@
 
             "MIMode": "gdb",
             "miDebuggerPath": "gdb-multiarch",
-            "miDebuggerArgs": "${workspaceRoot}/bootloader/.build/board-dropalt/dropalt-boot.elf",
+            "miDebuggerArgs": "${workspaceRoot}/.build/board-dropalt/dropalt-fw.elf",
             // miDebuggerServerAddress is more desirable than adding "-iex \"target
             // extended-remote localhost:3333\"" to miDebuggerArgs.
             // See https://github.com/microsoft/vscode-cpptools/issues/833#issuecomment-806848488
             "miDebuggerServerAddress": "localhost:3333",
             "useExtendedRemote": true,
             "setupCommands": [
-                { "text": "set output-radix 16",
-                  "description": "set the default numeric base to 16" },
-            ],
-
-            // The difference between `setupCommands` and `postRemoteConnectCommands` is
-            // that `setupCommands` are executed before loading the debug target, while
-            // `postRemoteConnectCommands` are executed after loading the debug target.
-            // See https://github.com/microsoft/vscode-docs/pull/6969
-            "postRemoteConnectCommands": [
-                { "text": "mon mww 0x2001FFFC 0x544f4952",
-                  // i.e. *(uint32_t*)RIOTBOOT_MAGIC_ADDR = BOOTMAGIC_NUMBER
-                  "description": "Boot into the bootloader" },
-            ],
-
-            // Debug console messages
-            "logging": {
-                "moduleLoad": true,
-                "trace": true,
-                "engineLogging": true,
-                "programOutput": true,
-                "exceptions": true
-            },
-        },
-
-        {
-            "name": "Firmware",
-            "type": "cppdbg",
-            "request": "launch",
-
-            "program": "${workspaceRoot}/.build/board-dropalt/riotboot_files/slot0.elf",
-            "args": [],
-            "stopAtEntry": true,
-            "targetArchitecture": "arm",
-            "cwd": "${workspaceRoot}",
-            "environment": [],
-            "externalConsole": false,
-
-            "debugServerPath": "openocd",
-            "debugServerArgs": "-f ${workspaceRoot}/openocd.cfg",
-            "serverStarted": "Listening on port 3333",
-            "filterStderr": true,
-            "hardwareBreakpoints": { "require": true, "limit": 6 },
-
-            "MIMode": "gdb",
-            "miDebuggerPath": "gdb-multiarch",
-            "miDebuggerArgs": "${workspaceRoot}/.build/board-dropalt/riotboot_files/slot0.elf",
-            // miDebuggerServerAddress is more desirable than adding "-iex \"target
-            // extended-remote localhost:3333\"" to miDebuggerArgs.
-            // See https://github.com/microsoft/vscode-cpptools/issues/833#issuecomment-806848488
-            "miDebuggerServerAddress": "localhost:3333",
-            "useExtendedRemote": true,
-            "setupCommands": [
-                // { "text": "file ${workspaceRoot}/.build/board-dropalt/riotboot_files/slot0.elf",
+                // { "text": "file ${workspaceRoot}/.build/board-dropalt/dropalt-fw.elf",
                 //   "description": "load file" },
                 // { "text": "load", "description": "flash target" },
                 { "text": "set output-radix 16",

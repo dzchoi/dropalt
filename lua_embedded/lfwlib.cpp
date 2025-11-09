@@ -28,16 +28,16 @@ static int fw_system_reset(lua_State*)
     return 0;
 }
 
-static int fw_enter_bootloader(lua_State*)
+static int fw_dfu_mode(lua_State*)
 {
     uint8_t current_port = usbhub_host_port();
-    // Let the bootloader acquire the current host port.
+    // Let DFU mode acquire the current host port.
     if ( current_port != USB_PORT_UNKNOWN ) {
         persistent::set("last_host_port", current_port);
         persistent::commit_now();
     }
 
-    enter_bootloader();
+    enter_dfu_mode();
     return 0;
 }
 
@@ -464,9 +464,9 @@ int luaopen_fw(lua_State* L)
 // Discards the most recent deferred event (if any).
         { "defer_remove_last", main_key_events::defer_remove_last },
 
-// fw.enter_bootloader(): void
-// Reboots the system into the bootloader.
-        { "enter_bootloader", fw_enter_bootloader },
+// fw.dfu_mode(): void
+// Reboots the system into DFU mode.
+        { "dfu_mode", fw_dfu_mode },
 
 // fw.execute_later(f, arg1, ...): void
 // Schedules `f(arg1, ...)` to execute after all current key event processing completes.

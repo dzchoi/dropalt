@@ -1,32 +1,45 @@
-#### Bootloader
-```
-make
-make flash
+## Monolithic Firmware
+
+The monolithic firmware includes both the bootloader and application logic in a single image. Below are the steps to build and flash the firmware.
+
+### Build and Flash with EDBG
+
+Requires a CMSIS-DAP compatible debugger connected to the target device.
+
+```bash
+# Navigate to the `dropalt` directory
+$ cd dropalt
+
+# Build the firmware
+$ make
+
+# Flash the firmware using EDBG
+$ riot/dist/tools/edbg/edbg -b -t samd51 -f .build/board-dropalt/dropalt-fw.bin -p -v
+
+# Alternatively, build and flash using Makefile integration
+$ make PROGRAMMER=edbg flash
 ```
 
-#### Firmware
-```
-make riotboot/slot0
-make riotboot/flash-slot0
-dfu-util --alt 0 --download `f slot0.96.bin`
+### Update via DFU (after initial flash)
 
-make PROGRAMMER=edbg riotboot/flash-slot0
-```
-Use `make riotboot/slot0` rather than `make`, as using `make` can result in a build error.
+Once the firmware has been flashed via EDBG, subsequent updates can be performed using dfu-util.
 
-#### Firmware size
-```
-$ size `f slot0.elf`
-   text    data     bss     dec     hex filename
-  31348     452   22816   54616    d558 /home/stem/projects/atsamd51/dropalt/.build/board-dropalt/riotboot_files/slot0.elf
+```bash
+# Update the firmware using dfu-util
+$ dfu-util -a0 -D .build/board-dropalt/dropalt-fw.bin -R
+
+# Build and update both firmware and keymap module using a helper script
+$ ./daflash
 ```
 
-* Two firmware binaries are created (using FEATURES_REQUIRED += riotboot). `slot0.XXXX.bin` adds the slot header to `slot0.bin` at the beginning.
-* .build/board-dropalt/riotboot_files/slot0.bin has file size 31800 (= .text + .data).
-* .build/board-dropalt/riotboot_files/slot0.96.bin has file size 32824 (= .text + .data + RIOTBOOT_HDR_LEN)
+## Keymap module
 
-#### Keymap module
+The Lua-based keymap module can be downloaded independently without reflashing the firmware.
+
 ```
-daluac keymap.lua >keymap.bin
-dfu-util -a1 -D keymap.bin
+# Navigate to the `dropalt` directory
+$ cd dropalt
+
+# Build and download the Lua bytecode
+$ ./dadownload
 ```

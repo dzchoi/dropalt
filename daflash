@@ -3,6 +3,12 @@
 #   $ ./daflash
 #   $ ./daflash -p3-4.2
 
-# Build and flash the firmware.
-make -j8 riotboot/slot0 && \
-dfu-util -a0 -D .build/board-dropalt/riotboot_files/slot0.*.bin -R "$@"
+# Build the firmware.
+make -j8 && \
+# Flash the firmware. `-R` triggers BKSWRST (Bank Swap and Reset).
+dfu-util -a0 -D .build/board-dropalt/dropalt-fw.bin -R "$@" && \
+# Wait for the device to reboot and reappear in DFU mode.
+timeout 3 sh -c \
+'until dfu-util -l "$@" 2>/dev/null |grep -q "^Found DFU"; do sleep 0.1; done' _ "$@" && \
+# Compile and download the Lua user scripts.
+exec ./dadownload "$@"
