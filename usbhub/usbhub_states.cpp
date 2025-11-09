@@ -1,5 +1,5 @@
 #include "assert.h"
-#include "board.h"              // for LED0_ON, LED0_OFF
+#include "board.h"              // for LED0_ON, LED0_OFF, RSTC
 #include "is31fl3733.h"         // for is31_init(), is31_enable_all_leds()
 #include "log.h"
 #include "usb2422.h"            // for usbhub_init(), usbhub_select_host_port(), ...
@@ -63,6 +63,8 @@ void usbhub_state::help_process_usbport_switchover()
 
 
 
+static uint8_t current_host_port __attribute__((section(".noinit")));
+
 void state_determine_host::begin()
 {
     LOG_DEBUG("USBHUB: state_determine_host");
@@ -71,26 +73,6 @@ void state_determine_host::begin()
     ztimer_set_timeout_flag(ZTIMER_MSEC, &retry_timer,
         DEBUG_LED_BLINK_PERIOD_MS > 0
         ? DEBUG_LED_BLINK_PERIOD_MS : DEFAULT_USB_RETRY_PERIOD_MS);
-
-    if ( likely(v_extra == nullptr) ) {
-        // Initialize USB2422.
-        // Could be called from usbhub_thread::init(), but usbhub_init() will take a while
-        // and we may better call it from thread context.
-        usbhub_init();
-
-        // Initialize LEDs.
-        if constexpr ( ENABLE_RGB_LED ) {
-            is31_init();
-            is31_enable_all_leds(true);
-        }
-
-        // Continuously monitor v_5v throughout runtime.
-        adc::v_5v.schedule_periodic();
-    }
-
-    // Handle the scenario where state_determine_host is re-entered (for future use).
-    else
-        v_extra->schedule_cancel();
 
     // Disconnect the current host.
     // Note: Disabling the upstream mux (setting SR_CTRL_E_UP_N = 1) or selecting a
@@ -102,12 +84,20 @@ void state_determine_host::begin()
     // state_determine_host.
     usbhub_disable_all_ports();
 
-    uint8_t desired_port = USB_PORT_1;  // Default value for `last_host_port`.
-    persistent::get("last_host_port", desired_port);
-    LOG_DEBUG("USBHUB: try port %d first @%lu", desired_port, ztimer_now(ZTIMER_MSEC));
+    // On power-on reset or normal boot, initialize current_host_port with the value of
+    // `last_host_port` from NVM.
+    if ( likely(!main_thread::is_dfu_mode())
+      || unlikely(RSTC->RCAUSE.bit.POR)
+      // This case is rare, but may occur if `current_host_port` was relocated after
+      // flashing new firmware.
+      || unlikely(current_host_port != USB_PORT_1 && current_host_port != USB_PORT_2) )
+        // Use USB_PORT_1 as the default if `last_host_port` is not found.
+        persistent::get("last_host_port", current_host_port = USB_PORT_1);
+    LOG_DEBUG("USBHUB: try port %d first @%lu",
+        current_host_port, ztimer_now(ZTIMER_MSEC));
 
-    usbhub_select_host_port(desired_port);
-    if ( desired_port == USB_PORT_1 ) {
+    usbhub_select_host_port(current_host_port);
+    if ( current_host_port == USB_PORT_1 ) {
         v_host  = &adc::v_con1;
         v_extra = &adc::v_con2;
     } else {
@@ -115,9 +105,23 @@ void state_determine_host::begin()
         v_extra = &adc::v_con1;
     }
 
+    // Initialize USB2422.
+    // Could be called from usbhub_thread::init(), but usbhub_init() will take a while
+    // and we may better call it from thread context.
+    usbhub_init();
+
+    // Continuously monitor v_5v throughout runtime.
+    adc::v_5v.schedule_periodic();
+
     // Note that state_determine_host measures v_host (during power-up) while the other
     // states measure v_extra.
     v_host->schedule_periodic();
+
+    // Initialize LEDs.
+    if constexpr ( ENABLE_RGB_LED ) {
+        is31_init();
+        is31_enable_all_leds(true);
+    }
 }
 
 void state_determine_host::isr_process_v_con_report()
@@ -140,11 +144,11 @@ void state_determine_host::process_timeout()
     if ( !v_host->is_host_connected() ) {
         v_host->schedule_cancel();
 
-        const uint8_t desired_port = v_extra->line;  // == usbhub_extra_port();
+        current_host_port = v_extra->line;  // == usbhub_extra_port();
         LOG_DEBUG("USBHUB: switchover to port %d @%lu",
-            desired_port, ztimer_now(ZTIMER_MSEC));
+            current_host_port, ztimer_now(ZTIMER_MSEC));
 
-        usbhub_select_host_port(desired_port);
+        usbhub_select_host_port(current_host_port);
         std::swap(v_host, v_extra);
 
         v_host->schedule_periodic();
@@ -203,10 +207,11 @@ void state_usb_suspend::perform_switchover()
 {
     assert( v_host != nullptr && v_extra != nullptr );
 
-    const uint8_t desired_port = v_extra->line;  // == usbhub_extra_port();
-    LOG_DEBUG("USBHUB: switchover to port %d @%lu", desired_port, ztimer_now(ZTIMER_MSEC));
+    current_host_port = v_extra->line;  // == usbhub_extra_port();
+    LOG_DEBUG("USBHUB: switchover to port %d @%lu",
+        current_host_port, ztimer_now(ZTIMER_MSEC));
 
-    usbhub_select_host_port(desired_port);
+    usbhub_select_host_port(current_host_port);
     std::swap(v_host, v_extra);
     // We stay in this state after performing the switchover.
 }

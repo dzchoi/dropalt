@@ -5,7 +5,6 @@
 #include "is31fl3733.h"         // for is31_set_color(), IS31_LEDS, ...
 #include "log.h"                // for get/set_log_mask(), vlog_backup()
 #include "ps.h"                 // for ps()
-#include "usb2422.h"            // for usbhub_host_port()
 
 #include <cstdio>               // for std::vprintf(), va_list
 #include "hid_keycodes.hpp"     // for keycode_to_name[]
@@ -30,13 +29,6 @@ static int fw_system_reset(lua_State*)
 
 static int fw_dfu_mode(lua_State*)
 {
-    uint8_t current_port = usbhub_host_port();
-    // Let DFU mode acquire the current host port.
-    if ( current_port != USB_PORT_UNKNOWN ) {
-        persistent::set("last_host_port", current_port);
-        persistent::commit_now();
-    }
-
     enter_dfu_mode();
     return 0;
 }
