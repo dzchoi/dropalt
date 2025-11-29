@@ -7,5 +7,6 @@ tmpfile=$(mktemp)
 trap 'rm -f "$tmpfile"' EXIT  # Clean up the temporary file.
 
 # Compile and download the Lua user scripts.
-daluac user_logic/core.lua user_logic/effect.lua user_logic/keymap.lua >"$tmpfile" && \
+cd user_logic && \
+daluac class.lua effect.lua lamp.lua keymap.lua export.lua >"$tmpfile" && \
 dfu-util -a0 -D "$tmpfile" "$@"

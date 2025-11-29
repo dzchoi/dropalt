@@ -1,10 +1,10 @@
 #### System reset
-$ dalua -e 'require("fw").system_reset()'
+$ dalua -e 'fw.system_reset()'
 
 $ openocd -f `f openocd.cfg` -c "reset; exit"
 
 #### Boot into DFU mode
-$ dalua -e 'require("fw").dfu_mode()'
+$ dalua -e 'fw.dfu_mode()'
 
 $ `f edbg` -bt samd51 -x 10
 

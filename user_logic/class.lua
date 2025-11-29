@@ -1,12 +1,15 @@
--- Core key mapping engine for the "keymap" module.
+-- Core key mapping engine for the "keymap" module
 
 -- Only the `base` and `package` modules are preloaded and registered in the global
--- environment. We need to explicitly "require" the `fw` module.
-local fw = require "fw"
+-- environment. We don't need to explicitly "require" the `fw` module.
+-- fw = require "fw"
 
--- Note: Any runtime error in this script will cause a crash during the firmware boot.
--- For example, the `package` module does not define non_existent_function() and thus
--- `package.non_existent_function("nop")` will cause a crash!
+
+
+-- Manually assign a non-nil value to package.loaded["keymap"], so require("keymap")
+-- returns this value. Necessary because the firmware uses a simplified require() that
+-- does not automatically fill package.loaded[].
+package.loaded[...] = true  -- Vararg (...) here receives a single argument, "keymap".
 
 
 
@@ -442,7 +445,7 @@ TapOnRelease    = 0x4
 -- (key1 is tapped).
 
 HoldOnRelease   = 0x8
--- If any other key is pressed during tapping_term_ms, the hold behavior is triggered
+-- If any other key is released during tapping_term_ms, the hold behavior is triggered
 -- (key2 is held). This prioritizes over TapOnRelease.
 
 QuickRelease    = 0x10
@@ -687,68 +690,3 @@ end
 function TapSeq:on_release()
     self.m_map_tap[self.m_step]:_release()
 end
-
-
-
--- Manually assign a non-nil value to package.loaded["keymap"], so require("keymap")
--- returns this value. Necessary because the firmware uses a simplified require() that
--- does not automatically fill package.loaded[].
-package.loaded[...] = true  -- Vararg (...) here receives a single argument, "keymap".
-
--- Core keymap driver (engine) responsible for processing key events and dispatching
--- them to user-defined mappings.
-local function handle_key_event(slot_index, is_press)
-    Base.c_current_slot_index = slot_index
-    local press_or_release = is_press and "press" or "release"
-
-    local deferrer = Defer.c_owner
-    if deferrer then
-        -- In defer mode, if the event targets the deferrer, execute it immediately.
-        if slot_index == Defer.c_slot_index then
-            fw.log("Map: [%d] handle deferrer %s", slot_index, press_or_release)
-
-        -- In defer mode, if the event targets a slot other than the deferrer's, notify
-        -- the deferrer first.
-        else
-            fw.log("Map: [%d] handle other %s @[%d]",
-                Defer.c_slot_index, press_or_release, slot_index)
-            if not deferrer:_other_event(is_press) then
-                return
-            end
-
-            -- If the deferrer has opted not to defer this event by returning a non-nil,
-            -- execute it immediately.
-            fw.log("Map: [%d] execute immediate %s", slot_index, press_or_release)
-        end
-
-        -- Note: Those two cases of executing events immediately during defer mode can
-        -- disrupt the original key event order. See notes in TapHold.
-
-    -- Execute the event if in normal mode.
-    else
-        fw.log("Map: [%d] handle %s", slot_index, press_or_release)
-    end
-
-    if is_press then
-        if not Base.c_keymap_table[slot_index]:is_pressed() then
-            Effect.c_active_effect:_press(slot_index)
-        end
-        Base.c_keymap_table[slot_index]:_press()
-    else
-        if Base.c_keymap_table[slot_index]:is_pressed() then
-            Effect.c_active_effect:_release(slot_index)
-        end
-        Base.c_keymap_table[slot_index]:_release()
-    end
-
-    -- If we were in defer mode, remove the latest deferred event from the event queue,
-    -- since it has already executed - either on the deferrer or on another slot.
-    -- Note: This deferred event (just peeked) should have .slot_index equal to the
-    -- current slot_index. See the while-loop in main_thread.
-    if deferrer then
-        Defer.remove_last()
-    end
-end
-
--- Pass the keymap driver to the next script in the compilation chain.
-return handle_key_event

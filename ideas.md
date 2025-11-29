@@ -9,7 +9,7 @@
 [Lua]
 * Handle NORETURN functions
   ```
-  $ dalua -e 'require("fw").system_reset()'
+  $ dalua -e 'fw.system_reset()'
   dalua: no response from serial port
   ```
 * Configure the automatic switchover feature in config.hpp.

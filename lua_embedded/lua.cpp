@@ -53,7 +53,7 @@ void global_lua_state::init()
     // luaL_requiref(L, LUA_DBLIBNAME, luaopen_debug, 1);       // 4.8K
     // Call luaopen_package() in contrib/lua_loadlib.c.
     luaL_requiref(L, LUA_LOADLIBNAME, luaopen_package, 1);      // 0.6K
-    luaL_requiref(L, "fw", luaopen_fw, 0);  // It doesn't load into global environment.
+    luaL_requiref(L, "fw", luaopen_fw, 1);  // Define "fw" in global environment.
     lua_settop(L, 0);  // Clear the lib addresses from the stack.
 
     // Load the "keymap" module into the registry.

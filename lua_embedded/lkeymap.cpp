@@ -50,6 +50,20 @@ void load_keymap()
         lua_error(L);  // Trigger _panic(L) with the error message.
     // ( -- chunk )
 
+    // Establish a local environment for loading the keymap module instead of using the
+    // global _G table. This prevents pollution of the global environment and ensures
+    // that unused definitions can be reclaimed during garbage collection.
+    lua_newtable(L);                // Create a new local environment.
+    lua_newtable(L);                // Create its metatable.
+    lua_pushglobaltable(L);         // Push _G
+    lua_setfield(L, -2, "__index"); // metatable.__index = _G
+    lua_pushstring(L, "kv");
+    lua_setfield(L, -2, "__mode");
+    lua_setmetatable(L, -2);        // setmetatable(env, metatable)
+    // ( -- chunk environment )
+    lua_setupvalue(L, -2, 1);       // Set the _ENV upvalue to the new environment.
+    // ( -- chunk )
+
     // Invoke the keymap module outside a protected environment; any runtime error will
     // trigger `_panic(L)`.
     lua_pushstring(L, "keymap");  // "keymap" is the module name.

@@ -441,7 +441,7 @@ int luaopen_fw(lua_State* L)
 // fw.defer_start(): void
 // Starts defer mode.
 // The `fw.defer_*()` functions support the Defer class implementation. See comments in
-// core.lua for more details on defer mode operations.
+// class.lua for more details on defer mode operations.
         { "defer_start", main_key_events::defer_start },
 
 // fw.defer_stop(): void
@@ -588,7 +588,7 @@ int luaopen_fw(lua_State* L)
 // fw.timer_create(): userdata
 // Creates and returns a timer instance.
 // The `fw.timer_*()` functions support the Timer class implementation. See comments in
-// core.lua for more details.
+// class.lua for more details.
         { "timer_create", _timer_t::create },
 
 // fw.timer_now(timer: userdata): int | void
