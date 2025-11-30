@@ -270,7 +270,7 @@ void* main_thread::normal_mode(void*)
     lua::global_lua_state::init();
 
     bool exit = false;
-    while ( !exit ) {
+    while ( true ) {
 #ifdef DEVELHELP
         wdt_kick();
 #endif
@@ -296,6 +296,10 @@ void* main_thread::normal_mode(void*)
                         continue;
                     }
                 }
+
+                // Leave normal mode if prompted.
+                if ( exit )
+                    break;
             }
 
             // `wait_for_input()` is called when either not both threads are idle or
@@ -376,10 +380,7 @@ void* main_thread::normal_mode(void*)
                 break;
 
             case FLAG_MODE_TOGGLE:
-                if ( matrix_thread::is_idle() )
-                    exit = true;
-                else
-                    set_my_flags(flag);
+                exit = true;
                 break;
 
             case FLAG_TIMEOUT:
