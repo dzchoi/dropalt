@@ -43,27 +43,17 @@ void matrix_thread::_debouncer(unsigned mat_index, bool pressing)
 
     if ( pressing ) {
         if ( state.pressing ) {
-            if ( state.counter < DEBOUNCE_RELEASE_MS )
-                state.counter++;
+            state.counter = DEBOUNCE_RELEASE_MS;
         }
 
-        else {
-            if ( state.counter < DEBOUNCE_PRESS_MS ) {
-                state.counter++;
-                if ( state.counter == DEBOUNCE_PRESS_MS ) {
-                    state.counter = DEBOUNCE_RELEASE_MS;
-                    state.pressing = true;
-                }
-            }
+        else if ( ++state.counter == DEBOUNCE_PRESS_MS ) {
+            state.counter = DEBOUNCE_RELEASE_MS;
+            state.pressing = true;
         }
     }
 
-    else {
-        if ( state.counter > 0 ) {
-            state.counter--;
-            if ( state.counter == 0 )
-                state.pressing = false;
-        }
+    else if ( state.counter > 0 && --state.counter == 0 ) {
+        state.pressing = false;
     }
 }
 
