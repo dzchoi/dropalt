@@ -7,6 +7,13 @@
 
 static void NVMCTRL_CMD(uint16_t cmd)
 {
+    // Clear the PAC write lock on NVMCTRL, which may remain locked from RIOT's
+    // _write_page() / _erase_page() in sam0_common/periph/flashpage.c. Without this,
+    // subsequent writes to NVMCTRL->CTRLB are silently dropped (since the PAC IRQ is
+    // disabled), causing an infinite loop on INTFLAG.DONE. This issue typically occurs
+    // when a DFU_DNLOAD of Lua bytecode completes without a reset.
+    PAC->WRCTRL.reg = (PAC_WRCTRL_KEY_CLR | ID_NVMCTRL);
+
     while ( !NVMCTRL->STATUS.bit.READY ) {}
     NVMCTRL->INTFLAG.reg |= NVMCTRL_INTFLAG_DONE;
     NVMCTRL->CTRLB.reg = cmd | NVMCTRL_CTRLB_CMDEX_KEY;
@@ -35,7 +42,6 @@ void seeprom_init(void)
         }
 
         system_reset();
-        UNREACHABLE();
     }
 
     if ( NVMCTRL->SEESTAT.bit.RLOCK )
@@ -55,14 +61,13 @@ void seeprom_flush(void)
 
 void seeprom_bkswrst(void)
 {
+    seeprom_flush();  // Commit any buffered SEEPROM writes.
     __disable_irq();  // Also disables context-switching.
-
-    // Remove write lock to NVMCTRL that might have been set from _write_page() or
-    // _erase_page().
-    PAC->WRCTRL.reg = (PAC_WRCTRL_KEY_CLR | ID_NVMCTRL);
 
     // The BKSWRST command is atomic meaning that no fetch in the NVM can occur while
     // executing the command.
+    // Note that the NVMCTRL PAC write lock (possibly left set by _write_page() /
+    // _erase_page()) is cleared inside NVMCTRL_CMD() below.
     NVMCTRL_CMD(NVMCTRL_CTRLB_CMD_BKSWRST);
     __builtin_unreachable();
 }

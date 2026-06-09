@@ -14,6 +14,7 @@
 #include "compiler_hints.h"     // for NORETURN, UNREACHABLE()
 #include "cpu_conf.h"
 #include "periph/gpio.h"
+#include "seeprom.h"            // for seeprom_flush()
 
 
 
@@ -180,7 +181,13 @@ extern char _eheap;     // end of RAM
 /**
  * @brief   Initiate a system reset request (SYSRESETREQ) to reset the MCU.
  */
-NORETURN static inline void system_reset(void) { NVIC_SystemReset(); }
+NORETURN static inline void system_reset(void)
+{
+#ifdef MODULE_DROPALT_SEEPROM
+    seeprom_flush();
+#endif
+    NVIC_SystemReset();
+}
 
 
 /**

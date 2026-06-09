@@ -13,7 +13,7 @@ mutex_t persistent::lock_guard::m_mutex = MUTEX_INIT;
 void persistent::init()
 {
     seeprom_init();
-    seeprom_unbuffered();  // Enable unbuffered mode.
+    seeprom_buffered();  // Enable buffered mode.
 
     // If NVM doesn't begin with `last_host_port` as its first entry, initialize the
     // entire NVM.
@@ -64,7 +64,7 @@ bool persistent::_create(const char* name, const void* value, size_t value_size,
     __builtin_memcpy(found.to_name(), name, name_size);
     __builtin_memcpy(found.to_name() + name_size, value, value_size);
     // LOG_DEBUG("seeprom: _create \"%s\" type=%d", name, value_type);
-    // _commit_later();  // will be performed by get()/set() outside.
+    _commit_later();
     return true;
 }
 
