@@ -435,51 +435,56 @@ static int fw_switchover(lua_State*)
 
 
 
-int luaopen_fw(lua_State* L)
-{
-    static constexpr luaL_Reg fw_lib[] = {
+// Flash-resident table of `fw.*` C functions, sorted alphabetically by `name` so
+// _fw_index() can binary-search it. Storing it as `static constexpr` keeps the array
+// (and its string literals) in .rodata, so no Lua hash node is allocated for any entry.
+// The doc comment for each function appears at its alphabetical position.
+//
+// Note: because lookups go through __index, `pairs(fw)` and `next(fw, k)` will only see
+// fields actually present in the fw table (i.e. `nvm`), not the entries listed below.
+static constexpr luaL_Reg fw_lib[] = {
+// fw.defer_is_pending(slot_index: int, is_press: bool): bool
+// Checks if a key press/release event is deferred on the given slot.
+    { "defer_is_pending", main_key_events::defer_is_pending },
+
+// fw.defer_remove_last(): void
+// Discards the most recent deferred event (if any).
+    { "defer_remove_last", main_key_events::defer_remove_last },
+
 // fw.defer_start(): void
 // Starts defer mode.
 // The `fw.defer_*()` functions support the Defer class implementation. See comments in
 // class.lua for more details on defer mode operations.
-        { "defer_start", main_key_events::defer_start },
+    { "defer_start", main_key_events::defer_start },
 
 // fw.defer_stop(): void
 // Stops defer mode.
-        { "defer_stop", main_key_events::defer_stop },
-
-// fw.defer_is_pending(slot_index: int, is_press: bool): bool
-// Checks if a key press/release event is deferred on the given slot.
-        { "defer_is_pending", main_key_events::defer_is_pending },
-
-// fw.defer_remove_last(): void
-// Discards the most recent deferred event (if any).
-        { "defer_remove_last", main_key_events::defer_remove_last },
+    { "defer_stop", main_key_events::defer_stop },
 
 // fw.dfu_mode(): void
 // Reboots the system into DFU mode.
-        { "dfu_mode", fw_dfu_mode },
+    { "dfu_mode", fw_dfu_mode },
 
 // fw.execute_later(f, arg1, ...): void
 // Schedules `f(arg1, ...)` to execute after all current key event processing completes.
-        { "execute_later", execute_later },
+    { "execute_later", execute_later },
 
 // fw.keycode(keyname: string): int | void
 // Returns the keycode (a.k.a. scan code) for the given keyname, which can be passed to
 // fw.send_key(). Refer to hid_keycodes.hpp for valid key names.
-        { "keycode", fw_keycode },
+    { "keycode", fw_keycode },
 
 // fw.led0(): int
 // Returns 1 if the debug LED is on, or 0 if it's off.
 //
 // fw.led0(x: int): void
 // Turns the debug LED on (x=1), off (x=0), or toggle (x=-1).
-        { "led0", fw_led0 },
+    { "led0", fw_led0 },
 
 // fw.led_refresh(): void
 // Applies buffered color updates to the RGB LEDs. Changes are staged via
 // fw.led_set_rgb() or fw.led_set_hsv().
-        { "led_refresh", fw_led_refresh },
+    { "led_refresh", fw_led_refresh },
 
 // fw.led_set_hsv(led_index: int, h: int, s: int, v: int): void
 // Sets the HSV color of the RGB LED at the given led_index (also known as slot_index).
@@ -490,12 +495,12 @@ int luaopen_fw(lua_State* L)
 //   - Adjusting the Value controls brightness without altering color tone.
 // See hsv.hpp for details on HSV encoding, including valid ranges and hue sextant
 // structure.
-        { "led_set_hsv", fw_led_set_hsv },
+    { "led_set_hsv", fw_led_set_hsv },
 
 // fw.led_set_rgb(led_index: int, r: int, g: int, b: int): void
 // Sets the RGB color of the RGB LED at the given led_index (also known as slot_index).
 // Changes are buffered and take effect only after calling fw.led_refresh().
-        { "led_set_rgb", fw_led_set_rgb },
+    { "led_set_rgb", fw_led_set_rgb },
 
 // fw.log(format: string, arg1, ...): void
 // Printf-style logger optimized for embedded Lua environments. Avoids luaL_tolstring()
@@ -508,7 +513,7 @@ int luaopen_fw(lua_State* L)
 //   - %e, %f, %g: floats
 //   - %s: strings (passed as C strings)
 //   - %p: tables, functions, or userdata (logged as raw pointers, e.g., 0x12345678)
-        { "log", fw_log },
+    { "log", fw_log },
 
 // fw.log_mask(): int
 // Returns the current log mask configured in the firmware.
@@ -522,21 +527,11 @@ int luaopen_fw(lua_State* L)
 //   - 4: Logs from matrix_thread
 //   - 8: Logs from usbhub_thread
 //   - 128: Logs from main_thread
-        { "log_mask", fw_log_mask },
-
-// fw.nvm: table (userdata, actually)
-// Table of (name, value) pairs stored in NVM, persisting across reboots. Supported
-// value types are int, float, and string. Assigning nil removes the entry from NVM.
-// E.g. fw.nvm.foo = 1.2; fw.nvm.foo = "bar"; fw.nvm["foo"] = nil
-        { "nvm", nullptr },  // placeholder for the `nvm` table
+    { "log_mask", fw_log_mask },
 
 // fw.pack(...): table
 // Equivalent to table.pack(); packs arguments into a table with a field 'n' for count.
-        // { "pack", fw_pack },
-
-// fw.unpack(t: table [, i: int [, j: int]]): (...)
-// Equivalent to table.unpack(); returns the elements of the table from index i to j.
-        // { "unpack", fw_unpack },
+    // { "pack", fw_pack },
 
 // fw.printf(format: string, args, ...): int
 // C-level printf(), intended to supersede Lua's string.format(). Returns the number of
@@ -544,7 +539,7 @@ int luaopen_fw(lua_State* L)
 // Note: All format specifiers from newlib-nano are supported, but the corresponding
 // arguments must match. Otherwise, an assertion failure may occur, even within a
 // protected Lua environment.
-        { "printf", fw_printf },
+    { "printf", fw_printf },
 
 // fw.product_serial(): string
 // Returns the product serial number inscribed in the USER page.
@@ -553,14 +548,7 @@ int luaopen_fw(lua_State* L)
 // Writes the given product serial number into the USER page, but only if it is blank.
 // Note that it cannot overwrite an existing product serial as it does not erase the
 // USER page.
-        { "product_serial", fw_product_serial },
-
-// fw.send_key(keycode: int, is_press: bool): void
-// Sends a key press or release event to the host.
-// Note: No delay is needed between consecutive calls - timing is handled internally.
-// You can safely call fw.send_key() back-to-back to send a press followed immediately
-// by a release for the same key.
-        { "send_key", fw_send_key },
+    { "product_serial", fw_product_serial },
 
 // fw.ps(): void
 // Displays the runtime state of all threads, including their stack usage.
@@ -571,11 +559,14 @@ int luaopen_fw(lua_State* L)
 //   2   usbhub_thread     bl anyfl    3  00004E49  00004E58  568/1024
 //   3   usbus             pending     1  00004E49  00004E58  948/1024
 //   4   matrix_thread     bl mutex    2  00009A59  00009A78  572/1024
-        { "ps", fw_ps },
+    { "ps", fw_ps },
 
-// fw.system_reset(): void
-// Performs a system reset, rebooting the system.
-        { "system_reset", fw_system_reset },
+// fw.send_key(keycode: int, is_press: bool): void
+// Sends a key press or release event to the host.
+// Note: No delay is needed between consecutive calls - timing is handled internally.
+// You can safely call fw.send_key() back-to-back to send a press followed immediately
+// by a release for the same key.
+    { "send_key", fw_send_key },
 
 // fw.switchover(): void
 // When both USB ports are connected to hosts, switches to the inactive host.
@@ -583,36 +574,78 @@ int luaopen_fw(lua_State* L)
 // previous host. See comments in usbus_hid_keyboard_t::on_reset() for details. It is
 // OK to call from REPL, as REPL runs only when threads are idle. However, to safely call
 // this from a keymap, wrap the call with fw.execute_later().
-        { "switchover", fw_switchover },
+    { "switchover", fw_switchover },
+
+// fw.system_reset(): void
+// Performs a system reset, rebooting the system.
+    { "system_reset", fw_system_reset },
 
 // fw.timer_create(): userdata
 // Creates and returns a timer instance.
 // The `fw.timer_*()` functions support the Timer class implementation. See comments in
 // class.lua for more details.
-        { "timer_create", _timer_t::create },
+    { "timer_create", _timer_t::create },
 
 // fw.timer_now(timer: userdata): int | void
 // Returns the elapsed time since the epoch if the timer is active, or nothing otherwise.
-        { "timer_now", _timer_t::now },
+    { "timer_now", _timer_t::now },
 
 // fw.timer_start(timer: userdata, callback, timeout_ms: int [, repeated: bool]): int
 // Starts or restarts the timer, setting its epoch to the current time. Returns 0 as the
 // initial elapsed time since the epoch. `callback` is called when the timer expires
 // later.
-        { "timer_start", _timer_t::start },
+    { "timer_start", _timer_t::start },
 
 // fw.timer_stop(timer: userdata): bool
 // Stops the timer; returns true if the timer is active, or false if the timer was
 // expired or never started.
-        { "timer_stop", _timer_t::stop },
+    { "timer_stop", _timer_t::stop },
 
-        { nullptr, nullptr }
-    };
+// fw.unpack(t: table [, i: int [, j: int]]): (...)
+// Equivalent to table.unpack(); returns the elements of the table from index i to j.
+    // { "unpack", fw_unpack },
+};
 
-    luaL_newlib(L, fw_lib);
+// __index(fw, name): binary-search fw_lib[] and push the matching C function, or
+// nil if not found. Called for every `fw.<name>` access except `fw.nvm`, which is
+// stored as a real field on the fw table and is therefore resolved before __index
+// runs.
+static int _fw_index(lua_State* L)
+{
+    const char* key = luaL_checkstring(L, 2);
+
+    int lo = 0, hi = int(sizeof(fw_lib) / sizeof(fw_lib[0])) - 1;
+    while ( lo <= hi ) {
+        int mid = (lo + hi) >> 1;
+        int cmp = __builtin_strcmp(key, fw_lib[mid].name);
+        if ( cmp == 0 ) {
+            lua_pushcfunction(L, fw_lib[mid].func);
+            return 1;
+        }
+        if ( cmp < 0 )
+            hi = mid - 1;
+        else
+            lo = mid + 1;
+    }
+
+    return 0;  // not found; Lua resolves the access to nil.
+}
+
+int luaopen_fw(lua_State* L)
+{
+    // `fw` is a tiny table that only holds the `nvm` field; every C function in the
+    // fw.* namespace is reached via __index = _fw_index, which binary-searches the
+    // flash-resident fw_lib[] above. This saves roughly one Lua hash node per
+    // function (~24 B each).
+    lua_createtable(L, 0, 1);  // fw table that supports 1 non-array field (`nvm`).
+
+// fw.nvm: table (userdata, actually)
+// Table of (name, value) pairs stored in NVM, persisting across reboots. Supported
+// value types are int, float, and string. Assigning nil removes the entry from NVM.
+// E.g. fw.nvm.foo = 1.2; fw.nvm.foo = "bar"; fw.nvm["foo"] = nil
     (void)lua_newuserdata(L, 0);  // Create a new (full) userdata for the `nvm` object.
 
-    lua_newtable(L);
+    lua_createtable(L, 0, 3);  // Metatable for fw.nvm to support __index, __newindex, __pairs.
 
 // fw.nvm.__index(nvm, name: string): int | float | string | void
 // Reads the value associated with the given key from NVM.
@@ -631,8 +664,14 @@ int luaopen_fw(lua_State* L)
     lua_setfield(L, -2, "__pairs");
 
     lua_setmetatable(L, -2);
-
     lua_setfield(L, -2, "nvm");
+
+    // Attach the binary-search __index as fw's metatable.
+    lua_createtable(L, 0, 1);
+    lua_pushcfunction(L, _fw_index);
+    lua_setfield(L, -2, "__index");
+    lua_setmetatable(L, -2);
+
     return 1;
 }
 

@@ -12,7 +12,7 @@
 -- This function is used only during load time and discarded afterward, since it is
 -- defined locally and the cache[] array as well.
 -- Note that this function is used when defining a keymap instance (e.g., mHome =
--- ModIf(FN, Lit("END"), Lit("HOME"))). It executes at compile time, and because it is
+-- ModIf(FN, Lit("END"), Lit("HOME"))). It executes at load time, and because it is
 -- declared local, it is removed after loading the "keymap" module.
 local cache = {}
 local function Lit(keyname)

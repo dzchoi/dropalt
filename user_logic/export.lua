@@ -1,8 +1,9 @@
--- These variables are captured as upvalues in the driver functions below.
-local Base = Base
-local Defer = Defer
-local Effect = Effect
-local Lamp = Lamp
+-- The .init() method in each class isn't needed at runtime after loading finishes.
+for _, class in pairs(_ENV) do
+    if type(class) == "table" then
+        rawset(class, "init", nil)
+    end
+end
 
 -- Core keymap driver (engine) responsible for processing key events and dispatching
 -- them to user-defined mappings.

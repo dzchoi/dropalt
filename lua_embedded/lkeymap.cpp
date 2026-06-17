@@ -51,14 +51,12 @@ void load_keymap()
     // ( -- chunk )
 
     // Establish a local environment for loading the keymap module instead of using the
-    // global _G table. This prevents pollution of the global environment and ensures
-    // that unused definitions can be reclaimed during garbage collection.
+    // global _G table. This prevents pollution of the global environment, while still
+    // resolving accesses such as `print` or `fw` through __index = _G.
     lua_newtable(L);                // Create a new local environment.
     lua_newtable(L);                // Create its metatable.
     lua_pushglobaltable(L);         // Push _G
     lua_setfield(L, -2, "__index"); // metatable.__index = _G
-    lua_pushstring(L, "kv");
-    lua_setfield(L, -2, "__mode");
     lua_setmetatable(L, -2);        // setmetatable(env, metatable)
     // ( -- chunk environment )
     lua_setupvalue(L, -2, 1);       // Set the _ENV upvalue to the new environment.
