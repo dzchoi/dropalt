@@ -25,6 +25,8 @@ static_assert( ENABLE_CDC_ACM );
 uint8_t timed_stdin::m_read_buffer[CONFIG_STDIN_RX_BUFSIZE]
     __attribute__((section(".noinit"), aligned(sizeof(uint32_t))));
 
+mutex_t timed_stdin::m_rx_space_avail = MUTEX_INIT_LOCKED;
+
 size_t timed_stdin::m_read_ahead = 0;
 
 // The stdin will be enabled only when Lua REPL DTE is ready.
@@ -46,8 +48,37 @@ void cdc_acm_rx_pipe(usbus_cdcacm_device*, uint8_t* data, size_t len)
         // DTE is still establishing a connection. We avoid this problem by disabling
         // stdin until a ping packet is received from the DTE.
 
-        if ( timed_stdin::m_enabled )
-            isrpipe_write(&stdin_isrpipe, data, len);
+        if ( timed_stdin::m_enabled ) {
+            // Push the whole USB OUT packet into stdin_isrpipe.tsrb. If the tsrb is
+            // full, block here until _reader() drains some bytes. While we have not
+            // returned from this callback, _transfer_handler() in cdc_acm.c does not
+            // re-arm the USB OUT endpoint (usbdev_ep_xmit(ep, cdcacm->out_buf, 0)),
+            // so the device controller NAKs the host and it throttles itself. This is
+            // what prevents silent byte loss when a bytecode chunk is larger than the
+            // tsrb (STDIO_RX_BUFSIZE).
+            while ( len > 0 ) {
+                size_t n = isrpipe_write(&stdin_isrpipe, data, len);
+                data += n;
+                len -= n;
+                if ( likely(len == 0) )
+                    break;
+
+                if ( ztimer_mutex_lock_timeout(
+                        ZTIMER_MSEC, &timed_stdin::m_rx_space_avail,
+                        timed_stdin::RX_SPACE_WAIT_MS) != 0 ) {
+                    // _reader() is too slow. Drop the rest of this packet so the USB
+                    // stack does not stall indefinitely, and discard whatever is still
+                    // queued in the tsrb: those bytes belong to the same now-broken
+                    // chunk and would otherwise be fed to lua_load() alongside the next
+                    // chunk's bytes. lua_load() will see a truncated chunk and report
+                    // LUA_ERRSYNTAX.
+                    LOG_ERROR("Lua: dropped %u bytes (stdin consumer too slow)\n",
+                        (unsigned)len);
+                    tsrb_clear(&stdin_isrpipe.tsrb);
+                    break;
+                }
+            }
+        }
 
         else if constexpr ( ENABLE_LUA_REPL ) {
             if ( len == sizeof(lua::ping) ) {
@@ -88,6 +119,11 @@ bool timed_stdin::read_timed_out(uint32_t timeout_ms, thread_flags_t mask)
             timed_out = true;
     }
 
+    if ( m_read_ahead > 0 )
+        // We made room in stdin_isrpipe.tsrb; let cdc_acm_rx_pipe() resume if it is
+        // waiting in ztimer_mutex_lock_timeout().
+        mutex_unlock(&m_rx_space_avail);
+
     mutex_unlock(&stdin_isrpipe.mutex);
     return timed_out;
 }
@@ -97,6 +133,7 @@ bool timed_stdin::read_timed_out(uint32_t timeout_ms, thread_flags_t mask)
 void timed_stdin::enable()
 {
     assert( m_read_ahead == 0 );
+    tsrb_clear(&stdin_isrpipe.tsrb);
     m_enabled = true;
 }
 
@@ -105,6 +142,7 @@ void timed_stdin::disable()
     unsigned state = irq_disable();
     m_enabled = false;
     tsrb_clear(&stdin_isrpipe.tsrb);
+    mutex_unlock(&m_rx_space_avail);
     m_read_ahead = 0;
     stop_wait();
     irq_restore(state);

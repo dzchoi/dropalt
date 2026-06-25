@@ -3,6 +3,8 @@
 #include <cstddef>              // for size_t
 #include <cstdint>              // for uint32_t, uint8_t
 
+#include "mutex.h"              // for mutex_t
+
 
 
 struct lua_State;
@@ -52,6 +54,17 @@ private:
 
     // The stdin input buffer that will hold the bytecode for the REPL.
     static uint8_t m_read_buffer[];
+
+    // Maximum time cdc_acm_rx_pipe() blocks usb_thread while waiting for _reader()
+    // to make room in stdin_isrpipe.tsrb. After this elapses, the remainder of the
+    // current USB OUT packet is discarded so the rest of the USB stack (HID reports,
+    // control transfers, etc.) does not stall indefinitely.
+    static constexpr uint32_t RX_SPACE_WAIT_MS = 100;
+
+    // Used as a binary semaphore to throttle cdc_acm_rx_pipe() when stdin_isrpipe.tsrb
+    // is full. Locked by cdc_acm_rx_pipe() to wait, unlocked by read_timed_out() after
+    // draining bytes. Initialized locked because no bytes have been drained yet.
+    static mutex_t m_rx_space_avail;
 
     // Size of the stdin input data read ahead into m_read_buffer[].
     static size_t m_read_ahead;
