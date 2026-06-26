@@ -37,6 +37,12 @@ public:
     // Stop wait_for_input() from waiting even before the timeout expires.
     static void stop_wait();
 
+    // Discard everything in stdin_isrpipe.tsrb and keep discarding until no new bytes
+    // arrive for timeout_ms. Used after a lua_load() failure to swallow the remainder
+    // of an in-flight bytecode chunk that the host has already pushed into the USB
+    // pipeline, so the next lua_load() starts on a clean boundary.
+    static void drain(uint32_t timeout_ms);
+
     // Function used as a lua_Reader by the REPL to read input from stdin.
     static const char* _reader(lua_State* L, void* pdata, size_t* psize);
 

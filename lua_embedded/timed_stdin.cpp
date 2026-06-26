@@ -165,6 +165,13 @@ bool timed_stdin::wait_for_input(uint32_t timeout_ms, thread_flags_t mask)
     return m_read_ahead > 0;
 }
 
+void timed_stdin::drain(uint32_t timeout_ms)
+{
+    tsrb_clear(&stdin_isrpipe.tsrb);
+    mutex_unlock(&m_rx_space_avail);
+    while ( !read_timed_out(timeout_ms, 0) ) {}  // m_read_ahead gets reset to 0.
+}
+
 const char* timed_stdin::_reader(lua_State*, void* timeout_ms, size_t* psize)
 {
     if ( m_read_ahead == 0

@@ -29,6 +29,10 @@ public:
 private:
     constexpr repl() =delete;  // Ensure a static class
 
+    // Maximum inter-byte gap permitted within a single bytecode chunk before _reader()
+    // declares end-of-chunk.
+    static constexpr uint32_t CHUNK_TIMEOUT_MS = 100;
+
     // Print all values on the Lua stack if `status` is LUA_OK. Otherwise, print the
     // error message at the top of the stack, assuming it is a string produced by the
     // Lua interpreter or a custom 'msghandler'.

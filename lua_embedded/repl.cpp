@@ -73,7 +73,8 @@ void repl::execute()
     // This ensures that if the host's serial terminal (e.g., dalua) is malfunctioning
     // and fails to provide the expected input, the REPL does not become unresponsive.
     // Note: We use 100 ms here for the timeout to wait for receiving subsequent chunks.
-    status_t status = lua_load(L, timed_stdin::_reader, (void*)100, nullptr, "b");
+    status_t status = lua_load(
+        L, timed_stdin::_reader, (void*)CHUNK_TIMEOUT_MS, nullptr, "b");
     if ( status == LUA_OK )
         // If an error occurs in lua_pcall(), the error message will include the progname
         // specified by luaL_loadbuffer() from the host, provided lua_dump() has not
@@ -82,6 +83,12 @@ void repl::execute()
 
     report(status);   // Show the result or error.
     respond(status);  // Respond to the host with the status.
+
+    if ( status != LUA_OK )
+        // The host has already pushed the rest of this chunk into the USB pipeline and
+        // we cannot stop it. Discard those bytes so the next lua_load() does not mistake
+        // them for the start of a new chunk.
+        timed_stdin::drain(CHUNK_TIMEOUT_MS);
 }
 
 status_t ping::status() const
