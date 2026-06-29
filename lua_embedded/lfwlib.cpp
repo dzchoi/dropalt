@@ -8,7 +8,7 @@
 
 #include <cstdio>               // for std::vprintf(), va_list
 #include "hid_keycodes.hpp"     // for keycode_to_name[]
-#include "hsv.hpp"              // for fast_hsv2rgb_32bit(), CIE1931_CURVE[]
+#include "hsv.hpp"              // for fast_hsv2rgb_32bit(), cie1931()
 #include "main_key_events.hpp"  // for main_key_events::start_defer(), ...
 #include "lexecute.hpp"         // for execute_later()
 #include "lua.hpp"
@@ -82,7 +82,7 @@ static int fw_led_set_hsv(lua_State* L)
     uint8_t v = luaL_checkinteger(L, 4);
     uint8_t r, g, b;
     // Use CIE 1931 curve to adjust intensity (v) for smoother perceptual transitions.
-    fast_hsv2rgb_32bit(h, s, CIE1931_CURVE[v], &r, &g, &b);
+    fast_hsv2rgb_32bit(h, s, cie1931(v), &r, &g, &b);
 
     is31_set_color(IS31_LEDS[led_index - 1], r, g, b);
     return 0;

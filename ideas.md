@@ -42,6 +42,17 @@
   types as parameters or as a return value.
 * Binary size is also affected by .data section. Walk through those variables that initialize with non-zero values.
 
+[Optimizations]
+* `IS31_LEDS` table (105 entries  2 bytes = 210 B). `driver` only needs 1 bit and `reg_g`
+  only uses banks A, D, G, J. Two ways to shrink it:
+  - Option A  split arrays (~90 B saved, keeps readability). Store `reg_g` as
+    `uint8_t[105]` (105 B) + a driver bitmask (14 B) = 119 B vs 210 B. Access cost:
+    `(driver_bits[i>>3] >> (i&7)) & 1`.
+  - Option B  pack to 1 byte/entry (105 B saved). The data only ever uses banks A, D, G,
+    J  i.e. offsets 0, 48, 96, 144. So `reg_g = bank*48 + num`, bank fits in 2 bits, num
+    in 4 bits, `driver` in 1 bit ? 7 bits, one byte. Keep the readable enum source and
+    pack at compile time.
+
 [Power consumption]
 * Use MODULE_CORE_IDLE_THREAD to enable CPU sleep when idle.
 
