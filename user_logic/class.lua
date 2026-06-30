@@ -292,9 +292,13 @@ end
 -- start defer mode, potentially in overlapping fashion. All keymaps that start defer
 -- mode are linked into a chain (called the "deferrer chain" or "deferrers"), starting
 -- from the outermost keymap (known as the "defer owner" or simply "deferrer"). Defer
--- mode remains active until all deferrers in the chain have stopped defer mode. Note
--- that since the deferrers collectively define the defer owner, they all sit in the
--- same slot.
+-- mode remains active until all deferrers in the chain have stopped defer mode.
+--
+-- Note: All keymaps in a chain share a single slot (Defer.c_slot_index), fixed to the
+-- slot of the outermost deferrer. A nested deferrer extends the chain via start_defer(),
+-- which reads Base.c_current_slot_index, so that value must equal the chain's slot
+-- whenever a nested deferrer starts. See TapHold:help_decide() for how this is upheld
+-- when a deferrer is started from a tap/hold decision.
 --
 -- When a deferred event triggers the deferrer's on_other_press/release() methods, each
 -- deferrer's on_other_press/release() is invoked in order from outermost to innermost.
@@ -473,16 +477,29 @@ function TapHold:init(map_tap, map_hold, flavor, tapping_term_ms)
     self.m_map_chosen = false
     self.m_flavor = flavor or 0
     self.m_tapping_term_ms = tapping_term_ms or TAPPING_TERM_MS
-    self.m_my_slot = 0  -- used for debugging purposes
+    self.m_my_slot = 0  -- This keymap's own slot, recorded in on_press().
 end
 
 function TapHold:help_decide(map_to_choose)
-    -- stop_timer(), _press(), and stop_defer() are order-independent and can be called
-    -- in any sequence.
     self:stop_timer()
+    -- If map_to_choose is itself a deferrer, its on_press() -> start_defer() reads
+    -- Base.c_current_slot_index to establish/extend the chain, so point it at our own
+    -- slot around _press() (when deciding from on_other_press/release() it otherwise
+    -- holds the interrupting key's slot). This is what lets a TapHold nest another
+    -- deferrer, like TapSeq. Save/restore scopes the override to just _press(), keeping
+    -- the interrupting key's slot correct for the rest of _other_event() (e.g. a sibling
+    -- deferrer's QuickRelease check) and the driver's dispatch afterward.
+    local current_slot = Base.c_current_slot_index
+    Base.c_current_slot_index = self.m_my_slot
     map_to_choose:_press()
-    self.m_map_chosen = map_to_choose
+    Base.c_current_slot_index = current_slot
+    -- We execute stop_defer() *after* _press() so that, while map_to_choose is pressed,
+    -- this keymap is still in the chain. A nested deferrer then *appends* to the chain -
+    -- keeping defer mode continuously active and exercising the start_defer() assert -
+    -- instead of founding a fresh chain; we then unlink ourselves. stop_timer() is
+    -- independent and may run anywhere.
     self:stop_defer()
+    self.m_map_chosen = map_to_choose
 end
 
 function TapHold:decide_tap()
@@ -504,15 +521,15 @@ end
 function TapHold:on_release()
     fw.log("TapHold [%d] on_release()", self.m_my_slot)
     if not self.m_map_chosen then
-        -- Note: During defer mode, on_release()—rather than on_other_release()—is called
-        -- on the deferrer (Defer.c_owner). In this case, the deferrer's on_release()
-        -- may be invoked *before* any deferred events are processed, potentially
-        -- disrupting the original event order—e.g. the deferrer's release occurring
-        -- before other presses.
+        -- Note: During defer mode, on_release() - rather than on_other_release() - is
+        -- called on the deferrer (Defer.c_owner). In this case, the deferrer's
+        -- on_release() may be invoked *before* any deferred events are processed,
+        -- potentially disrupting the original event order - e.g. the deferrer's release
+        -- occurring before other presses.
         --
         -- This is acceptable because on release, we trigger both _press() and _release()
         -- together for m_map_tap (the tapping key), not for m_map_hold (the holding
-        -- key), and the tapping key’s release timing isn't critical.
+        -- key), and the tapping key's release timing isn't critical.
         --
         -- However, if the tapping key were sensitive to release timing (e.g. a
         -- modifier), we would need to modify the keymap driver to notify the deferrer
@@ -550,7 +567,7 @@ function TapHold:on_other_release()
             -- delaying the deferrer's tap/hold decision. This causes the press for
             -- m_map_tap or m_map_hold to occur *after* the other key's release,
             -- disrupting the original event order. While this is generally acceptable,
-            -- it may cause unintended behavior—for example, if the other key is a
+            -- it may cause unintended behavior - for example, if the other key is a
             -- modifier, it could be released prematurely.
             return true
         end
@@ -599,7 +616,7 @@ function TapDance:init(tapping_term_ms)
     -- so that on_release() can still access m_step during its execution.
     self.m_is_finished = true
     self.m_tapping_term_ms = tapping_term_ms or (TAPPING_TERM_MS - 2)
-    self.m_my_slot = 0  -- used for debugging purposes
+    self.m_my_slot = 0  -- This keymap's own slot, recorded in on_proxy_press().
 end
 
 -- Todo: Would it be better to add a parameter to on_finish() to indicate whether
@@ -639,13 +656,16 @@ end
 
 function TapDance:on_timeout()
     fw.log("TapDance [%d] on_other_press/timeout()", self.m_my_slot)
-    self:stop_defer()
+    local current_slot = Base.c_current_slot_index
+    Base.c_current_slot_index = self.m_my_slot
     self.m_is_finished = true  -- Finish the dance.
     self:on_finish()
     if not self:is_pressed() then
         self:on_release()  -- Trigger a late release notification.
         self.m_step = 0
     end
+    Base.c_current_slot_index = current_slot
+    self:stop_defer()
 end
 
 function TapDance:on_other_press()
