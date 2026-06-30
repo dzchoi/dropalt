@@ -39,15 +39,15 @@ local function handle_key_event(slot_index, is_press)
         fw.log("Map: [%d] handle %s", slot_index, press_or_release)
     end
 
+    -- Note: Effect:_press/_release are keyed by physical slot, and the edge-triggered
+    -- matrix guarantees strictly alternating press/release per slot, so they're
+    -- inherently 1:1 balanced - no instance-level gating needed. Per-slot correctness
+    -- (incl. lamp interaction) is enforced by Effect's c_lamp_lit_slots guard.
     if is_press then
-        if not Base.c_keymap_table[slot_index]:is_pressed() then
-            Effect.c_active_effect:_press(slot_index)
-        end
+        Effect.c_active_effect:_press(slot_index)
         Base.c_keymap_table[slot_index]:_press()
     else
-        if Base.c_keymap_table[slot_index]:is_pressed() then
-            Effect.c_active_effect:_release(slot_index)
-        end
+        Effect.c_active_effect:_release(slot_index)
         Base.c_keymap_table[slot_index]:_release()
     end
 
