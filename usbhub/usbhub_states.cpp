@@ -1,4 +1,5 @@
 #include "assert.h"
+#include "backup_ram.h"         // for backup.current_host_port
 #include "board.h"              // for LED0_ON, LED0_OFF, RSTC
 #include "is31fl3733.h"         // for is31_init(), is31_enable_all_leds()
 #include "log.h"
@@ -63,7 +64,7 @@ void usbhub_state::help_process_usbport_switchover()
 
 
 
-static uint8_t current_host_port __attribute__((section(".noinit")));
+static uint8_t& current_host_port = backup.current_host_port;
 
 void state_determine_host::begin()
 {
@@ -88,8 +89,8 @@ void state_determine_host::begin()
     // `last_host_port` from NVM.
     if ( likely(!main_thread::is_dfu_mode())
       || unlikely(RSTC->RCAUSE.bit.POR)
-      // This case is rare, but may occur if `current_host_port` was relocated after
-      // flashing new firmware.
+      // Rare, but this case covers upgrading from a firmware that predated
+      // `current_host_port` in backup RAM.
       || unlikely(current_host_port != USB_PORT_1 && current_host_port != USB_PORT_2) )
         // Use USB_PORT_1 as the default if `last_host_port` is not found.
         persistent::get("last_host_port", current_host_port = USB_PORT_1);

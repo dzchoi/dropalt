@@ -5,6 +5,7 @@ USEMODULE += ztimer
 USEMODULE += ztimer_msec
 
 USEMODULE += dropalt_adc_get
+USEMODULE += dropalt_backup_ram
 USEMODULE += dropalt_sr_595
 USEMODULE += dropalt_usb2422
 USEMODULE += persistent

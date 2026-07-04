@@ -6,20 +6,12 @@
 
 
 
-// These static variables are allocated in backup ram at fixed addresses, allowing them
-// to be shared between the bootloader and the firmware.
+// These variables are allocated in backup RAM at fixed addresses.
+// Note that "used" preserves the allocation order within the section.
+struct backup_t backup __attribute__((section(".backup.noinit"), used));
 
-// `write_offset` indicates the offset in the buffer where the next write will begin.
-// Note that "used" here is used to preserve the allocation order of variables in the
-// section.
-static uint16_t write_offset __attribute__((section(".backup.noinit"), used));
-
-// `size_limited` indicates the portion of the buffer limited by the size constraint due
-// to overflow.
-static uint16_t size_limited __attribute__((section(".backup.noinit"), used));
-
-// Buffer that holds the concatenated big string.
-static char buffer[BACKUP_RAM_LEN - 2* sizeof(uint16_t)]
+// Buffer that holds the concatenated big string. Sized to fill the remaining backup RAM.
+static char buffer[BACKUP_RAM_LEN - sizeof(backup)]
     __attribute__((section(".backup.noinit"), used));
 
 // Note that if there is another variable allocated in the backup ram, the linker will
@@ -29,8 +21,8 @@ static char buffer[BACKUP_RAM_LEN - 2* sizeof(uint16_t)]
 
 void backup_ram_init(void)
 {
-    write_offset = 0;
-    size_limited = 0;
+    backup.write_offset = 0;
+    backup.size_limited = 0;
 
     // Safe guard for backup_ram_read() to not return a too long C-string.
     buffer[sizeof(buffer) - 1] = 0;
@@ -64,11 +56,11 @@ const char* backup_ram_write(const char* format, va_list args)
     // terminating null byte) which was written successfully or would have been written
     // if not limited by the buffer size.
     int n = vsnprintf_nl(
-        buffer + write_offset, sizeof(buffer) - write_offset, format, args);
+        buffer + backup.write_offset, sizeof(buffer) - backup.write_offset, format, args);
     assert( n >= 0 && (size_t)n < sizeof(buffer) );  // n excludes the null terminator.
 
-    if ( likely(write_offset + (size_t)n < sizeof(buffer)) )
-        write_offset += n;
+    if ( likely(backup.write_offset + (size_t)n < sizeof(buffer)) )
+        backup.write_offset += n;
     else {
         // The buffer overflowed. We are overwriting it from the beginning now.
         // Note that size_limited will get > 0 below, indicating an overflow has occurred,
@@ -78,12 +70,12 @@ const char* backup_ram_write(const char* format, va_list args)
         // Note that this second vsnprintf() should not overflow the buffer, as it was
         // already verified at the first vsnprintf() call.
         n = vsnprintf_nl(buffer, sizeof(buffer), format, args_copy);
-        size_limited = write_offset;
-        write_offset = n;
+        backup.size_limited = backup.write_offset;
+        backup.write_offset = n;
     }
 
     va_end(args_copy);
-    return buffer + (write_offset - n);
+    return buffer + (backup.write_offset - n);
 }
 
 static void reverse_memory(char* begin, char* end)
@@ -98,15 +90,15 @@ static void reverse_memory(char* begin, char* end)
 const char* backup_ram_read(void)
 {
     // Remaining string that was not overwritten
-    const uint16_t remainder = write_offset + 1;  // Include the null terminator.
+    const uint16_t remainder = backup.write_offset + 1;  // Include the null terminator.
 
-    // Defragment the buffer.
-    if ( remainder < size_limited ) {  // Also checks if size_limited > 0.
+    // Flatten the log buffer.
+    if ( remainder < backup.size_limited ) {  // Also checks if size_limited > 0.
         reverse_memory(buffer, buffer + remainder);
-        reverse_memory(buffer + remainder, buffer + size_limited);
-        reverse_memory(buffer, buffer + size_limited);
-        write_offset = size_limited - 1;
-        size_limited = 0;
+        reverse_memory(buffer + remainder, buffer + backup.size_limited);
+        reverse_memory(buffer, buffer + backup.size_limited);
+        backup.write_offset = backup.size_limited - 1;
+        backup.size_limited = 0;
     }
 
     return buffer;
