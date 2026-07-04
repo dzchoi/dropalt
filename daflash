@@ -1,14 +1,43 @@
 #!/usr/bin/env sh
-# Usage example:
-#   $ ./daflash
-#   $ ./daflash -p3-4.2
+# Usage examples:
+#   $ ./daflash                         # dfu-util mode (default)
+#   $ ./daflash -p3-4.2                 # dfu-util with USB port filter
+#   $ ./daflash -samboot                # mdloader mode (SAM-BA bootloader)
+#   $ ./daflash -samboot --port /dev/ttyACM0  # mdloader with explicit port
 
-# Build the firmware.
-make -j8 && \
-# Flash the firmware. `-R` triggers BKSWRST (Bank Swap and Reset).
-dfu-util -a0 -D .build/board-dropalt/dropalt-fw.bin -R "$@" && \
-# Wait for the device to reboot and reappear in DFU mode.
-timeout 3 sh -c \
-'until dfu-util -l "$@" 2>/dev/null |grep -q "^Found DFU"; do sleep 0.1; done' _ "$@" && \
-# Compile and download the Lua user scripts.
-exec ./dadownload "$@"
+if [ "$1" = "-samboot" ]; then
+    shift  # Remove -samboot; remaining args are forwarded to mdloader.
+
+    # Refuse to proceed if a DFU device is already present; after the BKSWRST reboot the
+    # newly flashed device would be indistinguishable from the pre-existing one.
+    if dfu-util -l "$@" 2>/dev/null |grep -q "^Found DFU"; then
+        echo "Error: a DFU device is already connected; disconnect it first." >&2
+        exit 1
+    fi
+
+    # Build the monolithic firmware.
+    make -j8 && \
+    # Build the BKSWRST app and generate the combined firmware image.
+    make -C samboot/ && \
+    # Flash the combined firmware via mdloader (SAM-BA protocol). After flashing, the
+    # BKSWRST app executes and swaps to the monolithic firmware in Bank B. The device
+    # then boots into DFU mode because RSTC_RCAUSE_NVM is set after BKSWRST.
+    mdloader -f -D samboot/.build/dropalt-samboot.bin --restart "$@" && \
+    # Wait for the device to reappear in DFU mode.
+    timeout 10 sh -c \
+    'until dfu-util -l 2>/dev/null |grep -q "^Found DFU"; do sleep 0.1; done' && \
+    # Compile and download the Lua user scripts.
+    exec ./dadownload
+
+else
+    # Build the firmware.
+    make -j8 && \
+    # Flash the firmware. `-R` triggers BKSWRST (Bank Swap and Reset).
+    dfu-util -a0 -D .build/board-dropalt/dropalt-fw.bin -R "$@" && \
+    # Wait for the device to reboot and reappear in DFU mode.
+    timeout 3 sh -c \
+    'until dfu-util -l "$@" 2>/dev/null |grep -q "^Found DFU"; do sleep 0.1; done' _ "$@" && \
+    # Compile and download the Lua user scripts.
+    exec ./dadownload "$@"
+
+fi
