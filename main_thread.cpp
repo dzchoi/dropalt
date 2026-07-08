@@ -371,12 +371,8 @@ void* main_thread::normal_mode(void*)
                 // Key (press/release) events from main_key_events are handled one at a
                 // time.
                 main_key_events::key_event_t event;
-                if ( main_key_events::get(&event) ) {
+                if ( main_key_events::get(&event) )
                     lua::handle_key_event(event.slot_index, event.is_press);
-                    // Any remaining key events will be handled next time without
-                    // sleeping.
-                    set_my_flags(FLAG_KEY_EVENT);
-                }
                 break;
 
             case FLAG_MODE_TOGGLE:
@@ -390,6 +386,10 @@ void* main_thread::normal_mode(void*)
                 //     ztimer_now(ZTIMER_MSEC));
                 break;
         }
+
+        // Handle any remaining key events next iteration without sleeping.
+        if ( main_key_events::get(nullptr) )
+            set_my_flags(FLAG_KEY_EVENT);
     }
 
     lua::global_lua_state::destroy();

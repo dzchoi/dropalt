@@ -469,13 +469,13 @@ function TapHold:init(map_tap, map_hold, flavor, tapping_term_ms)
     Timer.init(self)
 
     self.m_map_tap = map_tap
-    if self.m_flavor == HoldIsTap then
+    self.m_flavor = flavor or 0
+    if self.m_flavor & HoldIsTap ~= 0 then
         self.m_map_hold = OneShot(map_hold)
     else
         self.m_map_hold = map_hold
     end
     self.m_map_chosen = false
-    self.m_flavor = flavor or 0
     self.m_tapping_term_ms = tapping_term_ms or TAPPING_TERM_MS
     self.m_my_slot = 0  -- This keymap's own slot, recorded in on_press().
 end
