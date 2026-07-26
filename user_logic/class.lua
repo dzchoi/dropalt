@@ -348,9 +348,7 @@ function Defer:stop_defer()  -- Stop defer mode.
 
     if deferrer == self then
         Defer.c_owner = self.m_next
-        -- Here self.m_next is left intact so that Defer:_other_event() can continue to
-        -- traverse the downstream deferrers, even if the current deferrer called
-        -- stop_defer() from its on_other_press/release().
+        self.m_next = false
         if not Defer.c_owner then
             Defer.c_slot_index = 0
             fw.defer_stop()
@@ -361,6 +359,7 @@ function Defer:stop_defer()  -- Stop defer mode.
     while deferrer do
         if deferrer.m_next == self then
             deferrer.m_next = self.m_next
+            self.m_next = false
             return
         end
         deferrer = deferrer.m_next
@@ -373,19 +372,29 @@ function Defer:_other_event(is_press)
     local deferrer = Defer.c_owner
     assert( deferrer )
 
-    -- Traverse the chain to call on_other_press/release() from outer to inner.
+    -- Snapshot the chain before the chain traversing below. This ensures that any
+    -- start_defer()/stop_defer() calls made from the loop (via on_other_press/release())
+    -- do not affect the traversing.
+    local snapshot = {}
+    local n = 0
     while deferrer do
+        n = n + 1
+        snapshot[n] = deferrer
+        deferrer = deferrer.m_next
+    end
+
+    -- Traverse the chain to call on_other_press/release() from outer to inner.
+    for i = 1, n do
         local result
         if is_press then
-            result = deferrer:on_other_press()
+            result = snapshot[i]:on_other_press()
         else
-            result = deferrer:on_other_release()
+            result = snapshot[i]:on_other_release()
         end
 
         -- If a deferrer chooses to handle the event immediately, stop traversal and
         -- return its result (true).
         if result then return result end
-        deferrer = deferrer.m_next
     end
 end
 
@@ -482,6 +491,7 @@ end
 
 function TapHold:help_decide(map_to_choose)
     self:stop_timer()
+    self:stop_defer()
     -- If map_to_choose is itself a deferrer, its on_press() -> start_defer() reads
     -- Base.c_current_slot_index to establish/extend the chain, so point it at our own
     -- slot around _press() (when deciding from on_other_press/release() it otherwise
@@ -493,12 +503,6 @@ function TapHold:help_decide(map_to_choose)
     Base.c_current_slot_index = self.m_my_slot
     map_to_choose:_press()
     Base.c_current_slot_index = current_slot
-    -- We execute stop_defer() *after* _press() so that, while map_to_choose is pressed,
-    -- this keymap is still in the chain. A nested deferrer then *appends* to the chain -
-    -- keeping defer mode continuously active and exercising the start_defer() assert -
-    -- instead of founding a fresh chain; we then unlink ourselves. stop_timer() is
-    -- independent and may run anywhere.
-    self:stop_defer()
     self.m_map_chosen = map_to_choose
 end
 
@@ -656,6 +660,7 @@ end
 
 function TapDance:on_timeout()
     fw.log("TapDance [%d] on_other_press/timeout()", self.m_my_slot)
+    self:stop_defer()
     local current_slot = Base.c_current_slot_index
     Base.c_current_slot_index = self.m_my_slot
     self.m_is_finished = true  -- Finish the dance.
@@ -665,7 +670,6 @@ function TapDance:on_timeout()
         self.m_step = 0
     end
     Base.c_current_slot_index = current_slot
-    self:stop_defer()
 end
 
 function TapDance:on_other_press()
