@@ -27,19 +27,15 @@ private:
 
     static char m_thread_stack[];
 
-    union bounce_state_t {
-        uint8_t uint8;
-        struct {
-            uint8_t counter: 6;
-            bool pressed: 1;
-            bool pressing: 1;
-        };
-    };
-    static_assert( sizeof(bounce_state_t) == sizeof(uint8_t) );
-    static_assert( DEBOUNCE_PRESS_MS < (1u << 6) );
-    static_assert( DEBOUNCE_RELEASE_MS < (1u << 6) );
+    static_assert( DEBOUNCE_PRESS_MS >= 1 );
+    static_assert( DEBOUNCE_RELEASE_MS >= 1 );
 
-    static bounce_state_t m_key_states[];
+    // Per-key debounce state (magnitude = counter, sign = pressing/not).
+    static int8_t m_bounce[];
+
+    // Press/release state reported to main_thread. Kept in its own byte so the hot
+    // debouncer only touches m_bounce.
+    static bool m_pressed[];
 
     static uint32_t m_wakeup_us;
 
@@ -47,14 +43,6 @@ private:
 
     // thread body
     static void* _thread_entry(void* arg);
-
-    // Uses asymmetric variation of the integration debouncing algorithm.
-    // (See https://www.kennethkuhn.com/electronics/debounce.c)
-    //  - Asymmetric: detects press and release events with different detection delays.
-    //  - Per-key: maintains a separate debouncer for each key.
-    //  - Scan mode: uses active (polling) scan while any key is pressed; switches to
-    //    interrupt-based scanning once all keys are released.
-    static void _debouncer(unsigned mat_index, bool pressing);
 
     static void _isr_any_key_down(void* arg);
 };

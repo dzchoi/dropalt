@@ -1,6 +1,6 @@
 #include "board.h"              // for THREAD_PRIO_MATRIX
 #include "irq.h"                // for irq_disable(), irq_restore()
-#include "matrix.h"             // for matrix_init(), matrix_scan(), ...
+#include "matrix.h"             // for matrix_init(), matrix_read_rows_on_col(), ...
 #include "periph_conf.h"        // for NUM_MATRIX_SLOTS
 #include "thread.h"             // for thread_create(), sched_set_status(), ...
 #include "ztimer.h"             // for ztimer_now(), ztimer_periodic_wakeup(), ...
@@ -17,7 +17,8 @@ bool matrix_thread::m_enabled = false;
 
 alignas(8) char matrix_thread::m_thread_stack[MATRIX_STACKSIZE];
 
-matrix_thread::bounce_state_t matrix_thread::m_key_states[NUM_MATRIX_SLOTS];
+int8_t matrix_thread::m_bounce[NUM_MATRIX_SLOTS] = {};
+bool matrix_thread::m_pressed[NUM_MATRIX_SLOTS] = {};
 
 uint32_t matrix_thread::m_wakeup_us = 0;
 
@@ -33,27 +34,44 @@ void matrix_thread::init()
 
     m_enabled = true;
 
-    // Initialize the matrix GPIO pins and start ISR for detecting GPIO_RISING.
-    matrix_init(&_debouncer, &_isr_any_key_down, nullptr);
+    // Initialize the matrix GPIO pins and start ISR for detecting GPIO_HIGH.
+    matrix_init(&_isr_any_key_down, nullptr);
 }
 
-void matrix_thread::_debouncer(unsigned mat_index, bool pressing)
+// Asymmetric per-key debounce (variant of the integration debouncing algorithm,
+// https://www.kennethkuhn.com/electronics/debounce.c).
+//   - Asymmetric: detects press and release events with different detection delays.
+//   - Per-key: maintains a separate debouncer for each key.
+//   - Scan mode: uses active (polling) scan while any key is pressed; switches to
+//     interrupt-based scanning once all keys are released.
+[[gnu::always_inline, gnu::hot]]
+static inline void debouncer(int8_t* pbounce, unsigned pressing)
 {
-    bounce_state_t& state = m_key_states[mat_index];
+    // c >= 0 : not pressing; c = consecutive HIGHs (0 .. DEBOUNCE_PRESS_MS-1).
+    // c <  0 : pressing;    -c = remaining consecutive LOWs before release.
+    int8_t c = *pbounce;
 
     if ( pressing ) {
-        if ( state.pressing ) {
-            state.counter = DEBOUNCE_RELEASE_MS;
-        }
-
-        else if ( ++state.counter == DEBOUNCE_PRESS_MS ) {
-            state.counter = DEBOUNCE_RELEASE_MS;
-            state.pressing = true;
-        }
+        if ( c < 0 || ++c == DEBOUNCE_PRESS_MS )
+            c = -DEBOUNCE_RELEASE_MS;
+    }
+    else {
+        // Any LOW cancels press build-up; while pressed, count remaining LOWs toward 0.
+        if ( c < 0 ) ++c;
+        else c = 0;
     }
 
-    else if ( state.counter > 0 && --state.counter == 0 ) {
-        state.pressing = false;
+    *pbounce = c;
+}
+
+[[gnu::hot]]
+static inline void scan_and_debounce(int8_t* pbounce)
+{
+    for ( unsigned col = 0 ; col < MATRIX_COLS ; col++ ) {
+        uint32_t rows = matrix_read_rows_on_col(col);
+        int8_t* p = pbounce + col;
+        for ( unsigned row = 0 ; row < MATRIX_ROWS ; row++, p += MATRIX_COLS )
+            debouncer(p, (rows >> row) & 1u);
     }
 }
 
@@ -115,16 +133,17 @@ NORETURN void* matrix_thread::_thread_entry(void*)
     // Note that this thread is created with THREAD_CREATE_SLEEPING and remains sleeping
     // until an interrupt occurs.
     while ( true ) {
-        matrix_scan();
+        scan_and_debounce(m_bounce);
 
         uint8_t any_pressed = 0;
 
         // Notify main_thread of every key state change.
         for ( unsigned mat_index = 0 ; mat_index < NUM_MATRIX_SLOTS ; mat_index++ ) {
-            bounce_state_t& state = m_key_states[mat_index];
-            if ( state.pressing != state.pressed ) {
+            const int8_t bounce = m_bounce[mat_index];
+            const bool pressing = (bounce < 0);
+            if ( pressing != m_pressed[mat_index] ) {
                 if ( !main_thread::signal_key_event(
-                  map_index(mat_index), state.pressing, MATRIX_SCAN_PERIOD_US) ) {
+                  map_index(mat_index), pressing, MATRIX_SCAN_PERIOD_US) ) {
                     // If a key state change signal to main_thread fails, the key retains
                     // its previous state, and remains considered (still or yet to be)
                     // pressed to prevent matrix_thread from going to sleep.
@@ -132,10 +151,10 @@ NORETURN void* matrix_thread::_thread_entry(void*)
                     break;
                 }
                 // Change the state (press or release) only when successfully signaled.
-                state.pressed = state.pressing;
+                m_pressed[mat_index] = pressing;
             }
 
-            any_pressed |= state.uint8;
+            any_pressed |= (uint8_t)bounce | m_pressed[mat_index];
         }
 
         // If any key is pressed or if the minimum scan count hasn't been hit, we

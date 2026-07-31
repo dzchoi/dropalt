@@ -71,7 +71,7 @@ constexpr uint32_t NVM_WRITE_DELAY_MS = 1000;
 constexpr uint32_t MATRIX_SCAN_PERIOD_US = 997;  // ~1 ms.
 
 // A key press sustained for this duration will make a debounced press.
-constexpr uint8_t DEBOUNCE_PRESS_MS = 3;  // must be >= 1.
+constexpr int8_t DEBOUNCE_PRESS_MS = 3;  // must be >= 1.
 
 // A key release sustained for this duration will make a debounced release.
-constexpr uint8_t DEBOUNCE_RELEASE_MS = 8;  // must be >= 1.
+constexpr int8_t DEBOUNCE_RELEASE_MS = 15;  // must be >= 1.

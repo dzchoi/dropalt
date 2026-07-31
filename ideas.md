@@ -41,6 +41,7 @@
   have been already included in the header file that provides the functions with those
   types as parameters or as a return value.
 * Binary size is also affected by .data section. Walk through those variables that initialize with non-zero values.
+* Rule of thumb on 32-bit ARM: for register-passed values (returns, params, locals) prefer the native register width (uint32_t / unsigned). Use small types (uint8_t, int8_t, bitfields) only when it saves memory.
 
 [Optimizations]
 * `IS31_LEDS` table (105 entries  2 bytes = 210 B). `driver` only needs 1 bit and `reg_g`
