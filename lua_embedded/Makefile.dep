@@ -5,6 +5,10 @@ USEPKG += lua               # Lua 5.3.6
 # Exclude the parsing modules (lcode, llex, lparser) when building the Lua core.
 USEMODULE += lua-contrib_noparser
 
+# Keep read-only Proto array (Proto.code, Proto.lineinfo) in flash instead of copying it
+# to RAM at lua_load() time.
+CFLAGS += -DLUA_EMBEDDED
+
 USEMODULE += log_backup
 USEMODULE += persistent
 USEMODULE += ps             # for `ps`.

@@ -98,6 +98,8 @@
 * Lua stack size  
   The default stack limit is one million entries.
 
+* Lua VM instructions are stored in Proto::code[]. They are normally copied into RAM when the chunk is loaded, making the flash memory unused after load time. Instead, Proto::code[] can remain in flash. See `takeRomArray()` in riot/build/pkg/lua/lundump.c.
+
 * Support for "frozen tables" (i.e. tables that live in ROM).
   - https://stackoverflow.com/questions/23236262/lua-opcodes-in-flash-memory
   - https://eluaproject.net/doc/v0.9/en_arch_ltr.html
