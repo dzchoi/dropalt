@@ -1,3 +1,6 @@
 [submodule "riot"]
 	path = riot
 	url = https://github.com/dzchoi/riot.git
+[submodule "wiki"]
+	path = wiki
+	url = https://github.com/dzchoi/dropalt.wiki.git
