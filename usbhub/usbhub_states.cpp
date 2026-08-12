@@ -33,7 +33,7 @@ void usbhub_state::help_process_usb_suspend()
 
 void usbhub_state::help_process_usb_resume()
 {
-    LOG_DEBUG("USBHUB: acquired host port %d @%lu", v_host->line, ztimer_now(ZTIMER_MSEC));
+    LOG_DEBUG("USBHUB: acquired host port %u", v_host->line);
 
     if ( v_extra->sync_measure().is_device_connected() )
         transition_to<state_extra_enabled>();
@@ -94,8 +94,7 @@ void state_determine_host::begin()
       || unlikely(current_host_port != USB_PORT_1 && current_host_port != USB_PORT_2) )
         // Use USB_PORT_1 as the default if `last_host_port` is not found.
         persistent::get("last_host_port", current_host_port = USB_PORT_1);
-    LOG_DEBUG("USBHUB: try port %d first @%lu",
-        current_host_port, ztimer_now(ZTIMER_MSEC));
+    LOG_DEBUG("USBHUB: try port %u first", current_host_port);
 
     usbhub_select_host_port(current_host_port);
     if ( current_host_port == USB_PORT_1 ) {
@@ -129,8 +128,7 @@ void state_determine_host::isr_process_v_con_report()
 {
     if ( v_host->is_host_connected() ) {
         v_host->schedule_cancel();
-        LOG_DEBUG("USBHUB: determined host port %d @%lu",
-            v_host->line, ztimer_now(ZTIMER_MSEC));
+        LOG_DEBUG("USBHUB: determined host port %u", v_host->line);
     }
 }
 
@@ -146,8 +144,7 @@ void state_determine_host::process_timeout()
         v_host->schedule_cancel();
 
         current_host_port = v_extra->line;  // == usbhub_extra_port();
-        LOG_DEBUG("USBHUB: switchover to port %d @%lu",
-            current_host_port, ztimer_now(ZTIMER_MSEC));
+        LOG_DEBUG("USBHUB: switchover to port %u", current_host_port);
 
         usbhub_select_host_port(current_host_port);
         std::swap(v_host, v_extra);
@@ -209,8 +206,7 @@ void state_usb_suspend::perform_switchover()
     assert( v_host != nullptr && v_extra != nullptr );
 
     current_host_port = v_extra->line;  // == usbhub_extra_port();
-    LOG_DEBUG("USBHUB: switchover to port %d @%lu",
-        current_host_port, ztimer_now(ZTIMER_MSEC));
+    LOG_DEBUG("USBHUB: switchover to port %u", current_host_port);
 
     usbhub_select_host_port(current_host_port);
     std::swap(v_host, v_extra);

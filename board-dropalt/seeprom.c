@@ -47,8 +47,9 @@ void seeprom_init(void)
     if ( NVMCTRL->SEESTAT.bit.RLOCK )
         NVMCTRL_CMD(NVMCTRL_CTRLB_CMD_USEER);  // Unlock E2P data write access.
 
-    LOG_DEBUG("seeprom: PARAM=0x%lx SEECFG=0x%x SEESTAT=0x%lx",
-        NVMCTRL->PARAM.reg, NVMCTRL->SEECFG.reg, NVMCTRL->SEESTAT.reg);
+    LOG_DEBUG("seeprom: PARAM=0x%x SEECFG=0x%x SEESTAT=0x%x",
+        (unsigned)NVMCTRL->PARAM.reg, NVMCTRL->SEECFG.reg,
+        (unsigned)NVMCTRL->SEESTAT.reg);
 }
 
 void seeprom_flush(void)

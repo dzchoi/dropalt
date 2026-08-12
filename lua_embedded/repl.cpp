@@ -51,7 +51,7 @@ void repl::report(status_t status)
         // error is typically unlikely. However, if the received chunk is not valid,
         // LUA_ERRSYNTAX might occur, although this will not happen with our (DTE-aware)
         // timed_stdin.
-        l_message(lua_tostring(L, -1));
+        l_message("%s", lua_tostring(L, -1));
         lua_pop(L, 1);  // remove the error message.
     }
 }

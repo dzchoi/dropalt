@@ -23,10 +23,11 @@ CFLAGS += -DTHREAD_PRIO_USBHUB=3
 CFLAGS += -DTHREAD_STACKSIZE_MAIN=2048
 CFLAGS += -DTHREAD_PRIORITY_MAIN=7  # See also riot/core/lib/include/thread_config.h
 
-# LUA_MEM_SIZE is set to its maximum, leaving ~1KB for the main heap (calculated as
-# &_eheap - &_sheap). This remaining space must be sufficient to cover ~700 bytes,
-# primarily used by fputs() and stdin_init().
-CFLAGS += -DLUA_MEM_SIZE=110592  # 108K
+# LUA_MEM_SIZE leaves approximately 1.2 KiB for the main heap (calculated as
+# &_eheap - &_sheap). Newlib needs 436 bytes to initialize stdin, stdout, and stderr
+# for printf()/fputs(). Its optional 1,032-byte stdout buffer does not fit, so it falls
+# back to unbuffered output.
+CFLAGS += -DLUA_MEM_SIZE=109568  # 107 KiB
 
 # The stdout buffer is _cdc_tx_buf_mem[CONFIG_USBUS_CDC_ACM_STDOUT_BUF_SIZE], which is
 # associated with cdcacm->tsrb. It is configured to be larger than the USB transmit

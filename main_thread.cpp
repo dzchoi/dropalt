@@ -116,8 +116,7 @@ void main_thread::signal_event(event_t* event)
 bool main_thread::signal_key_event(unsigned slot_index, bool is_press, uint32_t timeout_us)
 {
     assert( slot_index <= KEY_LED_COUNT );
-    LOG_DEBUG("Matrix: %s [%u] @%lu",
-        press_or_release(is_press), slot_index, ztimer_now(ZTIMER_MSEC));
+    LOG_DEBUG("Matrix: %s [%u]", press_or_release(is_press), slot_index);
 
     if ( likely(main_key_events::push({{ uint8_t(slot_index), is_press }}, timeout_us)) )
     {
@@ -180,6 +179,10 @@ NORETURN void* main_thread::_thread_entry(void*)
 
     if ( IS_USED(MODULE_AUTO_INIT) )
         auto_init();     // ztimer_init(), ...
+
+    // Any log/printf() output sent to stdout before usb_thread::init() (specifically
+    // usb_cdc_acm_stdio_init()) will be dropped, because the log buffer (cdcacm->tsrb)
+    // is not yet initialized.
 
     // Initialize subsystems in the order of dependency.
     adc::init();         // Invokes v_5v.wait_for_stable_5v().
@@ -380,10 +383,9 @@ void* main_thread::normal_mode(void*)
                 break;
 
             case FLAG_TIMEOUT:
-                // LOG_DEBUG("Main: v_5v=%d v_con1=%d v_con2=%d fsmstatus=0x%x @%lu",
+                // LOG_DEBUG("Main: v_5v=%d v_con1=%d v_con2=%d fsmstatus=0x%x",
                 //     adc::v_5v.read(), adc::v_con1.read(), adc::v_con2.read(),
-                //     usb_thread::fsmstatus(),
-                //     ztimer_now(ZTIMER_MSEC));
+                //     usb_thread::fsmstatus());
                 break;
         }
 

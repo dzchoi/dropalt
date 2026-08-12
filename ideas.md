@@ -54,20 +54,62 @@
     in 4 bits, `driver` in 1 bit ? 7 bits, one byte. Keep the readable enum source and
     pack at compile time.
 
+* With `LTO = 1` in the Makefile, Riot passes -flto only during linking, not during C/C++ compilation. Adding `CFLAGS += $(LTOFLAGS)` enables true cross-file optimization, allowing small C++ methods to be inlined across translation units.
+
 [Power consumption]
 * Use MODULE_CORE_IDLE_THREAD to enable CPU sleep when idle.
-
-[Formatted logs]
-* Log messages are segmented and stored in backup RAM, then reconstructed using a host-side utility.
-* Each log record includes:
-  record size, thread ID, log level, timestamp, format string address, and corresponding arguments (each 4 bytes except for 8-byte doubles).
-* Consider the Default Argument Promotions for variadic functions in C/C++.
-* Prior to transmitting log entries, metadata containing all format strings and their respective addresses is sent first.
 
 [Keymap recovery]
 * Default keymaps are stored in a byte array in the firmware so that it is selected when a "custom" keymaps at flash slot 1 fails to load (or run).
 
-* Where will be the UART pins?
+[Plan SSEEPROM disable during DFU]
+Microchip documents that SBLK is loaded from the USER page only at reset. BKSWRST relocates SmartEEPROM only when SBLK != 0; with SmartEEPROM enabled, both firmware banks must reserve its flash area. Microchip’s dual-bank update documentation
+The proposed sequence would be:
+```
+Normal firmware, SBLK=1
+        │
+        ├─ flush and snapshot 4 KiB SmartEEPROM
+        ├─ write USER.SBLK=0
+        └─ system reset
+                │
+DFU preparation boot, SBLK=0
+        │
+        ├─ do not let seeprom_init() re-enable it
+        ├─ accept up to 128 KiB into the inactive bank
+        └─ BKSWRST
+                │
+New firmware boot, SBLK=0
+        │
+        ├─ write USER.SBLK=1, PSZ=3
+        └─ system reset
+                │
+New firmware, SBLK=1
+        ├─ initialize/recreate SmartEEPROM
+        ├─ restore snapshot
+        └─ clear update transaction state
+```
+
+The important complications are:
+* Disabling must happen before DFU starts writing. It cannot be done upon receiving the first DFU packet because changing SBLK requires a reset, which would terminate that transfer.
+* The current [`seeprom_init()` (line 23)](/home/stem/projects/atsamd51/dropalt/board-dropalt/seeprom.c:23) immediately restores SBLK=1 whenever it sees a mismatch. It would need to recognize the “DFU prepared” state and temporarily skip that behavior.
+* With SBLK=0, [`BKSWRST` at line 154 (line 154)](/home/stem/projects/atsamd51/dropalt/usb/usb_dfu.cpp:154) will not relocate the old SmartEEPROM. The incoming full-bank image will overwrite its raw flash area. Persistent settings therefore need to be snapshotted or intentionally reset to defaults.
+* The 8 KiB backup RAM is large enough for the 4 KiB virtual SmartEEPROM plus a transaction header and CRC. However, [`pre_startup()` currently clears it on an NVM reset (line 114)](/home/stem/projects/atsamd51/dropalt/board-dropalt/board.c:114), so the update partition would need to survive BKSWRST.
+* Backup RAM is not battery-backed on this board. A power loss during the transaction can lose the snapshot. Firmware recovery should remain possible, but user settings may be lost. Fully power-fail-safe persistence would require host-side backup, external storage, or some permanently reserved flash.
+* The DFU path needs an explicit size check. RIOT’s [`riotboot_flashwrite_putbytes()` (line 106)](/home/stem/projects/atsamd51/dropalt/riot/sys/riotboot/flashwrite.c:106) does not enforce SLOT0_LEN; it advances and erases pages until the physical-flash assertion eventually trips.
+* USER-page endurance should be considered because each firmware update would perform two configuration rewrites.
+
+[_dtoa_r() and _printf_float()]
+* In this newlib-nano archive, _printf_float is a weak symbol. The integer formatter checks whether it is present; defining a strong _printf_float in our code would activate float conversions without linking newlib’s nano-vfprintf_float.o or _dtoa.
+
+However, _printf_float is a private newlib ABI hook. It receives internal formatter state, parsed flags/width/precision, an output callback, and the va_list. lua_user_number2str(float) has none of that interface; it only converts one float to a compact string.
+
+* Newlib’s _printf_float calls _dtoa_r (not lua_user_number2str()). _dtoa_r is the expensive part:
+Component                   .text size
+_printf_float plus helpers	2,828 bytes
+_dtoa_r alone               6,488 bytes
+And _dtoa_r pulls further multiple-precision helpers and allocation support, so its total linked cost is larger still.
+
+However, lua_user_number2str() cannot replace _dtoa_r directly. _dtoa_r has a very different private interface: it receives a double, conversion mode, requested digit count, and returns a raw digit sequence plus separate decimal-point/sign metadata; newlib’s _printf_float then applies %f/%e/%g, width, precision, padding, and so on.
 
 
 

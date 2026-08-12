@@ -11,9 +11,9 @@ extern "C" {
 
 
 
-// Output an error message in printf() fashion, automatically appending a newline
-// at the end. If the format is the only argument, it doesn't need to be a literal
-// string.
+// Output an error message in printf() fashion, automatically appending a newline.
+// Pass dynamic messages as l_message("%s", message), so '%' characters in the message
+// are not interpreted as conversions and the RAM string is copied into backup RAM.
 #define l_message(...) LOG(LOG_LUA_ERROR, __VA_ARGS__)
 
 

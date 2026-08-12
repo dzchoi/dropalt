@@ -94,3 +94,8 @@ PROGRAMMER = dfu-util
 # PROGRAMMER = edbg  # Use EDBG (CMSIS-DAP) for flashing
 
 include $(RIOTBASE)/Makefile.include
+
+# LOG_*(), fw.log(), and fw.printf() do not support %f. fw.log and Lua's number-to-string
+# hook use small formatters, so remove the Lua package's forced newlib-nano
+# _printf_float/_dtoa link.
+LINKFLAGS := $(subst -u _printf_float,,$(LINKFLAGS))

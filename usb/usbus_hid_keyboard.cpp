@@ -89,7 +89,7 @@ void usbus_hid_keyboard_t::_tmo_resume_settle(void* arg)
     usbus_hid_keyboard_t* const hidx = static_cast<usbus_hid_keyboard_t*>(arg);
     ztimer_remove(ZTIMER_MSEC, &hidx->m_timer_clear_queue);
 
-    LOG_DEBUG("USB_HID: USB accessible @%lu", ztimer_now(ZTIMER_MSEC));
+    LOG_DEBUG("USB_HID: USB accessible");
     hidx->m_is_usb_accessible = true;
 
     if ( hidx->m_key_event_queue.not_empty() ) {
@@ -320,8 +320,7 @@ void usbus_hid_keyboard_t::_hdlr_receive_data(
     } else
         lamp_state = data[0];
 
-    LOG_DEBUG("USB_HID: set led_lamp_state=0x%x @%lu",
-        lamp_state, ztimer_now(ZTIMER_MSEC));
+    LOG_DEBUG("USB_HID: set led_lamp_state=0x%x", lamp_state);
 
     main_thread::signal_lamp_state(lamp_state);
 

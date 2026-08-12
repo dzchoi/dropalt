@@ -107,7 +107,8 @@ void adc_v_5v::wait_for_stable_5v()
         if ( sync_measure().level() < STABLE )
             repeat = 0;
 
-    LOG_DEBUG("ADC: v_5v stabilized in %lu ms", ztimer_now(ZTIMER_MSEC) - since);
+    LOG_DEBUG("ADC: v_5v stabilized in %u ms",
+              (unsigned)(ztimer_now(ZTIMER_MSEC) - since));
     ztimer_release(ZTIMER_MSEC);
 }
 

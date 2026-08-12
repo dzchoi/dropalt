@@ -1,6 +1,10 @@
 USEMODULE_INCLUDES_lua_embedded := $(LAST_MAKEFILEDIR)
 USEMODULE_INCLUDES += $(USEMODULE_INCLUDES_lua_embedded)
 
+# Route Lua's print/REPL output through RIOT stdio_write(). The upstream fwrite(stdout)
+# macros initialize newlib FILE state with heap allocations.
+CFLAGS += -DLUA_USER_H='"lua_user.h"'
+
 PSEUDOMODULES += lua_repl
 
 # LINKFLAGS += ...

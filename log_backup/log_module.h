@@ -20,11 +20,14 @@ extern "C" {
 #endif
 
 // Core function for LOG_*(). It displays the log (if CDC ACM is connected) and stores it
-// in the backup ram.
-void log_backup(unsigned level, const char* format, ...);
+// in backup RAM. The format language contains only %%, %d, %u, %x, %s, and %p; %f is
+// not supported.
+void log_backup(unsigned level, const char* format, ...)
+    __attribute__((format(printf, 2, 3)));
 
 // va_list variant of log_backup().
-void vlog_backup(unsigned level, const char* format, va_list args);
+void vlog_backup(unsigned level, const char* format, va_list args)
+    __attribute__((format(printf, 2, 0)));
 
 uint8_t get_log_mask(void);
 
@@ -32,7 +35,7 @@ void set_log_mask(uint8_t mask);
 
 // Each bit in the mask toggles the logging for the thread associated with its priority
 // level (1 << thread_get_priority()). The LSB (bit 0) is unrelated to masking logs, and
-// it only controls the displaying of the Lua welcome message. See lua::repl::start().
+// it only controls display of the Lua welcome message. See lua::repl::start().
 static const uint8_t LOG_MASK_WELCOME = 0x01;
 
 // LOG_LUA_ERROR is assigned LOG_NONE, which can now be used to indicate Lua error logs.

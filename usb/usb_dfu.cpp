@@ -2,9 +2,9 @@
 
 #define USB_H_USER_IS_RIOT_INTERNAL
 
-#include "backup_ram.h"         // for backup_ram_read()
 #include "board.h"              // for system_reset()
 #include "log.h"
+#include "log_reader.h"         // for log_reader_*()
 #include "seeprom.h"            // for seeprom_bkswrst()
 #include "usbus_ext.h"
 #include "usb/dfu.h"
@@ -15,25 +15,23 @@
 #include "riotboot/usb_dfu.h"
 #include "ztimer.h"
 
+#include <algorithm>            // for std::min<>
 #include "main_thread.hpp"      // for main_thread::signal_mode_toggle(), ...
 #include "matrix_thread.hpp"    // for matrix_thread::enable/disable()
 #include "usb_dfu.hpp"
 
 
 
-static void _event_handler(usbus_t* usbus, usbus_handler_t* handler,
-                          usbus_event_usb_t event);
 static int _control_handler(usbus_t* usbus, usbus_handler_t* handler,
                             usbus_control_request_state_t state,
                             usb_setup_t* setup);
-static void _transfer_handler(usbus_t* usbus, usbus_handler_t* handler,
-                              usbdev_ep_t* ep, usbus_event_transfer_t event);
 static void _init(usbus_t* usbus, usbus_handler_t* handler);
 
 // Represents wTransferSize: the maximum number of bytes the device can accept per
 // Control transfer. This value directly impacts download and upload speeds. Any positive
-// number is valid and does not require additional memory allocation.
-#define DEFAULT_XFER_SIZE 1024
+// number is valid. It is also used for allocating the text buffer for expanding binary
+// log records (static char upload_buffer[DEFAULT_XFER_SIZE] in dfu_upload_handler()).
+#define DEFAULT_XFER_SIZE 512
 
 
 
@@ -58,8 +56,8 @@ static size_t _gen_dfu_descriptor(usbus_t* usbus, void* arg)
 
 static const usbus_handler_driver_t dfu_driver = {
     .init = _init,
-    .event_handler = _event_handler,
-    .transfer_handler = _transfer_handler,
+    .event_handler = nullptr,
+    .transfer_handler = nullptr,
     .control_handler = _control_handler,
 };
 
@@ -250,49 +248,39 @@ static int dfu_dnload_handler(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_setup
 
 static int dfu_upload_handler(usbus_t* usbus, usbus_dfu_device_t* dfu, usb_setup_t* pkt)
 {
-    // Note: We read directly from backup RAM without stashing the data. The first
-    // 64-byte packet is sent to the host reliably thanks to irq_disable(). However, if
-    // the backup RAM is full and a new log entry larger than 64 bytes arrives between
-    // the first and second packet transmissions, the second packet may be truncated,
-    // and no further packets will be sent.
-    unsigned irq = irq_disable();
-
-    static const char* logs;
     static size_t read_offset;
     static int last_block;
+    static reader_state_t reader;
+    static char upload_buffer[DEFAULT_XFER_SIZE];
 
     // Initialization when transitioning from DFU_IDLE to DFU_UP_IDLE.
     if ( dfu->dfu_state == USB_DFU_STATE_DFU_IDLE ) {
         LOG_DEBUG("DFU: DFU_UPLOAD start");
         dfu->dfu_state = USB_DFU_STATE_DFU_UP_IDLE;
-        logs = backup_ram_read();
+        log_reader_prep(&reader);
         read_offset = 0;
         last_block = -1;
     }
 
-    static const uint8_t* data;
     static size_t data_size;
 
     // Initialization during each Setup stage. Subsequent calls during the Data stage
     // will have the same block number (pkt->value).
     if ( last_block != pkt->value ) {
         last_block = pkt->value;
-        data = (const uint8_t*)&logs[read_offset];
-        data_size = 0;
         // Note that pkt->length is the total data size requested from the host in a
         // transfer. It will be usually the same as wTransferSize.
-        while ( data_size < pkt->length && data[data_size] )
-            data_size++;
+        data_size = log_reader_read(&reader, upload_buffer,
+            std::min<size_t>(pkt->length, sizeof(upload_buffer)));
     }
 
     // Note that usbus_control_slicer_put_bytes() must be called with the same buffer and
     // buffer size throughout the transfer (Setup stage and Data stage).
-    size_t packet_size = usbus_control_slicer_put_bytes(usbus, data, data_size);
+    size_t packet_size = usbus_control_slicer_put_bytes(
+        usbus, reinterpret_cast<const uint8_t*>(upload_buffer), data_size);
     // If the last packet's size is a multiple of the endpoint (EP) size, packet_size can
     // be 0 subsequently.
     read_offset += packet_size;
-
-    irq_restore(irq);
 
     // A short packet (smaller than the EP size) completes the transfer.
     if ( packet_size < ((usbus_control_handler_t *)usbus->control)->in->len ) {
@@ -406,21 +394,4 @@ static int _control_handler(usbus_t* usbus, usbus_handler_t* handler,
     }
 
     return -1;
-}
-
-static void _transfer_handler(usbus_t* usbus, usbus_handler_t* handler,
-    usbdev_ep_t* ep, usbus_event_transfer_t event)
-{
-    (void)usbus;
-    (void)handler;
-    (void)ep;
-    (void)event;
-}
-
-static void _event_handler(usbus_t* usbus, usbus_handler_t* handler,
-    usbus_event_usb_t event)
-{
-    (void)usbus;
-    (void)handler;
-    (void)event;
 }

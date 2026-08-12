@@ -132,7 +132,7 @@ static va_list make_va_list(lua_State* L, uint32_t* args, int argc)
                     // printf(), C promotes float arguments to 8-byte doubles according
                     // to Default Argument Promotions, even on 32-bit systems like
                     // Cortex-M4F. This promotion behavior remains true when using
-                    // printf_float() from newlib-nano.
+                    // _printf_float() from newlib-nano.
                     *(double*)(void*)(args + n) = (double)lua_tonumber(L, i);
                     n += 2;
                 }
@@ -151,10 +151,10 @@ static va_list make_va_list(lua_State* L, uint32_t* args, int argc)
     // (__builtin_va_list) is compiler-specific and opaque. As a result,
     // reinterpret_cast<va_list>(args) or reinterpret_cast<void*>(args) does not work.
     union {
-        void* ptr;
-        va_list vlist;
-    } v = { args };
-    return v.vlist;
+        void* pointer;
+        va_list list;
+    } value = { args };
+    return value.list;
 }
 
 static int fw_log(lua_State* L)
@@ -506,11 +506,10 @@ static constexpr luaL_Reg fw_lib[] = {
 // Printf-style logger optimized for embedded Lua environments. Avoids luaL_tolstring()
 // to prevent temporary string allocations and reduce garbage collection overhead during
 // frequent logging.
-// Note: All format specifiers from newlib-nano are supported, but the corresponding
-// arguments must match. Otherwise, an assertion failure may occur, even within a
-// protected Lua environment:
+// Note: Only a minimal set of format specifiers is supported. In particular, %f is not
+// supported. Values must match their specifier; otherwise, output is undefined.
+// Unsupported specifiers print "???".
 //   - %d, %u, %x: integers, booleans (0/1), or nil (-1)
-//   - %e, %f, %g: floats
 //   - %s: strings (passed as C strings)
 //   - %p: tables, functions, or userdata (logged as raw pointers, e.g., 0x12345678)
     { "log", fw_log },
@@ -535,10 +534,9 @@ static constexpr luaL_Reg fw_lib[] = {
 
 // fw.printf(format: string, args, ...): int
 // C-level printf(), intended to supersede Lua's string.format(). Returns the number of
-// characters written, similar to C printf().
-// Note: All format specifiers from newlib-nano are supported, but the corresponding
-// arguments must match. Otherwise, an assertion failure may occur, even within a
-// protected Lua environment.
+// characters written, similar to C printf(). Output is sent directly to stdout.
+// Note: %f is unavailable because newlib-nano's float printf formatter is not linked.
+// Values must match their specifier; otherwise, output is undefined.
     { "printf", fw_printf },
 
 // fw.product_serial(): string

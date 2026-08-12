@@ -65,7 +65,7 @@ void execute_pending_calls()
         int status = lua_pcall(L, n - 1, 0, 0);
         // ( -- &execute_later call_frame [error_msg] )
         if ( status != LUA_OK ) {
-            l_message(lua_tostring(L, -1));
+            l_message("%s", lua_tostring(L, -1));
             lua_pop(L, 1);
         }
         // ( -- &execute_later call_frame )

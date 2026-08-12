@@ -26,7 +26,7 @@ global_lua_state::~global_lua_state()
 // Lua panic function invoked when an error occurs outside a protected environment.
 static int _panic(lua_State* L)
 {
-    l_message(lua_tostring(L, -1));
+    l_message("%s", lua_tostring(L, -1));
     return 0;
 }
 

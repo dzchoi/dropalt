@@ -1,1 +1,3 @@
 USEMODULE += dropalt_backup_ram
+USEMODULE += fmt                    # for fmt_float()
+USEMODULE += ztimer_msec

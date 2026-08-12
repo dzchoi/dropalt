@@ -2,7 +2,7 @@
 
 #include "log.h"
 #include "usb/usbus/control.h"  // for usbus_control_* definitions
-#include "ztimer.h"             // for ztimer_set(), ztimer_now() and ztimer_remove()
+#include "ztimer.h"             // for ztimer_set() and ztimer_remove()
 
 
 
@@ -90,20 +90,19 @@ void usbus_hid_device_ext_t::_event_handler(
     usbus_hid_device_ext_t* const hidx =
         static_cast<usbus_hid_device_ext_t*>((usbus_hid_device_t*)handler);
 
-    uint32_t now = ztimer_now(ZTIMER_MSEC);
     switch (event) {
         case USBUS_EVENT_USB_RESET:
-            LOG_DEBUG("USB_HID: reset event @%lu", now);
+            LOG_DEBUG("USB_HID: reset event");
             hidx->on_reset();
             break;
 
         case USBUS_EVENT_USB_SUSPEND:
-            LOG_DEBUG("USB_HID: suspend event @%lu", now);
+            LOG_DEBUG("USB_HID: suspend event");
             hidx->on_suspend();
             break;
 
         case USBUS_EVENT_USB_RESUME:
-            LOG_DEBUG("USB_HID: resume event @%lu", now);
+            LOG_DEBUG("USB_HID: resume event");
             hidx->on_resume();
             break;
 

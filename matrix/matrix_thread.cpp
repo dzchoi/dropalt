@@ -174,7 +174,7 @@ NORETURN void* matrix_thread::_thread_entry(void*)
         // required before reading the matrix.
         else {
             main_thread::signal_thread_idle();
-            // LOG_DEBUG("Matrix: ---------> @%lu", ztimer_now(ZTIMER_MSEC));
+            // LOG_DEBUG("Matrix: --------->");
             ztimer_release(ZTIMER_USEC);
 
             // This code is the same as thread_sleep(), only matrix_enable_interrupt()
@@ -200,6 +200,6 @@ void matrix_thread::_isr_any_key_down(void*)
     matrix_disable_interrupt();
     ztimer_acquire(ZTIMER_USEC);
     m_wakeup_us = ztimer_now(ZTIMER_USEC);
-    // LOG_DEBUG("Matrix: <--------- @%lu", ztimer_now(ZTIMER_MSEC));
+    // LOG_DEBUG("Matrix: <---------");
     thread_wakeup(thread_getpid_of(m_pthread));
 }

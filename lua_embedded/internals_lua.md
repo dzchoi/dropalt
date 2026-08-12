@@ -9,6 +9,10 @@
   USEMODULE += printf_float
   ```
 
+  The package selects `printf_float`, but the application removes its forced
+  `_printf_float` link. `lua_user_number2str()` provides Lua's compact `%.7g`-style
+  float conversion without `_dtoa`.
+
 * luaconf.h
   ```
   #define LUA_32BITS  // Enable Lua with 32-bit integers and 32-bit floats.

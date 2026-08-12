@@ -19,10 +19,6 @@ usbus_t usb_thread::m_usbus;
 
 usbus_hid_keyboard_t* usb_thread::m_hid_keyboard = nullptr;
 
-// Any log output generated before usb_thread is initialized will be lost, since the log
-// buffer (cdcacm->tsrb) hasn't been set up yet. Once usb_thread is running, logs are
-// buffered and transmitted to the host—though delivery may be delayed until the host
-// connects.
 void usb_thread::init()
 {
     usbus_init(&m_usbus, usbdev_get_ctx(0));  // Or m_usbus.dev = usbdev_get_ctx(0);
