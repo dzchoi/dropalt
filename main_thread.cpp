@@ -220,14 +220,22 @@ void* main_thread::dfu_mode(void*)
 
         ztimer_set_timeout_flag(ZTIMER_MSEC, &m_heartbeat_timer, HEARTBEAT_PERIOD_MS);
         thread_flags_t flag = thread_flags_wait_one(
+            FLAG_DTE_ENABLED | FLAG_DTE_DISABLED | FLAG_DTE_READY |
             FLAG_KEY_EVENT | FLAG_MODE_TOGGLE | FLAG_TIMEOUT);  // Zzz
 
         switch ( flag ) {
-            // Note that FLAG_DTE_* signals are generally unexpected in DFU mode but
-            // passed to normal mode if present. If FLAG_DTE_ENABLED occurs, it is
-            // typically followed by FLAG_DTE_READY and then FLAG_DTE_DISABLED (~500 ms).
-            // In that case, normal mode will ultimately treat the sequence as
-            // FLAG_DTE_DISABLED, ignoring FLAG_DTE_READY.
+            case FLAG_DTE_ENABLED:
+            case FLAG_DTE_DISABLED:
+            case FLAG_TIMEOUT:
+                // Consume and discard the signal.
+                break;
+
+            case FLAG_DTE_READY:
+                // Answer DTE pings with LUA_YIELD during DFU transaction after BKSWRST.
+                if constexpr ( ENABLE_LUA_REPL )
+                    if ( (RSTC->RCAUSE.reg & RSTC_RCAUSE_NVM) != 0 )
+                        lua::repl::hold();
+                break;
 
             case FLAG_KEY_EVENT:
                 main_key_events::key_event_t event;
@@ -351,11 +359,6 @@ void* main_thread::normal_mode(void*)
                 }
                 if constexpr ( ENABLE_CDC_ACM )
                     LOG_DEBUG("Main: DTE disabled");
-
-                // If FLAG_DTE_DISABLED comes along with FLAG_DTE_READY, FLAG_DTE_READY
-                // is treated as stale and ignored. See the related comment in
-                // dfu_mode().
-                thread_flags_clear(FLAG_DTE_READY);
                 break;
 
             case FLAG_DTE_READY:
@@ -366,8 +369,6 @@ void* main_thread::normal_mode(void*)
                         LOG_INFO("Main: REPL ready (0x%x)", get_log_mask());
                     }
                 }
-                // Do not process FLAG_DTE_READY when ENABLE_LUA_REPL is false. The
-                // stdin remains permanently disabled.
                 break;
 
             case FLAG_KEY_EVENT:

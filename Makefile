@@ -11,7 +11,7 @@ APPLICATION := dropalt-fw
 CONFIG_HPP := config.hpp
 
 # Version numbers encoded in USB device descriptor
-DEVICE_VER := 0x0098            # bcdDevice =  0.98 for the firmware
+DEVICE_VER := 0x0099            # bcdDevice =  0.99 for the firmware
 HUB_DEVICE_VER := 0x2410        # bcdDevice = 24.10 for Hub
 CFLAGS += -DDEVICE_VER=$(DEVICE_VER) -DHUB_DEVICE_VER=$(HUB_DEVICE_VER)
 
@@ -93,7 +93,13 @@ LOG_LEVEL = LOG_DEBUG
 PROGRAMMER = dfu-util
 # PROGRAMMER = edbg  # Use EDBG (CMSIS-DAP) for flashing
 
+BUILD_FILES += $(BINDIR)/$(APPLICATION).zip
+
 include $(RIOTBASE)/Makefile.include
+
+# Package the firmware binary for distribution.
+$(BINDIR)/$(APPLICATION).zip: $(BINFILE)
+	$(Q)zip -j $@ $<
 
 # LOG_*(), fw.log(), and fw.printf() do not support %f. fw.log and Lua's number-to-string
 # hook use small formatters, so remove the Lua package's forced newlib-nano

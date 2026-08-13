@@ -14,11 +14,27 @@ namespace lua {
 
 void repl::start()
 {
-    respond(LUA_OK);  // Indicate that REPL is ready.
+    respond(LUA_OK);  // Indicate that REPL is ready now.
 
     if ( get_log_mask() & LOG_MASK_WELCOME ) {
+        constexpr char firmware_name[] = "Drop ALT firmware v";
+        stdio_write(firmware_name, __builtin_strlen(firmware_name));
+
+        // DEVICE_VER is a four-digit binary-coded-decimal USB bcdDevice value.
+        constexpr char firmware_version[] = {
+            char('0' + ((DEVICE_VER >> 12) & 0x0f)),
+            char('0' + ((DEVICE_VER >> 8) & 0x0f)),
+            '.',
+            char('0' + ((DEVICE_VER >> 4) & 0x0f)),
+            char('0' + (DEVICE_VER & 0x0f)),
+            '\n'
+        };
+        if constexpr ( firmware_version[0] != '0' )
+            stdio_write(firmware_version, sizeof(firmware_version));
+        else
+            stdio_write(firmware_version + 1, sizeof(firmware_version) - 1);
+
         constexpr char welcome_msg[] = LUA_COPYRIGHT "\n";
-        // Then output the welcome message.
         stdio_write(welcome_msg, __builtin_strlen(welcome_msg));
     }
 }

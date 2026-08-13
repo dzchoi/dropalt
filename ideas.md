@@ -27,6 +27,44 @@
 * Do not assume the remote status ("[}0\n") appears on its own line. The preceding line may not end with a newline character.
 * Support `-d`, `-p` and `-S` options like dfu-util does.
 
+[Safety concern]
+Omitting FLAG_GENERIC_EVENT from DFU’s wait mask means it is not consumed; the flag remains pending and will be handled on return to normal mode. That behavior is fine, and it does not block the other DFU flags.
+
+The missing case is Lua timers:
+  - Lua timer expiry posts _timer_t::m_event_timeout into m_event_queue.
+  - A DFU transition destroys the Lua state.
+  - lua_close() runs each started timer’s __gc, which stops its ztimer, but it does not remove an event that was already queued.
+  - Returning to normal mode could then dispatch a queued event whose _timer_t belonged to the destroyed Lua state. That is unsafe, particularly because the next Lua initialization can reuse that memory.
+
+signal_lamp_state() is different: its event is static and can safely remain queued through DFU, if preserving the most recent host lamp state is desired.
+
+So I would not handle generic events in DFU, but I would drain the existing generic-event queue immediately after lua::global_lua_state::destroy() and before entering DFU:
+```
+lua::global_lua_state::destroy();
+
+while ( event_get(&m_event_queue) ) {
+    // Discard events that may refer to the destroyed Lua state.
+}
+```
+
+Do not clear FLAG_GENERIC_EVENT: leaving it set is harmless—normal mode will do one empty queue pass—and avoids racing a new valid event posted concurrently. Future static lamp events posted during DFU will then still be handled after normal mode resumes.
+
+[An infinite Lua loop in REPL]
+Yes—this is a real limitation of the current single-owner Lua design.
+While lua::repl::execute() is running, main_thread cannot process FLAG_KEY_EVENT, timer callbacks, or generic events. The matrix still detects transitions and pushes them into main_key_events, but a long-running REPL command can fill that finite queue. After that, key handling becomes delayed and can eventually hit the queue’s deadlock/reset protection.
+
+The idle check prevents starting a REPL command during an in-flight key action, but it cannot bound how long the command runs after it starts. An infinite Lua loop is the worst case: the keyboard becomes unresponsive until watchdog reset—if enabled—or indefinitely.
+
+I’d treat REPL code as untrusted and add an execution budget. The most robust approach is a Lua instruction-count hook:
+  - Install lua_sethook(..., LUA_MASKCOUNT, N) before executing REPL code.
+  - Have the hook abort with a controlled Lua error once a wall-clock deadline or instruction budget is exceeded.
+  - Clear the hook afterward, including error paths.
+  - Keep the budget short enough to preserve keyboard responsiveness, e.g. 10–50 ms.
+
+A wall-clock deadline is preferable to instruction count alone, since a C function invoked by Lua can consume substantial time without executing Lua VM instructions. But the instruction hook handles ordinary Lua loops very well.
+
+Yielding/retrying key processing during an arbitrary Lua call is much harder: normal Lua code is not automatically resumable unless you run it in a coroutine and require it to yield cooperatively. For a keyboard firmware, I’d keep REPL commands bounded and advise fw.execute_later()/timers for any deliberately deferred work.
+
 [Tips]
 * Redefine Riot-independent #define constants using "static const" and "static inline".
 * Change m_pthread->flags directly instead calling thread_flags_set(), if we don't need to yield to other threads at this moment, and there is no other threads or interrupt that can change it simultaneously (So irq_disable() is not necessary).

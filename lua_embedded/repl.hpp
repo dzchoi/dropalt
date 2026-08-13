@@ -3,7 +3,7 @@
 #include <climits>              // for INT_MIN
 #include <cstdint>              // for uint32_t, int8_t
 
-#include "lua.hpp"              // for status_t
+#include "lua.hpp"              // for LUA_YIELD and status_t
 
 
 
@@ -18,6 +18,9 @@ class repl {
 public:
     // Start the Lua REPL, enabling execution of Lua code received from stdin.
     static void start();
+
+    // Tell the DTE that the serial port is available but the REPL is not ready yet.
+    static void hold() { respond(LUA_YIELD); }
 
     // No-op. Ideally, this would revert all changes made to L across REPL sessions.
     static void stop() {}
