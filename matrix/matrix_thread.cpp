@@ -42,21 +42,24 @@ void matrix_thread::init()
 // https://www.kennethkuhn.com/electronics/debounce.c).
 //   - Asymmetric: detects press and release events with different detection delays.
 //   - Per-key: maintains a separate debouncer for each key.
+//   - Post-release lockout: rejects new presses for a time-bounded window.
 //   - Scan mode: uses active (polling) scan while any key is pressed; switches to
 //     interrupt-based scanning once all keys are released.
 [[gnu::always_inline, gnu::hot]]
 static inline void debouncer(int8_t* pbounce, unsigned pressing)
 {
-    // c >= 0 : not pressing; c = consecutive HIGHs (0 .. DEBOUNCE_PRESS_MS-1).
-    // c <  0 : pressing;    -c = remaining consecutive LOWs before release.
+    // c < -LOCKOUT_MS       : pressing; -c - LOCKOUT_MS = LOWs remaining before release.
+    // c in [-LOCKOUT_MS, 0] : released; -c = scans remaining in lockout (0 = idle).
+    // c > 0                 : not pressing; c = consecutive HIGHs [1, PRESS_MS - 1].
     int8_t c = *pbounce;
 
     if ( pressing ) {
-        if ( c < 0 || ++c == DEBOUNCE_PRESS_MS )
-            c = -DEBOUNCE_RELEASE_MS;
+        if ( c < -DEBOUNCE_LOCKOUT_MS || ++c == DEBOUNCE_PRESS_MS )
+            c = -(DEBOUNCE_RELEASE_MS + DEBOUNCE_LOCKOUT_MS);
     }
     else {
-        // Any LOW cancels press build-up; while pressed, count remaining LOWs toward 0.
+        // Any LOW cancels press build-up; while pressed or in lockout, advance toward
+        // idle.
         if ( c < 0 ) ++c;
         else c = 0;
     }
@@ -140,7 +143,7 @@ NORETURN void* matrix_thread::_thread_entry(void*)
         // Notify main_thread of every key state change.
         for ( unsigned mat_index = 0 ; mat_index < NUM_MATRIX_SLOTS ; mat_index++ ) {
             const int8_t bounce = m_bounce[mat_index];
-            const bool pressing = (bounce < 0);
+            const bool pressing = (bounce < -DEBOUNCE_LOCKOUT_MS);
             if ( pressing != m_pressed[mat_index] ) {
                 if ( !main_thread::signal_key_event(
                   map_index(mat_index), pressing, MATRIX_SCAN_PERIOD_US) ) {

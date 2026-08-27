@@ -75,3 +75,9 @@ constexpr int8_t DEBOUNCE_PRESS_MS = 3;  // must be >= 1.
 
 // A key release sustained for this duration will make a debounced release.
 constexpr int8_t DEBOUNCE_RELEASE_MS = 15;  // must be >= 1.
+
+// After a debounced release, contact chatter is ignored for this duration to prevent
+// a spurious re-press. Set to 0 to disable.
+constexpr int8_t DEBOUNCE_LOCKOUT_MS = 25;  // must be >= 0.
+
+static_assert( DEBOUNCE_RELEASE_MS + DEBOUNCE_LOCKOUT_MS <= INT8_MAX );
