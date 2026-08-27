@@ -94,20 +94,28 @@ function Base:is_pressed()
     return self.m_press_count > 0
 end
 
-Pseudo = Base  -- Base can be used standalone.
-
 -------- Lit
 -- Lit(keyname) creates a keymap instance that triggers press/release events for the
 -- given key. Refer to hid_keycodes.hpp for valid key names.
--- Note: Every keymap instance based on Base() is independent and tracks its own press/
--- release state. So, calling Lit() multiple times with the same keyname is allowed but
--- generally discouraged. If you want multiple key slots to share state (e.g. left and
--- right FN), create a single instance and assign it to both slots.
+-- Calls with the same keyname returns the same instance instead of a new instance.
 Lit = Class(Base)
 
 function Lit:init(keyname)
     Base.init(self)
     self.m_keycode = fw.keycode(keyname)
+end
+
+-- Replace Lit's constructor with a memoized version.
+local lit_cache = {}
+local lit_metatable = getmetatable(Lit)
+local lit_old_ctor = lit_metatable.__call
+lit_metatable.__call = function(self, keyname)
+    local obj = lit_cache[keyname]
+    if not obj then
+        obj = lit_old_ctor(self, keyname)
+        lit_cache[keyname] = obj
+    end
+    return obj
 end
 
 function Lit:on_press()

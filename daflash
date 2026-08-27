@@ -5,6 +5,10 @@
 #   $ ./daflash -samboot                # mdloader mode (SAM-BA bootloader)
 #   $ ./daflash -samboot --port /dev/ttyACM0  # mdloader with explicit port
 
+# Note: Execute daflash with only one host connected, or specifically on `last_host_port`
+# when two hosts are connected. Otherwise, downloading Lua user scripts may fail after
+# flashing, because BKSWRST can reboot to a port other than the one where daflash started.
+
 if [ "$1" = "-samboot" ]; then
     shift  # Remove -samboot; remaining args are forwarded to mdloader.
 

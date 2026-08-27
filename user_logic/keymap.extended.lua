@@ -7,21 +7,6 @@
 
 
 
--------- Lit()
--- Memoized version of Lit() to avoid creating multiple instances with the same keyname.
--- This function is used only during load time and discarded afterward, since it is
--- defined locally and the cache[] array as well.
--- Note that this function is used when defining a keymap instance (e.g., mHome =
--- ModIf(FN, Lit("END"), Lit("HOME"))). It executes at compile time, and because it is
--- declared local, it is removed after loading the "keymap" module.
-local cache = {}
-local function Lit(keyname)
-    if not cache[keyname] then
-        cache[keyname] = _ENV.Lit(keyname)  -- _ENV.Lit() is the global Lit().
-    end
-    return cache[keyname]
-end
-
 -------- LampJiggler
 -- A custom Lamp that periodically taps a key while the lamp is active.
 -- Note that each `LampJiggler()` instance is automatically stored in c_lamp_slots[], so
@@ -55,8 +40,9 @@ end
 
 
 -------- Custom keymaps
-local FN    = Pseudo()
-local FN2   = Pseudo()
+local Pseudo = Base  -- Base can be used standalone.
+local FN     = Pseudo()
+local FN2    = Pseudo()
 
 -- FN + ` -> fw.dfu_mode(), FN + holding ` -> Power
 local mBKTK = ModIf(FN,

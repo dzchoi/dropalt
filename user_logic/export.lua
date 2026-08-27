@@ -1,9 +1,22 @@
--- The .init() method in each class isn't needed at runtime after loading finishes.
-for _, class in pairs(_ENV) do
-    if type(class) == "table" then
+-- Class constructors and .init() methods aren't needed after loading finishes. Keep
+-- global bindings only for classes with class (static) variables (c_* members).
+for name, class in pairs(_ENV) do
+    if type(class) == "table" and rawget(class, "__index") == class then
         rawset(class, "init", nil)
+        rawset(getmetatable(class), "__call", nil)
+
+        for member in pairs(class) do
+            -- ["c_", "c`") contains exactly strings prefixed with "c_".
+            if member >= "c_" and member < "c`" then
+                goto continue
+            end
+        end
+
+        rawset(_ENV, name, nil)
+        ::continue::
     end
 end
+Class = nil
 
 -- Core keymap driver (engine) responsible for processing key events and dispatching
 -- them to user-defined mappings.
