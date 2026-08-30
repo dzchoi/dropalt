@@ -1,3 +1,20 @@
+-- Normalize and validate the completed keymap layout once, after all user definitions
+-- have loaded. Also resolve keymap-associated lamps to their final physical slots.
+assert( #Base.c_keymap_table == KEY_LED_COUNT )
+for i, keymap in ipairs(Base.c_keymap_table) do
+    keymap = Base.to_keymap(keymap)
+    -- It should be an instance of Base.
+    assert( type(keymap) == "table" and type(keymap._press) == "function",
+        "keymaps["..i.."] not valid" )
+    Base.c_keymap_table[i] = keymap
+
+    if keymap._lamp then
+        keymap._lamp.m_slot_index = i
+        keymap._lamp = nil
+    end
+end
+Base.to_keymap = nil
+
 -- Class constructors and .init() methods aren't needed after loading finishes. Keep
 -- global bindings only for classes with class (static) variables (c_* members).
 for name, class in pairs(_ENV) do
@@ -17,6 +34,8 @@ for name, class in pairs(_ENV) do
     end
 end
 Class = nil
+
+
 
 -- Core keymap driver (engine) responsible for processing key events and dispatching
 -- them to user-defined mappings.

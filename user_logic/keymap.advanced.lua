@@ -1,4 +1,4 @@
--- Key mapping definitions for the "keymap" module
+-- Advanced key mapping example for the "keymap" module
 
 -- 🚨 Note: Any error in the scripts will cause a crash, either during module loading at
 -- boot or when executing a keymap triggered by pressing a key. For example, calling
@@ -16,7 +16,7 @@ local LampJiggler = Class(Lamp, Timer)
 function LampJiggler:init(lamp_id, slot_index_or_keymap, jiggler_keymap, jiggle_period_ms)
     Lamp.init(self, lamp_id, slot_index_or_keymap)
     Timer.init(self)
-    self.m_jiggler_keymap = jiggler_keymap
+    self.m_jiggler_keymap = Base.to_keymap(jiggler_keymap)
     self.m_jiggle_period_ms = jiggle_period_ms
 end
 
@@ -45,99 +45,78 @@ local FN     = Pseudo()
 local FN2    = Pseudo()
 
 -- FN + ` -> fw.dfu_mode(), FN + holding ` -> Power
-local mBKTK = ModIf(FN,
-    TapHold(Function(fw.dfu_mode), Lit("POWER"), HoldIsTap), Lit("`"))
+local mBKTK = If(FN,
+    TapHold(fw.dfu_mode, "POWER", HoldIsTap), "`")
 
 -- FN + 1 or holding 1 -> F1, FN + 2 or holding 2 -> F2, ...
 local QuickTap = TapOnPress|TapOnRelease|HoldIsTap
-local m1 = ModIf(FN, Lit("F1"), TapHold(Lit("1"), Lit("F1"), QuickTap))
-local m2 = ModIf(FN, Lit("F2"), TapHold(Lit("2"), Lit("F2"), QuickTap))
-local m3 = ModIf(FN, Lit("F3"), TapHold(Lit("3"), Lit("F3"), QuickTap))
-local m4 = ModIf(FN, Lit("F4"), TapHold(Lit("4"), Lit("F4"), QuickTap))
-local m5 = ModIf(FN, Lit("F5"), TapHold(Lit("5"), Lit("F5"), QuickTap))
-local m6 = ModIf(FN, Lit("F6"), TapHold(Lit("6"), Lit("F6"), QuickTap))
-local m7 = ModIf(FN, Lit("F7"), TapHold(Lit("7"), Lit("F7"), QuickTap))
-local m8 = ModIf(FN, Lit("F8"), TapHold(Lit("8"), Lit("F8"), QuickTap))
-local m9 = ModIf(FN, Lit("F9"), TapHold(Lit("9"), Lit("F9"), QuickTap))
-local m0 = ModIf(FN, Lit("F10"), TapHold(Lit("0"), Lit("F10"), QuickTap))
-local mMINUS = ModIf(FN, Lit("F11"), TapHold(Lit("-"), Lit("F11"), QuickTap))
-local mEQUAL = ModIf(FN, Lit("F12"), TapHold(Lit("="), Lit("F12"), QuickTap))
+local m1 = If(FN, "F1", TapHold("1", "F1", QuickTap))
+local m2 = If(FN, "F2", TapHold("2", "F2", QuickTap))
+local m3 = If(FN, "F3", TapHold("3", "F3", QuickTap))
+local m4 = If(FN, "F4", TapHold("4", "F4", QuickTap))
+local m5 = If(FN, "F5", TapHold("5", "F5", QuickTap))
+local m6 = If(FN, "F6", TapHold("6", "F6", QuickTap))
+local m7 = If(FN, "F7", TapHold("7", "F7", QuickTap))
+local m8 = If(FN, "F8", TapHold("8", "F8", QuickTap))
+local m9 = If(FN, "F9", TapHold("9", "F9", QuickTap))
+local m0 = If(FN, "F10", TapHold("0", "F10", QuickTap))
+local mMINUS = If(FN, "F11", TapHold("-", "F11", QuickTap))
+local mEQUAL = If(FN, "F12", TapHold("=", "F12", QuickTap))
 
 -- FN + BkSp -> Del
-local mBKSP = ModIf(FN, Lit("DEL"), Lit("BKSP"))
+local mBKSP = If(FN, "DEL", "BKSP")
 
 -- Hold Tab -> FN2, FN + Tab -> fw.switchover()
-local mTAB = ModIf(FN,
+local mTAB = If(FN,
     -- Directly executing fw.switchover() is safe here because the modifier is a
     -- non-physical key (FN). However, if it were e.g. CTRL, fw.switchover() should be
     -- called through fw.execute_later().
-    -- Function(function() fw.execute_later(fw.switchover) end),
-    Function(fw.switchover),
-    TapHold(Lit("TAB"), FN2, HoldOnPress))
+    -- function() fw.execute_later(fw.switchover) end,
+    fw.switchover,
+    TapHold("TAB", FN2, HoldOnPress))
 
 -- FN + P -> PrtScr
-local mP = ModIf(FN, Lit("PRTSCR"), Lit("P"))
+local mP = If(FN, "PRTSCR", "P")
 
 -- FN + [ -> ScrLock
 -- Most Linux Distros do not handle SCRLOCK but Windows does.
-local mLBRAC = ModIf(FN, Lit("SCRLOCK"), Lit("["))
+local mLBRAC = If(FN, "SCRLOCK", "[")
 -- Periodically taps RSHFT every 5 minutes while SCRLOCK lamp is lit.
-LampJiggler(LAMP_SCRLOCK, LED_BOTTOM_RIGHT, Lit("RSHFT"), 299000)  -- 4 min 59 sec
+LampJiggler(LAMP_SCRLOCK, LED_BOTTOM_RIGHT, "RSHFT", 299000)  -- 4 min 59 sec
 
 -- FN + ] -> Break/Pause
-local mRBRAC = ModIf(FN, Lit("PAUSE"), Lit("]"))
+local mRBRAC = If(FN, "PAUSE", "]")
 
 -- Tap FN -> Esc
-local tFN = TapHold(Lit("ESC"), FN, HoldOnPress)
+local tFN = TapHold("ESC", FN, HoldOnPress)
 
 -- FN + H/J/K/L -> arrow keys, FN2 + H/J/K/L -> Home/PgDn/PgUp/End
-local mH = ModIf(FN, Lit("LEFT"), ModIf(FN2, Lit("HOME"), Lit("H")))
-local mJ = ModIf(FN, Lit("DOWN"), ModIf(FN2, Lit("PGDN"), Lit("J")))
-local mK = ModIf(FN, Lit("UP"), ModIf(FN2, Lit("PGUP"), Lit("K")))
-local mL = ModIf(FN, Lit("RIGHT"), ModIf(FN2, Lit("END"), Lit("L")))
+local mH = If(FN, "LEFT", If(FN2, "HOME", "H"))
+local mJ = If(FN, "DOWN", If(FN2, "PGDN", "J"))
+local mK = If(FN, "UP", If(FN2, "PGUP", "K"))
+local mL = If(FN, "RIGHT", If(FN2, "END", "L"))
 
 -- Hold Enter -> FN
-local tENTER = TapHold(Lit("ENTER"), FN, HoldOnPress)
+local tENTER = TapHold("ENTER", FN, HoldOnPress)
 
 -- Tap Space -> Space, Hold Space -> Rshft, Tap + Tap + Hold Space -> Space
-local tSPACE = TapHold(Lit("SPACE"), Lit("RSHFT"), HoldOnRelease|QuickRelease)
-tSPACE = TapSeq(tSPACE, tSPACE, Lit("SPACE"))
+local tSPACE = TapHold("SPACE", "RSHFT", HoldOnRelease|QuickRelease)
+tSPACE = TapSeq(tSPACE, tSPACE, "SPACE")
 
 -- Lshft w/tSPACE (not w/Rshft) -> Space
 -- Double-tap Lshft -> CapsLock, Tap Lshft (when CapsLock on) -> CapsLock
-local mLSHFT = ModIf(tSPACE, Lit("SPACE"),
-    ModIf(Predicate(function() return Lamp.is_lamp_active(LAMP_CAPSLOCK) end),
-        Lit("CAPSLOCK"), TapSeq(Lit("LSHFT"), Lit("CAPSLOCK"))) )
+local mLSHFT = If(tSPACE, "SPACE",
+    If(function() return Lamp.is_lamp_active(LAMP_CAPSLOCK) end,
+        "CAPSLOCK", TapSeq("LSHFT", "CAPSLOCK")) )
 Lamp(LAMP_CAPSLOCK, LED_BOTTOM_LEFT)
 
 -- Tap Rshft -> Ins
-local tRSHFT = TapHold(Lit("INS"), Lit("RSHFT"), HoldOnPress|QuickRelease)
+local tRSHFT = TapHold("INS", "RSHFT", HoldOnPress|QuickRelease)
 
 
-
--------- Generate keymap table from the user-defined layout.
-local function layout(keymaps)
-    assert( #keymaps == KEY_LED_COUNT )
-    for i, keymap in ipairs(keymaps) do
-        if type(keymap) == "string" then
-            keymaps[i] = Lit(keymap)
-        else
-            -- It should be an instance of Base.
-            assert( keymap._press, "keymaps["..i.."] not valid" )
-            -- If the keymap is associated with a lamp, link the lamp to the slot
-            -- currently occupied by the keymap.
-            if keymap._lamp then
-                keymap._lamp.m_slot_index = i
-                keymap._lamp = nil
-            end
-        end
-    end
-
-    return keymaps
-end
 
 -- Register user-defined keymaps.
-Base.c_keymap_table = layout {
+Base.c_keymap_table = {
     mBKTK, m1, m2, m3, m4, m5, m6, m7, m8, m9, m0, mMINUS, mEQUAL, mBKSP, "DEL",
     mTAB, "Q", "W", "E", "R", "T", "Y", "U", "I", "O", mP, mLBRAC, mRBRAC, "\\", "HOME",
     tFN, "A", "S", "D", "F", "G", mH, mJ, mK, mL, ";", "'", tENTER, "PGUP",

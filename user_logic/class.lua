@@ -66,6 +66,16 @@ Base = Class()
 Base.c_keymap_table = {}       -- Global table that holds slot-keymap associations.
 Base.c_current_slot_index = 0  -- Index of the slot currently under processing.
 
+-- Convert shorthand keymap values to keymap instances.
+function Base.to_keymap(map)
+    if type(map) == "string" then
+        return Lit(map)
+    elseif type(map) == "function" then
+        return Function(map)
+    end
+    return map
+end
+
 function Base:init()
     -- Initialize the new instance (`self`).
     self.m_press_count = 0
@@ -153,7 +163,7 @@ OneShot = Class(Base)
 
 function OneShot:init(map)
     Base.init(self)
-    self.m_map = map
+    self.m_map = self.to_keymap(map)
 end
 
 function OneShot:on_press()
@@ -200,80 +210,59 @@ function Predicate:is_pressed()
     return self.m_pred()
 end
 
--------- Modifier
--- Modifier(map_modifier) calls on_modified_press/release() if the given map_modifier is
--- currently pressed, or on_press/release() otherwise.
-Modifier = Class(Proxy)
+-------- If
+-- If(condition, map_true, map_false) acts as map_true when condition:is_pressed()
+-- returns true, or as map_false otherwise. A function condition is automatically
+-- wrapped in Predicate.
+If = Class(Base)
 
-function Modifier:init(map_modifier)
-    Proxy.init(self)
-    self.m_map_modifier = map_modifier
-    self.m_is_modified = false
+function If:init(condition, map_true, map_false)
+    Base.init(self)
+    if type(condition) == "function" then
+        condition = Predicate(condition)
+    end
+    self.m_condition = condition
+    self.m_map_true = self.to_keymap(map_true)
+    self.m_map_false = self.to_keymap(map_false)
+    self.m_map_chosen = false
 end
 
-function Modifier:on_modified_press() end
-function Modifier:on_modified_release() end
-
-function Modifier:on_proxy_press()
-    assert( self.m_is_modified == false )
-    if self.m_map_modifier:is_pressed() then
-        self.m_is_modified = true
-        self:on_modified_press()
+function If:on_press()
+    assert( self.m_map_chosen == false )
+    if self.m_condition:is_pressed() then
+        self.m_map_chosen = self.m_map_true
     else
-        self:on_press()
+        self.m_map_chosen = self.m_map_false
     end
+    self.m_map_chosen:_press()
 end
 
-function Modifier:on_proxy_release()
-    if self.m_is_modified then
-        self:on_modified_release()
-        self.m_is_modified = false
-    else
-        self:on_release()
-    end
+function If:on_release()
+    self.m_map_chosen:_release()
+    self.m_map_chosen = false
 end
 
--------- ModIf
--- ModIf(map_modifier, map_modified, map_original [, flavor]) acts as map_modified if
--- map_modifier is currently pressed, or as map_original otherwise.
-ModIf = Class(Modifier)
+-------- Without
+-- Without(modifier, keymap) temporarily releases a pressed modifier while keymap runs,
+-- then restores it. If the modifier is not pressed, the release/restore pair is a no-op.
+Without = Class(Base)
 
--- Flavors
-KEEP_MODIFIER = 0   -- (default)
--- The map_modifier remains pressed when map_modified is triggered.
-
-UNDO_MODIFIER = 1
--- The map_modifier is released when map_modified is triggered.
-
-function ModIf:init(map_modifier, map_modified, map_original, flavor)
-    Modifier.init(self, map_modifier)
-    self.m_map_modified = map_modified
-    self.m_map_original = map_original
-    self.m_flavor = flavor or KEEP_MODIFIER
+function Without:init(modifier, map)
+    Base.init(self)
+    self.m_modifier = self.to_keymap(modifier)
+    self.m_map = self.to_keymap(map)
 end
 
-function ModIf:on_press()
-    self.m_map_original:_press()
+function Without:on_press()
+    self.m_modifier:_release()
+    self.m_map:_press()
 end
 
-function ModIf:on_release()
-    self.m_map_original:_release()
-end
-
-function ModIf:on_modified_press()
-    if self.m_flavor == UNDO_MODIFIER then
-        self.m_map_modifier:_release()
-    end
-    self.m_map_modified:_press()
-end
-
-function ModIf:on_modified_release()
-    self.m_map_modified:_release()
-    if self.m_flavor == UNDO_MODIFIER then
-        -- Since Base.m_press_count is a signed integer, calling _press() here won't
-        -- re-press the modifier if it's already been released externally.
-        self.m_map_modifier:_press()
-    end
+function Without:on_release()
+    self.m_map:_release()
+    -- Base.m_press_count is signed, so this balances the release above without
+    -- pressing the modifier if it was not pressed initially or was released externally.
+    self.m_modifier:_press()
 end
 
 -------- Defer
@@ -485,12 +474,12 @@ function TapHold:init(map_tap, map_hold, flavor, tapping_term_ms)
     Defer.init(self)
     Timer.init(self)
 
-    self.m_map_tap = map_tap
+    self.m_map_tap = self.to_keymap(map_tap)
     self.m_flavor = flavor or 0
     if self.m_flavor & HoldIsTap ~= 0 then
         self.m_map_hold = OneShot(map_hold)
     else
-        self.m_map_hold = map_hold
+        self.m_map_hold = self.to_keymap(map_hold)
     end
     self.m_map_chosen = false
     self.m_tapping_term_ms = tapping_term_ms or TAPPING_TERM_MS
@@ -704,7 +693,10 @@ function TapSeq:init(...)
     end
 
     TapDance.init(self, tapping_term_ms)
-    self.m_map_tap = args
+    self.m_map_tap = {}
+    for i, map in ipairs(args) do
+        self.m_map_tap[i] = self.to_keymap(map)
+    end
 end
 
 function TapSeq:on_press()
