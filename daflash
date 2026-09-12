@@ -37,7 +37,11 @@ else
     # Build the firmware.
     make -j8 && \
     # Flash the firmware. `-R` triggers BKSWRST (Bank Swap and Reset).
-    dfu-util -a0 -D .build/board-dropalt/dropalt-fw.bin -R "$@" && \
+    { dfu-util -a0 -D .build/board-dropalt/dropalt-fw.bin -R "$@" ||
+        # dfu-util 0.11 can return -5 (LIBUSB_ERROR_NOT_FOUND), exposed by the shell
+        # as 251, after a successful -R reset makes the device disappear. Treat only
+        # that known post-reset result as success; preserve all other failures.
+        [ "$?" -eq 251 ]; } && \
     # Wait for the device to reboot and reappear in DFU mode.
     timeout 3 sh -c \
     'until dfu-util -l "$@" 2>/dev/null |grep -q "^Found DFU"; do sleep 0.1; done' _ "$@" && \

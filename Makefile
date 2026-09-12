@@ -11,9 +11,11 @@ APPLICATION := dropalt-fw
 CONFIG_HPP := config.hpp
 
 # Version numbers encoded in USB device descriptor
-DEVICE_VER := 0x0100            # bcdDevice =  1.00 for the firmware
+DEVICE_VER := 0x0101            # bcdDevice =  1.01 for the firmware
 HUB_DEVICE_VER := 0x2410        # bcdDevice = 24.10 for Hub
 CFLAGS += -DDEVICE_VER=$(DEVICE_VER) -DHUB_DEVICE_VER=$(HUB_DEVICE_VER)
+# GCC 15 diagnoses fixed-size character lookup tables without a NUL terminator.
+CFLAGS += -Wno-error=unterminated-string-initialization
 
 # Version number (in decimal) embedded in the slot header.
 APP_VER := $(shell printf "%d" $(DEVICE_VER))

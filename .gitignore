@@ -1,6 +1,7 @@
 AGENTS.md
 commit.txt
 .build/
+.distrobox-name
 .drafts/
 .vscode/settings.json
 *.tar
